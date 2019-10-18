@@ -21,6 +21,8 @@ class TestRITIntegration(unittest.TestCase):
         for action in cls._action_list:
             cls._actions[action.tags[0].name] = action
 
+        Policy().reset()
+
         # A passive node that:
         # - is running two services - ssh and a http
         # - has two users and a root
