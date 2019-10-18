@@ -100,6 +100,10 @@ class Policy(metaclass=Singleton):
     def __del__(self):
         self._conn.close()
 
+    def reset(self):
+        self._conn.execute("DELETE FROM authorizations")
+        self._authorizations.clear()
+
     def add_authorization(self, *authorizations: Authorization) -> None:
         for authorization in authorizations:
             # make a cartesian product of all authorizations

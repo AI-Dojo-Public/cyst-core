@@ -7,6 +7,8 @@ class TestPolicy(unittest.TestCase):
 
     @classmethod
     def setUpClass(cls) -> None:
+        Policy().reset()
+
         # Access to services s1 and s2 on each node
         a1 = Authorization("id1", [], ["s1", "s2"], AccessLevel.ELEVATED)
         # Access to all services on node n1
