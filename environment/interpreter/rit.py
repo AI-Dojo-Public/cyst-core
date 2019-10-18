@@ -1,0 +1,104 @@
+import sys
+
+from typing import Tuple
+
+from environment.action import Action, ActionList
+from environment.environment import environment_interpreters
+from environment.message import Response, Request, Status, StatusValue, StatusOrigin
+from environment.node import PassiveNode
+
+
+ActionList().add_action(Action("rit:active_recon:host_discovery"))
+ActionList().add_action(Action("rit:active_recon:service_discovery"))
+ActionList().add_action(Action("rit:active_recon:vulnerability_discovery"))
+ActionList().add_action(Action("rit:active_recon:information_discovery"))
+ActionList().add_action(Action("rit:privilege_escalation:user_privilege_escalation"))
+ActionList().add_action(Action("rit:privilege_escalation:root_privilege_escalation"))
+ActionList().add_action(Action("rit:privilege_escalation:network_sniffing_ca"))
+ActionList().add_action(Action("rit:privilege_escalation:brute_force_ca"))
+ActionList().add_action(Action("rit:privilege_escalation:account_manipulation"))
+ActionList().add_action(Action("rit:targeted_exploits:trusted_organization_exploitation"))
+ActionList().add_action(Action("rit:targeted_exploits:exploit_public_facing_application"))
+ActionList().add_action(Action("rit:targeted_exploits:exploit_remote_services"))
+ActionList().add_action(Action("rit:targeted_exploits:spearphishing"))
+ActionList().add_action(Action("rit:targeted_exploits:service_specific_exploitation"))
+ActionList().add_action(Action("rit:targeted_exploits:arbitrary_code_execution"))
+ActionList().add_action(Action("rit:ensure_access:defense_evasion"))
+ActionList().add_action(Action("rit:ensure_access:command_and_control"))
+ActionList().add_action(Action("rit:ensure_access:lateral_movement"))
+ActionList().add_action(Action("rit:zero_day:privilege_escalation"))
+ActionList().add_action(Action("rit:zero_day:targeted_exploit"))
+ActionList().add_action(Action("rit:zero_day:ensure_access"))
+ActionList().add_action(Action("rit:disrupt:end_point_dos"))
+ActionList().add_action(Action("rit:disrupt:network_dos"))
+ActionList().add_action(Action("rit:disrupt:service_stop"))
+ActionList().add_action(Action("rit:disrupt:resource_hijacking"))
+ActionList().add_action(Action("rit:destroy:data_destruction"))
+ActionList().add_action(Action("rit:destroy:content_wipe"))
+ActionList().add_action(Action("rit:distort:data_encryption"))
+ActionList().add_action(Action("rit:distort:defacement"))
+ActionList().add_action(Action("rit:distort:data_manipulation"))
+ActionList().add_action(Action("rit:disclosure:data_exfiltration"))
+ActionList().add_action(Action("rit:delivery:data_delivery"))
+
+
+def evaluate(names, message, node):
+    if not names:
+        return 0, None
+
+    # Gah... changing it back and forth.
+    tag = ":".join(names)
+
+    fn = getattr(sys.modules[__name__], "process_" + tag.replace(":", "_"), process_default)
+    return fn(message, node)
+
+
+environment_interpreters["rit"] = evaluate
+
+
+def process_default(message, node):
+    print("Could not evaluate message. Tag in `rit` namespace unknown. " + str(message))
+    return 0, None
+
+
+def process_active_recon_host_discovery(message, node):
+    return 1, Response(message.id, node.ip, message.source, message.service,
+                       Status(StatusOrigin.NODE, StatusValue.SUCCESS))
+
+
+def process_active_recon_service_discovery(message, node):
+    return 1, Response(message.id, node.ip, message.source, message.service,
+                       Status(StatusOrigin.NODE, StatusValue.SUCCESS), [x for x in node.services])
+
+
+def process_active_recon_vulnerability_discovery(message, node):
+    if message.service and message.service in node.services:
+        return 1, Response(message.id, node.ip, message.source, message.service,
+                           Status(StatusOrigin.SERVICE, StatusValue.SUCCESS),
+                           list(node.services[message.service].tags))
+    else:
+        return 1, Response(message.id, node.ip, message.source, message.service,
+                           Status(StatusOrigin.NODE, StatusValue.ERROR),
+                           "No/wrong service specified for vulnerability discovery")
+
+
+def process_active_recon_information_discovery(message: Request, node: PassiveNode) -> Tuple[int, Response]:
+    if message.service and message.service in node.services:
+        public_data = node.services[message.service].public_data
+        public_authorizations = node.services[message.service].public_authorizations
+        if public_authorizations or public_data:
+            return 1, Response(message.id, node.ip, message.source, message.service,
+                               Status(StatusOrigin.SERVICE, StatusValue.SUCCESS),
+                               public_data + public_authorizations)
+        else:
+            return 1, Response(message.id, node.ip, message.source, message.service,
+                               Status(StatusOrigin.SERVICE, StatusValue.FAILURE))
+
+    return 1, Response(message.id, node.ip, message.source, message.service,
+                       Status(StatusOrigin.NODE, StatusValue.ERROR),
+                       "No/wrong service specified for information discovery")
+
+
+def process_rit_privilege_escalation_user_privilege_escalation(message, node):
+    # This action should only be possible on systems where an attacker has a user account and can
+    return 0, None
