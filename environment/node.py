@@ -3,7 +3,7 @@ import ipaddress
 from typing import List
 
 from environment.message import MessageType
-from environment.access import Authorization
+from environment.access import Authorization, AccessLevel
 
 
 #TODO The role of data and tokens is still unfinished bussiness - currently there is impossible to receive partial tokens (e.g. username only)
@@ -28,6 +28,8 @@ class Service:
         self._public_authorizations = []
         self._private_authorizations = []
         self._tags = set()
+        self._enable_session = False
+        self._session_access_level = AccessLevel.NONE
 
     @property
     def id(self) -> str:
@@ -68,6 +70,20 @@ class Service:
     @property
     def public_authorizations(self) -> List[Authorization]:
         return self._public_authorizations
+
+    @property
+    def enable_session(self) -> bool:
+        return self._enable_session
+
+    def set_enable_session(self, value: bool) -> None:
+        self._enable_session = value
+
+    @property
+    def session_access_level(self) -> AccessLevel:
+        return self._session_access_level
+
+    def set_session_access_level(self, value) -> None:
+        self._session_access_level = value
 
 
 class Node:
@@ -123,12 +139,11 @@ class Node:
 
 
 class PassiveNode(Node):
-    def __init__(self, id):
+    def __init__(self, id: str, ip: str = "", mask: str = "") -> None:
         self._data = []
         self._tokens = []
         self._services = {}
-        super(PassiveNode, self).__init__(id)
-        self._type = "Passive node"
+        super(PassiveNode, self).__init__(id, type="Passive node", ip=ip, mask=mask)
 
     def add_data(self, data):
         self._data.append(data)

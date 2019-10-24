@@ -1,10 +1,12 @@
 import sys
 
-from typing import Tuple
+from typing import List, Tuple
 
+from environment.access import Policy
 from environment.action import Action, ActionList
 from environment.environment import environment_interpreters
 from environment.message import Response, Request, Status, StatusValue, StatusOrigin
+from environment.network import Session
 from environment.node import PassiveNode
 
 
@@ -42,7 +44,7 @@ ActionList().add_action(Action("rit:disclosure:data_exfiltration"))
 ActionList().add_action(Action("rit:delivery:data_delivery"))
 
 
-def evaluate(names, message, node):
+def evaluate(names: List[str], message: Request, node: PassiveNode):
     if not names:
         return 0, None
 
@@ -56,30 +58,30 @@ def evaluate(names, message, node):
 environment_interpreters["rit"] = evaluate
 
 
-def process_default(message, node):
+def process_default(message, node) -> Tuple[int, Response]:
     print("Could not evaluate message. Tag in `rit` namespace unknown. " + str(message))
-    return 0, None
+    return 0, Response("-1")
 
 
-def process_active_recon_host_discovery(message, node):
+def process_active_recon_host_discovery(message: Request, node: PassiveNode) -> Tuple[int, Response]:
     return 1, Response(message.id, node.ip, message.source, message.service,
-                       Status(StatusOrigin.NODE, StatusValue.SUCCESS))
+                       Status(StatusOrigin.NODE, StatusValue.SUCCESS), session=message.session)
 
 
-def process_active_recon_service_discovery(message, node):
+def process_active_recon_service_discovery(message: Request, node: PassiveNode) -> Tuple[int, Response]:
     return 1, Response(message.id, node.ip, message.source, message.service,
-                       Status(StatusOrigin.NODE, StatusValue.SUCCESS), [x for x in node.services])
+                       Status(StatusOrigin.NODE, StatusValue.SUCCESS), [x for x in node.services], session=message.session)
 
 
-def process_active_recon_vulnerability_discovery(message, node):
+def process_active_recon_vulnerability_discovery(message: Request, node: PassiveNode) -> Tuple[int, Response]:
     if message.service and message.service in node.services:
         return 1, Response(message.id, node.ip, message.source, message.service,
                            Status(StatusOrigin.SERVICE, StatusValue.SUCCESS),
-                           list(node.services[message.service].tags))
+                           list(node.services[message.service].tags), session=message.session)
     else:
         return 1, Response(message.id, node.ip, message.source, message.service,
                            Status(StatusOrigin.NODE, StatusValue.ERROR),
-                           "No/wrong service specified for vulnerability discovery")
+                           "No/wrong service specified for vulnerability discovery", session=message.session)
 
 
 def process_active_recon_information_discovery(message: Request, node: PassiveNode) -> Tuple[int, Response]:
@@ -89,14 +91,39 @@ def process_active_recon_information_discovery(message: Request, node: PassiveNo
         if public_authorizations or public_data:
             return 1, Response(message.id, node.ip, message.source, message.service,
                                Status(StatusOrigin.SERVICE, StatusValue.SUCCESS),
-                               public_data + public_authorizations)
+                               public_data + public_authorizations, session=message.session)
         else:
             return 1, Response(message.id, node.ip, message.source, message.service,
-                               Status(StatusOrigin.SERVICE, StatusValue.FAILURE))
+                               Status(StatusOrigin.SERVICE, StatusValue.FAILURE), session=message.session)
 
     return 1, Response(message.id, node.ip, message.source, message.service,
                        Status(StatusOrigin.NODE, StatusValue.ERROR),
-                       "No/wrong service specified for information discovery")
+                       "No/wrong service specified for information discovery", session=message.session)
+
+
+def process_ensure_access_command_and_control(message: Request, node: PassiveNode) -> Tuple[int, Response]:
+    # Check if the target node supports session creation
+    error = ""
+    if not message.service:
+        error = "Service for session creation not specified"
+    elif message.service not in node.services:
+        error = "Nonexistent service {} at node {}".format(message.service, node.ip)
+    elif not node.services[message.service].enable_session:
+        error = "Service {} at node {} does not enable session creation.".format(message.service, node.ip)
+
+    if error:
+        return 1, Response(message.id, node.ip, message.source, message.service,
+                           Status(StatusOrigin.NODE, StatusValue.ERROR), error)
+
+    # If it does, check authorization and eventually create a session object to return
+    if Policy().decide(node.id, message.service, node.services[message.service].session_access_level, message.authorization):
+        path = message.non_session_path
+        path.append(node.ip)
+        return 1, Response(message.id, node.ip, message.source, message.service, Status(StatusOrigin.SERVICE, StatusValue.SUCCESS),
+                           None, session=Session(message.authorization.identity, message.session, path), authorization=message.authorization)
+    else:
+        return 1, Response(message.id, node.ip, message.source, message.service, Status(StatusOrigin.SERVICE, StatusValue.FAILURE),
+                           None, session=None, authorization=message.authorization)
 
 
 def process_rit_privilege_escalation_user_privilege_escalation(message, node):

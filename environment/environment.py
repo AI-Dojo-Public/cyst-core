@@ -77,9 +77,19 @@ class Environment:
         source = self._network.get_node_by_ip(message.source)
         # Messages that are originating from switch have their first hop already set
         if source and not isinstance(source, Switch):
-            message.set_next_hop(source.gateway)
+            # New request with session should follow the session first
+            # Response should either follow newly established session, or route to session endpoint
+            if message.type == MessageType.REQUEST and message.session:
+                message.set_next_hop()
+            elif message.type == MessageType.RESPONSE and message.session and message.source == message.session.endpoint:
+                message.set_next_hop()
+            # Others go to a gateway
+            else:
+                message.set_next_hop(source.gateway)
 
         heappush(self._tasks, (self._time + delay, message))
+
+        message.sent = True
 
         if message.source in self._pause_on_request:
             self._pause = True
@@ -104,15 +114,29 @@ class Environment:
         processing_time = 0
         # If the node is passive, let the environment process it
         if isinstance(current_node, PassiveNode):
-            # Responses are silently ignored, because there is currently no semantics for processing
-            # responses traversing passive nodes
+            # Request can be processed or passed along
             if isinstance(message, Request):
-                print("Processing request on passive node {}. {}".format(current_node.id, message))
-                processing_time, response = self._process_passive(message, current_node)
-                if not response:
-                    print("Could not process the request, unknown semantics.")
+                # This passive node is just an end of session and should act as a proxy
+                if message.session and (message.in_session or message.session.endpoint == current_node.ip):
+                    print("Proxying request to {} on passive node {}".format(message.target, current_node.id))
+                    message.set_next_hop(current_node.gateway)
+                    processing_time = 1
+                # Otherwise do a full processing
                 else:
-                    self.send_message(response, processing_time)
+                    print("Processing request on passive node {}. {}".format(current_node.id, message))
+                    processing_time, response = self._process_passive(message, current_node)
+                    if response.id == "-1":
+                        print("Could not process the request, unknown semantics.")
+                    else:
+                        self.send_message(response, processing_time)
+            # Responses can only be passed along
+            elif isinstance(message, Response):
+                if message.session and (message.in_session or message.session.endpoint == current_node.ip):
+                    print("Proxying response to {} on passive node {}".format(message.target, current_node.id))
+                    message.set_next_hop()
+                    processing_time = 1
+                else:
+                    raise Exception("Response traversing over passive node without a session")
         else:
             result, processing_time = current_node.process_message(message)
 
