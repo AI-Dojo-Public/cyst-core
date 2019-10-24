@@ -64,7 +64,7 @@ class TestRITIntegration(unittest.TestCase):
         cls._env.add_connection(target, switch)
         cls._env.add_connection(switch, cls._attacker)
 
-    def test_active_recon_host_scan(self) -> None:
+    def test_0000_active_recon_host_scan(self) -> None:
 
         action = self._actions["rit:active_recon:host_discovery"]
         self._attacker.execute_action("192.168.0.2", "", action)
@@ -94,7 +94,7 @@ class TestRITIntegration(unittest.TestCase):
         self.assertEqual(message.status.origin, StatusOrigin.NETWORK, "Got response from the network")
         self.assertEqual(message.status.value, StatusValue.FAILURE, "Host un-routable")
 
-    def test_active_recon_service_scan(self) -> None:
+    def test_0001_active_recon_service_scan(self) -> None:
 
         action = self._actions["rit:active_recon:service_discovery"]
         self._attacker.execute_action("192.168.0.2", "", action)
@@ -107,7 +107,7 @@ class TestRITIntegration(unittest.TestCase):
         self.assertEqual(message.status.value, StatusValue.SUCCESS, "Services disclosed")
         self.assertEqual(message.content, ["ssh", "http"])
 
-    def test_active_recon_vulnerability_discovery(self) -> None:
+    def test_0002_active_recon_vulnerability_discovery(self) -> None:
 
         action = self._actions["rit:active_recon:vulnerability_discovery"]
         self._attacker.execute_action("192.168.0.2", "http", action)
@@ -129,7 +129,7 @@ class TestRITIntegration(unittest.TestCase):
         self.assertEqual(message.status.origin, StatusOrigin.NODE, "Got response from the node")
         self.assertEqual(message.status.value, StatusValue.ERROR, "Vulnerability of non-existent service not disclosed")
 
-    def test_active_recon_information_discovery(self) -> None:
+    def test_0003_active_recon_information_discovery(self) -> None:
 
         action = self._actions["rit:active_recon:information_discovery"]
         self._attacker.execute_action("192.168.0.2", "http", action)

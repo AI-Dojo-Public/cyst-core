@@ -76,6 +76,12 @@ class Authorization:
     def token(self, value: uuid) -> None:
         self._token = value
 
+    def __str__(self) -> str:
+        return "[Identity: {}, Nodes: {}, Services: {}, Access Level: {}, Token: {}]".format(self.identity, self.nodes, self.services, self.access_level.name, self.token)
+
+    def __repr__(self) -> str:
+        return self.__str__()
+
 
 class PolicyStats:
     def __init__(self, authorization_entry_count: int = 0):

@@ -1,8 +1,10 @@
 from typing import Tuple, Optional
 
 from environment.action import Action
+from environment.access import Authorization
 from environment.environment import Environment
 from environment.message import Request, Response, MessageType
+from environment.network import Session
 from environment.node import Node
 
 
@@ -18,8 +20,8 @@ class SimpleAttacker(Node):
     def run(self):
         pass
 
-    def execute_action(self, target: str, service: str, action: Action) -> None:
-        request = Request(self._counter, self.ip, target, service, action)
+    def execute_action(self, target: str, service: str, action: Action, session: Session = None, authorization: Authorization = None) -> None:
+        request = Request(self._counter, self.ip, target, service, action, session=session, authorization=authorization)
         self._counter += 1
         self._env.send_message(request)
 
