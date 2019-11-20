@@ -130,6 +130,9 @@ class Message:
                  .format(self.id, self.type.name, self.source, self.target, self.session, self.authorization)
         return result
 
+    def __lt__(self, other) -> bool:
+        return self.id < other.id
+
     @property
     def path(self) -> List[str]:
         return self._path
