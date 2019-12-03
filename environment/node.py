@@ -1,12 +1,12 @@
-import ipaddress
+from typing import List, Optional, Tuple, Union
+from netaddr import IPAddress
 
-from typing import List
-
-from environment.message import MessageType
 from environment.access import Authorization, AccessLevel
+from environment.message import MessageType
+from environment.network_elements import Interface
 
 
-#TODO The role of data and tokens is still unfinished bussiness - currently there is impossible to receive partial tokens (e.g. username only)
+# TODO The role of data and tokens is still unfinished bussiness - currently there is impossible to receive partial tokens (e.g. username only)
 class Data:
     def __init__(self, id, owner):
         self._id = id
@@ -87,16 +87,13 @@ class Service:
 
 
 class Node:
-    def __init__(self, id: str, type: str = "Node", ip: str = "", mask: str = ""):
+    def __init__(self, id: str, type: str = "Node", ip: Union[str, IPAddress] = "", mask: str = ""):
         self._id = id
         self._type = type
+        self._interfaces = []
         self._ip = None
         if ip:
-            self._ip = ipaddress.ip_address(ip)
-
-        self._net = None
-        if mask:
-            self._net = ipaddress.ip_network(ip + "/" + mask, strict=False)
+            self._interfaces.append(Interface(ip, mask))
 
     @property
     def id(self) -> str:
@@ -107,28 +104,37 @@ class Node:
         return self._type
 
     @property
-    def ip(self) -> str:
-        if not self._ip:
-            return ""
-        else:
-            return str(self._ip)
-
-    def set_ip(self, ip: str) -> None:
-        self._ip = ipaddress.ip_address(ip)
+    def ips(self) -> List[IPAddress]:
+        return [x.ip for x in self._interfaces]
 
     @property
-    def mask(self) -> str:
-        if not self._net:
-            return ""
-        else:
-            return str(self._net.netmask)
+    def interfaces(self) -> List[Interface]:
+        return self._interfaces
 
-    def set_mask(self, mask: str) -> None:
-        self._net = ipaddress.ip_network((self._ip, mask), strict=False)
+    def add_interface(self, i: Interface) -> int:
+        # TODO Currently there is no control of interface overlaps. Question is whether it matters...
+        self._interfaces.append(i)
+        index = len(self._interfaces) - 1
+        i.set_index(index)
+        return index
 
-    @property
-    def gateway(self) -> str:
-        return str(next(self._net.hosts()))
+    # Gateway returns both the IP address of the gateway and the port index
+    def gateway(self, ip: Union[str, IPAddress] = "") -> Optional[Tuple[IPAddress, int]]:
+        # If no IP is specified the the first gateway is used as a default gateway
+        if not self._interfaces:
+            return None
+
+        # Explicit query for default gateway
+        if not ip:
+            return self._interfaces[0].gateway_ip, 0
+
+        # Checking all available routes for exact one
+        for iface in self._interfaces:
+            if iface.routes(ip):
+                return iface.gateway_ip, iface.index
+
+        # Using a default one
+        return self._interfaces[0].gateway_ip, 0
 
     def process_message(self, message) -> int:
         if message.type == MessageType.ACK:

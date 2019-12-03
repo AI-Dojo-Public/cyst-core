@@ -3,10 +3,10 @@ import uuid
 
 from environment.access import Authorization, AccessLevel, Policy
 from environment.action import ActionList
-from environment.environment import Environment, EnvironmentState, PassiveNode
+from environment.environment import Environment, EnvironmentState, EnvironmentProxy, PassiveNode
 from environment.message import StatusValue, StatusOrigin
 from environment.network import Switch
-from environment.node import Service, Node
+from environment.node import Service
 from attackers.simple import SimpleAttacker
 
 
@@ -34,6 +34,10 @@ class TestRITIntegration(unittest.TestCase):
         # SSH service, with valid authentication grants a user access to the system
         ssh_service = Service("ssh")
         ssh_service.add_tags("openssh-8.1")
+        # SSH enables session creation
+        ssh_service.set_enable_session(True)
+        # Sessions can be opened by ordinary users and root
+        ssh_service.set_session_access_level(AccessLevel.LIMITED)
         ssh_auth1 = Authorization("user1", ["node1"], ["ssh"], AccessLevel.LIMITED, uuid.uuid4())
         ssh_auth2 = Authorization("user2", ["node1"], ["ssh"], AccessLevel.LIMITED, uuid.uuid4())
         Policy().add_authorization(ssh_auth1, ssh_auth2)
@@ -51,18 +55,20 @@ class TestRITIntegration(unittest.TestCase):
         target.add_service(http_service)
 
         # Place a switch in front of the target
-        switch = Switch("switch1", "192.168.0.1", "255.255.255.0", cls._env)
+        switch = Switch("switch1", cls._env)
+        switch.add_port("192.168.0.1", "255.255.255.0")
 
         # Create an attacker
-        cls._attacker = SimpleAttacker("attacker1", env=cls._env)
+        proxy = EnvironmentProxy(cls._env, "attacker1")
+        cls._attacker = SimpleAttacker("attacker1", env=proxy)
 
         # Connect the environment pieces
         cls._env.add_node(target)
         cls._env.add_node(switch)
         cls._env.add_node(cls._attacker)
 
-        cls._env.add_connection(target, switch)
-        cls._env.add_connection(switch, cls._attacker)
+        switch.connect_node(target, net="192.168.0.0/24")
+        switch.connect_node(cls._attacker, net="192.168.0.0/24")
 
     def test_0000_active_recon_host_scan(self) -> None:
 

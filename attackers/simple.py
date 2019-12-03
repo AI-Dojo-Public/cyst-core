@@ -2,18 +2,17 @@ from typing import Tuple, Optional
 
 from environment.action import Action
 from environment.access import Authorization
-from environment.environment import Environment
+from environment.environment import EnvironmentProxy
 from environment.message import Request, Response, MessageType
-from environment.network import Session
+from environment.network_elements import Session
 from environment.node import Node
 
 
 class SimpleAttacker(Node):
-    def __init__(self, id: str, type: str = "Attacker", env: Environment = None) -> None:
+    def __init__(self, id: str, type: str = "Attacker", env: EnvironmentProxy = None) -> None:
         self._env = env
         super(SimpleAttacker, self).__init__(id, type)
 
-        self._counter = 0
         self._responses = []
 
     # This attacker only runs given actions. No own initiative
@@ -21,9 +20,8 @@ class SimpleAttacker(Node):
         pass
 
     def execute_action(self, target: str, service: str, action: Action, session: Session = None, authorization: Authorization = None) -> None:
-        request = Request(self._counter, self.ip, target, service, action, session=session, authorization=authorization)
-        self._counter += 1
-        self._env.send_message(request)
+        request = Request(target, service, action, session=session, authorization=authorization)
+        self._env.send_request(request)
 
     def process_message(self, message) -> Tuple[bool, int]:
         if message.type == MessageType.ACK:
