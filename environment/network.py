@@ -1,289 +1,197 @@
-import ipaddress
 import networkx as nx
-import uuid
 
-from collections import Iterable
-from typing import Tuple, NamedTuple, Optional, List
+from netaddr import *
 
-from environment.message import Message, MessageType, Response, Status, StatusOrigin, StatusValue
+from typing import Tuple, Optional, List, Union
+
+from environment.message import _Message, MessageType, Response, Status, StatusOrigin, StatusValue
 from environment.node import Node
+from environment.network_elements import Endpoint, Route, Connection, Port, Interface
 
 
-# This is not a very optimized approach, but as long it does not slow down the execution... meh
-class Route(NamedTuple):
-    net: ipaddress.IPv4Network
-    ip: str
-
-
+# TODO Switches do not reflect dynamic changes in port parameters. Big question is whether they should
 class Switch(Node):
 
-    # As much I hate to have env untyped, forcing a type check on this results in a cyclic dependency hell
-    def __init__(self, id: str, ip: str, mask: str, env) -> None:
-        if not ip:
-            raise Exception("A switch cannot be instantiated without an IP specified")
+    def __init__(self, id: str, env: 'Environment') -> None:
 
-        if not mask:
-            raise Exception("A switch cannot be instantiated without a mask specified")
-
-        super(Switch, self).__init__(id, "Switch", ip, mask)
+        super(Switch, self).__init__(id, "Switch")
 
         self._env = env
-
-        self._node_ips = set()
-        self._switch_ips = set()
+        self._ports = []
+        self._local_ips = {}
+        self._local_nets = []
         self._routes = []
 
-    def connect_node(self, node: Node) -> Tuple[bool, str]:
-        # Do not process already processed nodes
-        if node.ip in self._node_ips:
-            return False, "Node already connected"
+    @property
+    def interfaces(self) -> List[Port]:
+        return self._ports
 
-        assigned_ip = node.ip
-        # If the node does not have an address, assign one from the pool
-        if not assigned_ip:
-            for h in self._net.hosts():
-                # The fact that I am casting it back and forth from string to ip is abhorrent. But unless this proves
-                # to be a real performance issue, I am leaving it as-is
-                addr = str(h)
-                if addr != self.ip and addr not in self._node_ips:
-                    assigned_ip = addr
+    # Port removal not supported, but they can be overwritten by using already used port index
+    # Otherwise the port index is just incremented
+    def add_port(self, ip: Union[str, IPAddress] = "", mask: str = "", index: int = -1) -> int:
+        new_index = index
+        if index == -1:
+            new_index = len(self._ports)
+
+        self._ports.append(Port(ip, mask, new_index))
+        return new_index
+
+    def port_net(self, index: int) -> Optional[IPNetwork]:
+        return self._ports[index].net
+
+    # Check if IP belongs to local net
+    def _is_local_ip(self, ip: IPAddress) -> bool:
+        for net in self._local_nets:
+            if ip in net:
+                return True
+        return False
+
+    def connect_node(self, node: Node, switch_index: int = -1, node_index: int = 0, net: str = "") -> Tuple[bool, str]:
+        # If both a specific switch and network designation si provided, bail out
+        if switch_index != -1 and net:
+            return False, "Cannot specify both switch index and network designation"
+
+        # No switch port was selected, new one is dynamically added
+        new_switch_index = switch_index
+        if switch_index == -1:
+            # Net designation was provided, use it for the port
+            if net:
+                network = IPNetwork(net)
+                new_switch_index = self.add_port(next(network.iter_hosts()), str(network.netmask))
+            # otherwise add and unconfigured port
+            else:
+                new_switch_index = self.add_port()
+
+        new_node_index = node_index
+        switch_port = self._ports[new_switch_index]
+        node_interface = node.interfaces[node_index] if node.interfaces else None
+
+        # Get DHCP status
+        dhcp = False if node_interface and node_interface.ip else True
+
+        assigned_ip = None
+
+        if dhcp:
+            if new_switch_index == -1 or not switch_port.net:
+                return False, "Trying to connect a node to a switch port that does not support automatic address assignment"
+
+            # Find a suitable host from switch network
+            for h in switch_port.net.iter_hosts():
+                if h != switch_port.ip and h not in self._local_ips:
+                    assigned_ip = h
                     break
 
             if not assigned_ip:
-                return False, "Do not have any more addresses to allocate"
+                return False, "Do not have any more addresses to allocate in the range {}".format(str(switch_port.net))
+
+            node_interface = Interface(assigned_ip, str(switch_port.net.netmask))
+            new_node_index = node.add_interface(node_interface)
 
         else:
-            if node.gateway != self.ip:
-                return False, "Connecting node to wrong gateway"
+            # If the switch does not have network configured, accept the one by the connected node
+            if not switch_port.net:
+                switch_port.set_ip(node_interface.gateway_ip)
+                switch_port.set_net(node_interface.net)
 
-        self._node_ips.add(assigned_ip)
+            # Check if there is a conflict between switch IP and expected IP from connected node
+            if node_interface.gateway_ip != switch_port.ip:
+                return False, "The connected node expects gateway to have an IP {}, but it has an IP {}".format(str(node_interface.gateway_ip), str(switch_port.ip))
 
-        # If the node was originally without an IP, assign it
-        if not node.ip:
-            # Set node parameters
-            node.set_ip(assigned_ip)
-            node.set_mask(str(self._net.netmask))
+            assigned_ip = node_interface.ip
 
-            # Propagate the information to the network
-            self._env.network.update_node_ip(node, assigned_ip)
+        # Add the host ip to the list of local ips and the port net to the list of local networks
+        self._local_ips[assigned_ip] = switch_port.index
+        if switch_port.net not in self._local_nets:
+            self._local_nets.append(switch_port.net)
 
-    def connect_switch(self, switch: 'Switch') -> Tuple[bool, str]:
-        if self._net.overlaps(switch._net):
-            return False, "Switches {} and {} overlaps in their network.".format(self.id, switch.id)
+        # Set endpoints on both ends
+        switch_port.connect_endpoint(Endpoint(node.id, new_node_index))
+        node_interface.connect_gateway(switch_port.ip, self.id, new_switch_index)
 
-        if switch.ip in self._switch_ips:
-            return False, "Switch {} already connected with {}".format(self.id, switch.id)
+        # TODO it still remains to update the network graph
 
-        # Update routing tables on both sides
-        self._routes.append(Route(switch._net, switch.ip))
-        self._switch_ips.add(switch.ip)
+        return True, ""
 
-        switch._routes.append(Route(self._net, self.ip))
-        switch._switch_ips.add(self.ip)
+    def connect_switch(self, switch: 'Switch', remote_port_index: int = -1, local_port_index: int = -1) -> Tuple[bool, str]:
 
-    def process_message(self, message: Message) -> Tuple[bool, int]:
+        # Create missing ports if needed
+        remote_port = remote_port_index
+        local_port = local_port_index
+
+        if remote_port == -1:
+            remote_port = switch.add_port()
+
+        if local_port == -1:
+            local_port = self.add_port()
+
+        # Update local routing table
+        remote_net = switch.port_net(remote_port)
+        if not remote_net:
+            remote_net = IPNetwork("0.0.0.0/0")
+        self._routes.append(Route(remote_net, local_port))
+        self._ports[local_port].connect_endpoint(Endpoint(switch.id, remote_port))
+
+        # Update remote routing table
+        local_net = self._ports[local_port].net
+        if not local_net:
+            local_net = IPNetwork("0.0.0.0/0")
+        switch._routes.append(Route(local_net, remote_port))
+        switch._ports[remote_port].connect_endpoint(Endpoint(self.id, local_port))
+
+        return True, ""
+
+    def process_message(self, message: _Message) -> Tuple[bool, int]:
         if message.type == MessageType.ACK:
             return True, 0
 
         # If message is still going through a session then pass it along where it should go
-        if message.in_session:
+        # the same goes for responses, which travel back from whence they came
+        if message.in_session:  # or message.type == MessageType.RESPONSE:
             message.set_next_hop()
             return True, 1
 
-        target_ip = ipaddress.ip_address(message.target)
-        if message.type == MessageType.RESPONSE and message.session:
-            target_ip = ipaddress.ip_address(message.session.endpoint)
+        # TODO evaluate permeability between networks!
+        # When looking at the current target, the switch must also check, if the target is within the same network as
+        # is the net of the arriving port
+        # The same goes for switch constituency
 
-        # The target is in this switch's constituency
-        if target_ip in self._net:
-            # And the target even exists
-            if str(target_ip) in self._node_ips:
-                message.set_next_hop(str(target_ip))
-                return True, 1
-            # The target is not there
-            else:
-                m = Response(message.id, source=message.target, target=message.source, status=Status(StatusOrigin.NETWORK, StatusValue.FAILURE), content="Host unreachable")
-                m.set_next_hop(self.ip)
+        # The rule of thumb is - you can cross from local networks to remote networks, but you can't cross between
+        # local networks and you can't go from remote network to local networks
+        # Port forwarding is in the current state impossible and is ignore to reduce scope
+
+        # Check if the target is linked to a switch port
+        port = self._local_ips.get(message.dst_ip, -1)
+        if port != -1:
+            # It is, but in another network
+            if message.dst_ip not in self._ports[message.current.port].net:
+                m = Response(message, status=Status(StatusOrigin.NETWORK, StatusValue.FAILURE),
+                             content="Host unreachable")
+                # The next hop is automatically calculated because it is a response
+                m.set_next_hop()
                 self._env.send_message(m)
                 return False, 1
-
-        else:
-            for route in self._routes:
-                if target_ip in route.net:
-                    message.set_next_hop(route.ip)
-                    return True, 1
-
-            m = Response(message.id, source=message.target, target=message.source, status=Status(StatusOrigin.NETWORK, StatusValue.FAILURE), content="Network address {} not routable".format(message.target))
-            m.set_next_hop(self.ip)
+            # The same network, let's go
+            else:
+                message.set_next_hop(Endpoint(self.id, port), self._ports[port].endpoint)
+                return True, 1
+        # It is not, but belongs to switch constituency
+        elif self._is_local_ip(message.dst_ip):
+            m = Response(message, status=Status(StatusOrigin.NETWORK, StatusValue.FAILURE), content="Host unreachable")
+            # The next hop is automatically calculated because it is a response
+            m.set_next_hop()
             self._env.send_message(m)
             return False, 1
+        # Try to send it somewhere
+        else:
+            for route in self._routes:
+                if message.dst_ip in route.net:
+                    message.set_next_hop(Endpoint(self.id, route.port), self._ports[route.port].endpoint)
+                    return True, 1
 
-
-# This class is here as a future proofing
-class Connection:
-    def __init__(self):
-        pass
-
-
-# The session represents an existing chain of connections, which can be traversed without authorization by its owner
-class Session:
-    def __init__(self, owner: str, parent: 'Session' = None, path: List[str] = None) -> None:
-        self._id = uuid.uuid4()
-        if not owner:
-            raise Exception("Cannot create a session without an owner")
-
-        self._owner = owner
-        self._parent = parent
-
-        if self._parent and parent.owner != self._owner:
-            raise Exception("Cannot link sessions with different owners")
-
-        if not path:
-            raise Exception("Cannot create a session without a path")
-
-        self._path = path
-        self._endpoint = path[-1]
-
-        if self._parent and self._parent.endpoint == self._endpoint:
-            raise Exception("Cannot create a session sharing an endpoint with a parent")
-
-    class ForwardIterator(Iterable):
-        def __init__(self, session: 'Session') -> None:
-            self._session = session
-            self._path_index = 0
-            if session.parent:
-                self._parent_iterator = session.parent.get_forward_iterator()
-            else:
-                self._parent_iterator = None
-            self._parent_traversed = False
-            # The last element is to ensure de-duplication of nodes between sessions, because they share ends and begins
-            self._last = ""
-
-        def has_next(self) -> bool:
-            if self._parent_iterator and self._parent_iterator.has_next():
-                return True
-
-            # has_next ignores that __next__ can jump two items during iteration, because it would be a problem only if
-            # a second session had only one element (creating session on itself)
-            if self._path_index != len(self._session.path):
-                return True
-
-            return False
-
-        def __iter__(self):
-            return self
-
-        def __next__(self) -> str:
-            if self._parent_traversed or not self._session.parent:
-                if self._path_index != len(self._session.path):
-                    result = self._session.path[self._path_index]
-                    self._path_index += 1
-
-                    # Skip duplicate nodes on the session endpoints
-                    if result == self._last:
-                        return self.__next__()
-                    else:
-                        self._last = result
-                        return result
-                else:
-                    raise StopIteration
-            else:
-                if self._parent_iterator.has_next():
-                    result = self._parent_iterator.__next__()
-                    self._last = result
-                    return result
-                else:
-                    self._parent_traversed = True
-                    return self.__next__()
-
-    class ReverseIterator(Iterable):
-        def __init__(self, session: 'Session') -> None:
-            self._session = session
-            self._path_index = len(self._session.path) - 1
-            if session.parent:
-                self._parent_iterator = session.parent.get_reverse_iterator()
-            else:
-                self._parent_iterator = None
-            self._parent_traversing = False
-            # The last element is to ensure de-duplication of nodes between sessions, because they share ends and begins
-            self._last = ""
-
-        def has_next(self) -> bool:
-            if self._path_index >= 0:
-                return True
-
-            elif self._parent_iterator:
-                return self._parent_iterator.has_next()
-
-            return False
-
-        def __iter__(self):
-            return self
-
-        def __next__(self) -> str:
-            if self._path_index >= 0:
-                result = self._session.path[self._path_index]
-                self._path_index -= 1
-                self._last = result
-                return result
-            else:
-                if not self._parent_traversing:
-                    self._parent_traversing = True
-                    return self.__next__()
-                else:
-                    if self._parent_iterator.has_next():
-                        result = self._parent_iterator.__next__()
-                        # Skip duplicate nodes on the session endpoints
-                        if result == self._last:
-                            result = self._parent_iterator.__next__()
-
-                        self._last = result
-                        return result
-                    else:
-                        raise StopIteration
-
-    @property
-    def owner(self) -> str:
-        return self._owner
-
-    @property
-    def id(self) -> str:
-        return str(self._id)
-
-    @property
-    def parent(self) -> 'Session':
-        return self._parent
-
-    @property
-    def path(self) -> List[str]:
-        return self._path
-
-    def get_forward_iterator(self) -> ForwardIterator:
-        return Session.ForwardIterator(self)
-
-    def get_reverse_iterator(self) -> ReverseIterator:
-        return Session.ReverseIterator(self)
-
-    @property
-    def endpoint(self) -> str:
-        return self._endpoint
-
-    def __str__(self) -> str:
-        result = []
-        for node in self.get_forward_iterator():
-            result.append(node)
-        return "[ID: {}, Owner: {}, Path: {}]".format(self.id, self.owner, result)
-
-    def __repr__(self) -> str:
-        return self.__str__()
-
-    def __eq__(self, other) -> bool:
-        if not other:
-            return False
-
-        return self.owner == other.owner and \
-            self.parent == other.parent and \
-            self.path == other.path
+            m = Response(message, status=Status(StatusOrigin.NETWORK, StatusValue.FAILURE), content="Network address {} not routable".format(message.dst_ip))
+            m.set_next_hop()
+            self._env.send_message(m)
+            return False, 1
 
 
 class Network:
@@ -300,10 +208,14 @@ class Network:
 
         self._nodes_by_id[node.id] = node
 
-        if node.ip:
-            self._nodes_by_ip[node.ip] = node
+        for ip in node.ips:
+            if ip not in self._nodes_by_ip:
+                self._nodes_by_ip[ip] = []
+
+            self._nodes_by_ip[ip].append(node)
+
             if isinstance(node, Switch):
-                self._switches[node.ip] = node.id
+                self._switches[ip] = node.id
 
         self._graph.add_node(node.id, node=node)
 
@@ -333,7 +245,13 @@ class Network:
         else:
             return self._nodes_by_ip.get(ip, None)
 
-    def get_node_by_id(self, id: str = "") -> Optional[str]:
+    def get_neighbor_by_ip(self, node_id: str, ip: str) -> Optional[str]:
+        neighbors = self._graph.neighbors(node_id)
+        for neighbor in neighbors:
+            if ip in neighbor["ips"]:
+                return neighbor
+
+    def get_node_by_id(self, id: str = "") -> Optional[Node]:
         if not id:
             return None
         else:

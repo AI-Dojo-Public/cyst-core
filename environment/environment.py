@@ -2,8 +2,9 @@ from enum import Enum
 from heapq import heappush, heappop
 from typing import Tuple, List
 
-from environment.message import MessageType, Ack, Request, Response, Message
-from environment.network import Network, Connection, Switch
+from environment.message import MessageType, Ack, Request, Response, _Message, StatusValue, StatusOrigin
+from environment.network import Network, Connection
+from environment.network_elements import Endpoint
 from environment.node import PassiveNode, Node
 
 environment_interpreters = {}
@@ -72,36 +73,59 @@ class Environment:
 
         return time, response
 
-    def send_message(self, message: Message, delay: int = 0) -> None:
+    def send_message(self, message: _Message, delay: int = 0) -> None:
         # set a first hop for a message
-        source = self._network.get_node_by_ip(message.source)
-        # Messages that are originating from switch have their first hop already set
-        if source and not isinstance(source, Switch):
+        source = self._network.get_node_by_id(message.origin.id)
+        # Find a next hop for messages without one
+        if source and not message.next_hop:
             # New request with session should follow the session first
             # Response should either follow newly established session, or route to session endpoint
+            # TODO rearrange it to reflect changes in response set_next_hop handling
             if message.type == MessageType.REQUEST and message.session:
                 message.set_next_hop()
-            elif message.type == MessageType.RESPONSE and message.session and message.source == message.session.endpoint:
+                # Not a pretty thing, but I am not sure how to make it better
+                it = message.session.get_forward_iterator()
+                hop = next(it)
+                port = hop.src.port
+                iface = source.interfaces[port]
+                message.set_src_ip(iface.ip)
+            elif message.type == MessageType.RESPONSE:
+                if message.session and message.current == message.session.endpoint:
+                    # This is stupid, but it complains...
+                    if isinstance(message, Response):
+                        message.set_in_session(True)
                 message.set_next_hop()
             # Others go to a gateway
             else:
-                message.set_next_hop(source.gateway)
+                target = message.dst_ip
+                gateway, port = source.gateway(target)
+                if not gateway:
+                    raise Exception("Could not send a message, no gateway to route it through.")
 
-        heappush(self._tasks, (self._time + delay, message))
+                message.set_origin(Endpoint(source.id, port))
+
+                iface = source.interfaces[port]
+                message.set_src_ip(iface.ip)
+                # First sending is specific, because the current value is set to origin
+                message.set_next_hop(message.origin, iface.endpoint)
+        try:
+            heappush(self._tasks, (self._time + delay, message))
+        except Exception as e:
+            print("Error sending a message, reason: {}".format(e))
 
         message.sent = True
 
-        if message.source in self._pause_on_request:
+        if message.origin.id in self._pause_on_request:
             self._pause = True
 
-    def _send_message(self, message: Message) -> None:
+    def _send_message(self, message: _Message) -> None:
 
         # shortcut for wakeup messages
         if message.type == MessageType.TIMEOUT:
-            self._network.get_node_by_ip(message.source).process_message(message)
+            self._network.get_node_by_id(message.origin.id).process_message(message)
             return
 
-        current_node = self._network.get_node_by_ip(message.current)
+        current_node = self._network.get_node_by_id(message.current.id)
 
         # Ack for successfully sending a message
         if current_node and not isinstance(current_node, PassiveNode):
@@ -109,7 +133,7 @@ class Environment:
 
         # Move message to a next hop
         message.hop()
-        current_node = self._network.get_node_by_ip(message.current)
+        current_node = self._network.get_node_by_id(message.current.id)
 
         processing_time = 0
         # If the node is passive, let the environment process it
@@ -117,23 +141,30 @@ class Environment:
             # Request can be processed or passed along
             if isinstance(message, Request):
                 # This passive node is just an end of session and should act as a proxy
-                if message.session and (message.in_session or message.session.endpoint == current_node.ip):
-                    print("Proxying request to {} on passive node {}".format(message.target, current_node.id))
-                    message.set_next_hop(current_node.gateway)
+                if message.session and (message.in_session or message.session.endpoint.id == current_node.id):
+                    if message.in_session:
+                        message.set_next_hop()
+                    # We've reached the end of session
+                    else:
+                        # Find a way to nearest switch
+                        gateway, port = current_node.gateway(message.dst_ip)
+                        message.set_next_hop(Endpoint(current_node.id, port), current_node.interfaces[port].endpoint)
+
+                    print("Proxying request to {} via {} on passive node {}".format(message.dst_ip, message.next_hop.id, current_node.id))
                     processing_time = 1
                 # Otherwise do a full processing
                 else:
                     print("Processing request on passive node {}. {}".format(current_node.id, message))
                     processing_time, response = self._process_passive(message, current_node)
-                    if response.id == "-1":
+                    if response.status.origin == StatusOrigin.SYSTEM and response.status.value == StatusValue.ERROR:
                         print("Could not process the request, unknown semantics.")
                     else:
                         self.send_message(response, processing_time)
             # Responses can only be passed along
             elif isinstance(message, Response):
-                if message.session and (message.in_session or message.session.endpoint == current_node.ip):
-                    print("Proxying response to {} on passive node {}".format(message.target, current_node.id))
+                if message.session and (message.in_session or message.session.endpoint.id == current_node.id):
                     message.set_next_hop()
+                    print("Proxying response to {} via {} on passive node {}".format(message.dst_ip, message.next_hop.id, current_node.id))
                     processing_time = 1
                 else:
                     raise Exception("Response traversing over passive node without a session")
@@ -147,7 +178,7 @@ class Environment:
             if current_node.id in self._pause_on_response:
                 self._pause = True
 
-        if message.current != message.target:
+        if current_node.interfaces and current_node.interfaces[message.current.port].ip != message.dst_ip:
             heappush(self._tasks, (self._time + processing_time, message))
 
     def run(self) -> Tuple[bool, EnvironmentState]:
@@ -224,3 +255,18 @@ class Environment:
             self._state = EnvironmentState.FINISHED
 
         return True, self._state
+
+
+# EnvironmentProxy is a proxy for the environment, which is passed to each active node. It takes care of routing of
+# messages and prevents forging of Messages and spooky action in the distance
+class EnvironmentProxy:
+    def __init__(self, env: Environment, node_id: str) -> None:
+        self._env = env
+        # Node is resolved on the first attempt to send a message
+        self._node_id = node_id
+
+    def send_request(self, request: Request, delay: int = 0) -> None:
+        # Dummy origin, to make it work with Environment.send_message
+        request.set_origin(Endpoint(self._node_id, -1))
+
+        self._env.send_message(request, delay)

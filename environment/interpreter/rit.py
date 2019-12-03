@@ -6,7 +6,7 @@ from environment.access import Policy
 from environment.action import Action, ActionList
 from environment.environment import environment_interpreters
 from environment.message import Response, Request, Status, StatusValue, StatusOrigin
-from environment.network import Session
+from environment.network_elements import Session
 from environment.node import PassiveNode
 
 
@@ -60,28 +60,27 @@ environment_interpreters["rit"] = evaluate
 
 def process_default(message, node) -> Tuple[int, Response]:
     print("Could not evaluate message. Tag in `rit` namespace unknown. " + str(message))
-    return 0, Response("-1")
+    return 0, Response(message, status=Status(StatusOrigin.SYSTEM, StatusValue.ERROR))
 
 
 def process_active_recon_host_discovery(message: Request, node: PassiveNode) -> Tuple[int, Response]:
-    return 1, Response(message.id, node.ip, message.source, message.service,
-                       Status(StatusOrigin.NODE, StatusValue.SUCCESS), session=message.session)
+    return 1, Response(message, message.service, Status(StatusOrigin.NODE, StatusValue.SUCCESS),
+                       None, session=message.session, authorization=message.authorization)
 
 
 def process_active_recon_service_discovery(message: Request, node: PassiveNode) -> Tuple[int, Response]:
-    return 1, Response(message.id, node.ip, message.source, message.service,
-                       Status(StatusOrigin.NODE, StatusValue.SUCCESS), [x for x in node.services], session=message.session)
+    return 1, Response(message, message.service, Status(StatusOrigin.NODE, StatusValue.SUCCESS),
+                       [x for x in node.services], session=message.session, authorization=message.authorization)
 
 
 def process_active_recon_vulnerability_discovery(message: Request, node: PassiveNode) -> Tuple[int, Response]:
     if message.service and message.service in node.services:
-        return 1, Response(message.id, node.ip, message.source, message.service,
-                           Status(StatusOrigin.SERVICE, StatusValue.SUCCESS),
-                           list(node.services[message.service].tags), session=message.session)
+        return 1, Response(message, message.service, Status(StatusOrigin.SERVICE, StatusValue.SUCCESS),
+                           list(node.services[message.service].tags), session=message.session, authorization=message.authorization)
     else:
-        return 1, Response(message.id, node.ip, message.source, message.service,
-                           Status(StatusOrigin.NODE, StatusValue.ERROR),
-                           "No/wrong service specified for vulnerability discovery", session=message.session)
+        return 1, Response(message, message.service, Status(StatusOrigin.NODE, StatusValue.ERROR),
+                           "No/wrong service specified for vulnerability discovery", session=message.session,
+                           authorization=message.authorization)
 
 
 def process_active_recon_information_discovery(message: Request, node: PassiveNode) -> Tuple[int, Response]:
@@ -89,16 +88,17 @@ def process_active_recon_information_discovery(message: Request, node: PassiveNo
         public_data = node.services[message.service].public_data
         public_authorizations = node.services[message.service].public_authorizations
         if public_authorizations or public_data:
-            return 1, Response(message.id, node.ip, message.source, message.service,
-                               Status(StatusOrigin.SERVICE, StatusValue.SUCCESS),
-                               public_data + public_authorizations, session=message.session)
+            return 1, Response(message, message.service, Status(StatusOrigin.SERVICE, StatusValue.SUCCESS),
+                               public_data + public_authorizations, session=message.session,
+                               authorization=message.authorization)
         else:
-            return 1, Response(message.id, node.ip, message.source, message.service,
-                               Status(StatusOrigin.SERVICE, StatusValue.FAILURE), session=message.session)
+            return 1, Response(message, message.service, Status(StatusOrigin.SERVICE, StatusValue.SUCCESS),
+                               None, session=message.session,
+                               authorization=message.authorization)
 
-    return 1, Response(message.id, node.ip, message.source, message.service,
-                       Status(StatusOrigin.NODE, StatusValue.ERROR),
-                       "No/wrong service specified for information discovery", session=message.session)
+    return 1, Response(message, message.service, Status(StatusOrigin.NODE, StatusValue.ERROR),
+                       "No/wrong service specified for vulnerability discovery", session=message.session,
+                       authorization=message.authorization)
 
 
 def process_ensure_access_command_and_control(message: Request, node: PassiveNode) -> Tuple[int, Response]:
@@ -107,22 +107,19 @@ def process_ensure_access_command_and_control(message: Request, node: PassiveNod
     if not message.service:
         error = "Service for session creation not specified"
     elif message.service not in node.services:
-        error = "Nonexistent service {} at node {}".format(message.service, node.ip)
+        error = "Nonexistent service {} at node {}".format(message.service, message.dst_ip)
     elif not node.services[message.service].enable_session:
-        error = "Service {} at node {} does not enable session creation.".format(message.service, node.ip)
+        error = "Service {} at node {} does not enable session creation.".format(message.service, message.dst_ip)
 
     if error:
-        return 1, Response(message.id, node.ip, message.source, message.service,
-                           Status(StatusOrigin.NODE, StatusValue.ERROR), error)
+        return 1, Response(message, message.service, Status(StatusOrigin.NODE, StatusValue.ERROR), error)
 
     # If it does, check authorization and eventually create a session object to return
     if Policy().decide(node.id, message.service, node.services[message.service].session_access_level, message.authorization):
-        path = message.non_session_path
-        path.append(node.ip)
-        return 1, Response(message.id, node.ip, message.source, message.service, Status(StatusOrigin.SERVICE, StatusValue.SUCCESS),
-                           None, session=Session(message.authorization.identity, message.session, path), authorization=message.authorization)
+        return 1, Response(message, message.service, Status(StatusOrigin.SERVICE, StatusValue.SUCCESS),
+                           None, session=Session(message.authorization.identity, message.session, message.non_session_path), authorization=message.authorization)
     else:
-        return 1, Response(message.id, node.ip, message.source, message.service, Status(StatusOrigin.SERVICE, StatusValue.FAILURE),
+        return 1, Response(message, message.service, Status(StatusOrigin.SERVICE, StatusValue.FAILURE),
                            None, session=None, authorization=message.authorization)
 
 
