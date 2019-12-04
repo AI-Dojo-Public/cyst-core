@@ -4,9 +4,11 @@ from netaddr import IPAddress
 from environment.access import Authorization, AccessLevel
 from environment.message import MessageType
 from environment.network_elements import Interface
+from environment.views import NodeView, ServiceView, InterfaceView
 
 
-# TODO The role of data and tokens is still unfinished bussiness - currently there is impossible to receive partial tokens (e.g. username only)
+# TODO Data handling is a next big thing - how to manage access to private data, how to express encrypted or hashed data
+#                                          how to reasonably link data, tokens and services
 class Data:
     def __init__(self, id, owner):
         self._id = id
@@ -85,6 +87,9 @@ class Service:
     def set_session_access_level(self, value) -> None:
         self._session_access_level = value
 
+    def view(self) -> ServiceView:
+        return ServiceView(self._id, self._tags, self._public_data, self._public_authorizations, self._enable_session, self._session_access_level)
+
 
 class Node:
     def __init__(self, id: str, type: str = "Node", ip: Union[str, IPAddress] = "", mask: str = ""):
@@ -143,6 +148,10 @@ class Node:
         print("Processing message at node {}. {}".format(self.id, message))
         return 0
 
+    # Active nodes should implement their own view
+    def view(self) -> NodeView:
+        pass
+
 
 class PassiveNode(Node):
     def __init__(self, id: str, ip: str = "", mask: str = "") -> None:
@@ -164,3 +173,14 @@ class PassiveNode(Node):
     @property
     def services(self):
         return self._services
+
+    def view(self) -> NodeView:
+        nv = NodeView()
+
+        for iface in self._interfaces:
+            nv.add_interface(InterfaceView(iface.ip, iface.mask, iface.gateway_ip))
+
+        for service in self._services.values():
+            nv.add_service(ServiceView(service.id, service.tags, service.public_data, service.public_authorizations, service.enable_session, service.session_access_level))
+
+        return nv

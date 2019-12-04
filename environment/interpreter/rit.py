@@ -117,7 +117,7 @@ def process_ensure_access_command_and_control(message: Request, node: PassiveNod
     # If it does, check authorization and eventually create a session object to return
     if Policy().decide(node.id, message.service, node.services[message.service].session_access_level, message.authorization):
         return 1, Response(message, message.service, Status(StatusOrigin.SERVICE, StatusValue.SUCCESS),
-                           None, session=Session(message.authorization.identity, message.session, message.non_session_path), authorization=message.authorization)
+                           node.view(), session=Session(message.authorization.identity, message.session, message.non_session_path), authorization=message.authorization)
     else:
         return 1, Response(message, message.service, Status(StatusOrigin.SERVICE, StatusValue.FAILURE),
                            None, session=None, authorization=message.authorization)
