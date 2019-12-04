@@ -5,6 +5,9 @@ from netaddr import *
 from typing import NamedTuple, Optional, List, Union
 
 
+from environment.views import PortView, InterfaceView
+
+
 class Endpoint(NamedTuple):
     id: str
     port: int
@@ -113,6 +116,9 @@ class Port:
         else:
             return False
 
+    def view(self) -> PortView:
+        return PortView(self._ip, self.mask)
+
 
 # Interface is just a port, which preserves gateway information (that is a port for end devices)
 class Interface(Port):
@@ -156,6 +162,9 @@ class Interface(Port):
             raise Exception("Connecting a gateway with wrong configuration")
 
         self._endpoint = Endpoint(id, port)
+
+    def view(self) -> InterfaceView:
+        return InterfaceView(self._ip, self.mask, self._gateway_ip)
 
 
 # The session represents an existing chain of connections, which can be traversed without authorization by its owner
