@@ -122,8 +122,8 @@ class Policy(metaclass=Singleton):
     def decide(self, node: str, service: str, access_level: AccessLevel, authorization: Authorization) -> Tuple[bool, str]:
         # First check if the authorization is even valid for given parameters
         if (
-                node not in authorization.nodes or
-                service not in authorization.services or
+                ("*" not in authorization.nodes and node not in authorization.nodes) or
+                ("*" not in authorization.services and service not in authorization.services) or
                 access_level.value > authorization.access_level.value
            ):
             return False, "Authorization not valid for given parameters"
