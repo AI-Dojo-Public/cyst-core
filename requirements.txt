@@ -1,3 +1,4 @@
 decorator==4.4.0
 networkx==2.3
 netaddr==0.7.19
+semver==2.9.0
