@@ -44,6 +44,7 @@ class ServiceView:
     public_authorizations: []
     enable_session: bool
     session_access_level: AccessLevel
+    service_access_level: AccessLevel
 
 
 class NodeView:

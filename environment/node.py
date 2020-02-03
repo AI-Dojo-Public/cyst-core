@@ -1,5 +1,6 @@
 from typing import List, Optional, Tuple, Union
 from netaddr import IPAddress
+from semver import VersionInfo
 
 from environment.access import Authorization, AccessLevel
 from environment.message import MessageType
@@ -22,8 +23,9 @@ class Data:
 
 
 class Service:
-    def __init__(self, id: str) -> None:
+    def __init__(self, id: str, version: str = "0.0.0") -> None:
         self._id = id
+        self._version = VersionInfo.parse(version)
         self._node = None
         self._public_data = []
         self._private_data = []
@@ -32,10 +34,15 @@ class Service:
         self._tags = set()
         self._enable_session = False
         self._session_access_level = AccessLevel.NONE
+        self._service_access_level = AccessLevel.LIMITED
 
     @property
     def id(self) -> str:
         return self._id
+
+    @property
+    def version(self) -> VersionInfo:
+        return self._version
 
     @property
     def tags(self):
@@ -87,8 +94,16 @@ class Service:
     def set_session_access_level(self, value) -> None:
         self._session_access_level = value
 
+    @property
+    def service_access_level(self) -> AccessLevel:
+        return self._service_access_level
+
+    def set_service_access_level(self, value) -> None:
+        self._service_access_level = value
+
     def view(self) -> ServiceView:
-        return ServiceView(self._id, self._tags, self._public_data, self._public_authorizations, self._enable_session, self._session_access_level)
+        return ServiceView(self._id, self._tags, self._public_data, self._public_authorizations, self._enable_session,
+                           self._session_access_level, self._service_access_level)
 
 
 class Node:
@@ -181,6 +196,7 @@ class PassiveNode(Node):
             nv.add_interface(InterfaceView(iface.ip, iface.mask, iface.gateway_ip))
 
         for service in self._services.values():
-            nv.add_service(ServiceView(service.id, service.tags, service.public_data, service.public_authorizations, service.enable_session, service.session_access_level))
+            nv.add_service(ServiceView(service.id, service.tags, service.public_data, service.public_authorizations,
+                                       service.enable_session, service.session_access_level, service.service_access_level))
 
         return nv

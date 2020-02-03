@@ -4,9 +4,12 @@ import uuid
 from environment.access import Authorization, AccessLevel, Policy
 from environment.action import ActionList
 from environment.environment import Environment, EnvironmentState, EnvironmentProxy, PassiveNode
+from environment.exploit import Exploit, ExploitLocality, ExploitCategory, VulnerableService
+from environment.exploit_store import ExploitStore
 from environment.message import StatusValue, StatusOrigin
 from environment.network import Switch
-from environment.node import Service
+from environment.network_elements import Endpoint
+from environment.node import Service, NodeView
 from attackers.simple import SimpleAttacker
 
 
@@ -28,28 +31,37 @@ class TestRITIntegration(unittest.TestCase):
         # - has two users and a root
         # - contains interesting data data can be shared
         target = PassiveNode("target1")
-        node_root = Authorization("root", ["node1"], None, AccessLevel.ELEVATED, uuid.uuid4())
+        node_root = Authorization("root", ["target1"], None, AccessLevel.ELEVATED, uuid.uuid4())
         Policy().add_authorization(node_root)
 
         # SSH service, with valid authentication grants a user access to the system
-        ssh_service = Service("ssh")
-        ssh_service.add_tags("openssh-8.1")
+        ssh_service = Service("openssh", "8.1.0")
         # SSH enables session creation
         ssh_service.set_enable_session(True)
         # Sessions can be opened by ordinary users and root
         ssh_service.set_session_access_level(AccessLevel.LIMITED)
-        ssh_auth1 = Authorization("user1", ["node1"], ["ssh"], AccessLevel.LIMITED, uuid.uuid4())
-        ssh_auth2 = Authorization("user2", ["node1"], ["ssh"], AccessLevel.LIMITED, uuid.uuid4())
-        Policy().add_authorization(ssh_auth1, ssh_auth2)
+        # Successful exploit of the service grants attacker a root level access to the system
+        ssh_service.set_service_access_level(AccessLevel.ELEVATED)
+        # make the ssh authorization available to the attacker
+        cls._ssh_auth1 = Authorization("user1", ["target1"], ["openssh"], AccessLevel.LIMITED, uuid.uuid4())
+        ssh_auth2 = Authorization("user2", ["target1"], ["openssh"], AccessLevel.LIMITED, uuid.uuid4())
+        Policy().add_authorization(cls._ssh_auth1, ssh_auth2)
 
         # HTTP service provides a list of users when queried for information. May get system access with exploit
         # Authorizations only added as a public data and are not registered in the policy, because on their own, they do not
         # grant any access.
-        http_service = Service("http")
-        http_service.add_tags("lighttpd-1.4.54")
-        http_auth1 = Authorization("user1", ["node1"])
-        http_auth2 = Authorization("user2", ["node1"])
+        http_service = Service("lighttpd", "1.4.54")
+        http_auth1 = Authorization("user1", ["target1"])
+        http_auth2 = Authorization("user2", ["target1"])
         http_service.add_public_authorization(http_auth1, http_auth2)
+
+        # Successful exploit gives user a limited access to the system
+        http_service.set_service_access_level(AccessLevel.LIMITED)
+
+        # Add system exploitability
+        exploit1 = Exploit("http_exploit", [VulnerableService("lighttpd", "1.4.54")], ExploitLocality.REMOTE, ExploitCategory.CODE_EXECUTION)
+        exploit2 = Exploit("ftp_exploit", [VulnerableService("vsftpd", "3.0.3")], ExploitLocality.REMOTE, ExploitCategory.CODE_EXECUTION)
+        ExploitStore().add_exploit(exploit1, exploit2)
 
         target.add_service(ssh_service)
         target.add_service(http_service)
@@ -67,9 +79,14 @@ class TestRITIntegration(unittest.TestCase):
         cls._env.add_node(switch)
         cls._env.add_node(cls._attacker)
 
+        # TODO change this to env method, once this is merged from bronze_butler branch
         switch.connect_node(target, net="192.168.0.0/24")
         switch.connect_node(cls._attacker, net="192.168.0.0/24")
 
+    # Test correct handling of active scans, namely:
+    # - successful scanning of a live machine
+    # - unsuccessful scanning of non-existing machine
+    # - scanning of an un-routable target
     def test_0000_active_recon_host_scan(self) -> None:
 
         action = self._actions["rit:active_recon:host_discovery"]
@@ -100,6 +117,7 @@ class TestRITIntegration(unittest.TestCase):
         self.assertEqual(message.status.origin, StatusOrigin.NETWORK, "Got response from the network")
         self.assertEqual(message.status.value, StatusValue.FAILURE, "Host un-routable")
 
+    # Test correct gathering of running services
     def test_0001_active_recon_service_scan(self) -> None:
 
         action = self._actions["rit:active_recon:service_discovery"]
@@ -111,19 +129,21 @@ class TestRITIntegration(unittest.TestCase):
         self.assertEqual((result, state), (True, EnvironmentState.PAUSED), "Task ran and was successfully paused.")
         self.assertEqual(message.status.origin, StatusOrigin.NODE, "Got response from the node")
         self.assertEqual(message.status.value, StatusValue.SUCCESS, "Services disclosed")
-        self.assertEqual(message.content, ["ssh", "http"])
+        self.assertEqual(message.content, ["openssh", "lighttpd"])
 
+    # Test getting correct versions of services running on the target and an attempt to get a version of a
+    # service, which is not running
     def test_0002_active_recon_vulnerability_discovery(self) -> None:
 
         action = self._actions["rit:active_recon:vulnerability_discovery"]
-        self._attacker.execute_action("192.168.0.2", "http", action)
+        self._attacker.execute_action("192.168.0.2", "lighttpd", action)
 
         result, state = self._env.resume()
         message = self._attacker.get_last_response()
 
         self.assertEqual((result, state), (True, EnvironmentState.PAUSED), "Task ran and was successfully paused.")
         self.assertEqual(message.status.origin, StatusOrigin.SERVICE, "Got response from the service")
-        self.assertEqual(message.status.value, StatusValue.SUCCESS, "Vulnerability disclosed")
+        self.assertEqual(message.status.value, StatusValue.SUCCESS, "Potential vulnerabilities disclosed")
         self.assertEqual(message.content, ["lighttpd-1.4.54"])
 
         self._attacker.execute_action("192.168.0.2", "nonexisting_service", action)
@@ -135,10 +155,11 @@ class TestRITIntegration(unittest.TestCase):
         self.assertEqual(message.status.origin, StatusOrigin.NODE, "Got response from the node")
         self.assertEqual(message.status.value, StatusValue.ERROR, "Vulnerability of non-existent service not disclosed")
 
+    # Test extraction of publicly available information from the http service
     def test_0003_active_recon_information_discovery(self) -> None:
 
         action = self._actions["rit:active_recon:information_discovery"]
-        self._attacker.execute_action("192.168.0.2", "http", action)
+        self._attacker.execute_action("192.168.0.2", "lighttpd", action)
 
         result, state = self._env.resume()
         message = self._attacker.get_last_response()
@@ -149,7 +170,83 @@ class TestRITIntegration(unittest.TestCase):
 
         authorizations = message.content
         for index, auth in enumerate(authorizations):
-            self.assertEqual(auth, Authorization("user" + str(index + 1), ["node1"]))
+            self.assertEqual(auth, Authorization("user" + str(index + 1), ["target1"]))
+
+    def test_0004_ensure_access_command_and_control(self) -> None:
+
+        action = self._actions["rit:ensure_access:command_and_control"]
+
+        # Three variations of the c&c action - with authorization, with exploit (with or without wrong authorization)
+        #                                      and without anything + some errors because of omissions
+        self._attacker.execute_action("192.168.0.2", "", action)
+
+        result, state = self._env.resume()
+        message = self._attacker.get_last_response()
+
+        self.assertEqual((result, state), (True, EnvironmentState.PAUSED), "Task ran and was successfully paused.")
+        self.assertEqual(message.status.origin, StatusOrigin.NODE, "Got response from the node")
+        self.assertEqual(message.status.value, StatusValue.ERROR, "Failed because service not specified")
+
+        self._attacker.execute_action("192.168.0.2", "nonexisten_service", action)
+
+        result, state = self._env.resume()
+        message = self._attacker.get_last_response()
+
+        self.assertEqual((result, state), (True, EnvironmentState.PAUSED), "Task ran and was successfully paused.")
+        self.assertEqual(message.status.origin, StatusOrigin.NODE, "Got response from the node")
+        self.assertEqual(message.status.value, StatusValue.ERROR, "Failed because wrong service specified")
+
+        self._attacker.execute_action("192.168.0.2", "openssh", action)
+
+        result, state = self._env.resume()
+        message = self._attacker.get_last_response()
+
+        self.assertEqual((result, state), (True, EnvironmentState.PAUSED), "Task ran and was successfully paused.")
+        self.assertEqual(message.status.origin, StatusOrigin.NODE, "Got response from the node")
+        self.assertEqual(message.status.value, StatusValue.ERROR, "Failed because neither auth nor exploit were provided")
+
+        self._attacker.execute_action("192.168.0.2", "openssh", action, authorization=self._ssh_auth1)
+
+        result, state = self._env.resume()
+        message = self._attacker.get_last_response()
+
+        self.assertEqual((result, state), (True, EnvironmentState.PAUSED), "Task ran and was successfully paused.")
+        self.assertEqual(message.status.origin, StatusOrigin.SERVICE, "Got response from the service")
+        self.assertEqual(message.status.value, StatusValue.SUCCESS, "Correctly established a session")
+        self.assertTrue(isinstance(message.content, NodeView), "Got a node view of the target")
+        self.assertEqual(message.session.endpoint, Endpoint("target1", 0))
+
+        # Create dud authorization, that fails because of wrong access token
+        ssh_auth = Authorization("user2", ["target1"], ["ssh"], AccessLevel.LIMITED, uuid.uuid4())
+        good_exploit = ExploitStore().get_exploit(service="lighttpd")[0]
+        action.set_exploit(good_exploit)
+
+        self._attacker.execute_action("192.168.0.2", "lighttpd", action, authorization=ssh_auth)
+
+        result, state = self._env.resume()
+        message = self._attacker.get_last_response()
+
+        self.assertEqual((result, state), (True, EnvironmentState.PAUSED), "Task ran and was successfully paused.")
+        self.assertEqual(message.status.origin, StatusOrigin.SERVICE, "Got response from the service")
+        self.assertEqual(message.status.value, StatusValue.SUCCESS, "Correctly established a session")
+        self.assertTrue(isinstance(message.content, NodeView), "Got a node view of the target")
+        self.assertEqual(message.session.endpoint, Endpoint("target1", 0))
+        self.assertEqual(message.authorization.identity, "lighttpd", "Got correct identity for newly created authorization")
+
+        # Bad exploit used
+        bad_exploit = ExploitStore().get_exploit(service="vsftpd")[0]
+        action.set_exploit(bad_exploit)
+
+        self._attacker.execute_action("192.168.0.2", "lighttpd", action)
+
+        result, state = self._env.resume()
+        message = self._attacker.get_last_response()
+
+        self.assertEqual((result, state), (True, EnvironmentState.PAUSED), "Task ran and was successfully paused.")
+        self.assertEqual(message.status.origin, StatusOrigin.SERVICE, "Got response from the service")
+        self.assertEqual(message.status.value, StatusValue.FAILURE, "Wrong exploit used")
+
+
 
 
 if __name__ == '__main__':
