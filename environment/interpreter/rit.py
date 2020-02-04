@@ -3,9 +3,10 @@ import uuid
 
 from typing import List, Tuple
 
-from environment.access import Policy, Authorization
+from environment.access import Policy, Authorization, AccessLevel
 from environment.action import Action, ActionList
 from environment.environment import environment_interpreters
+from environment.exploit import ExploitCategory, ExploitLocality, ExploitParameterType
 from environment.exploit_store import ExploitStore
 from environment.message import Response, Request, Status, StatusValue, StatusOrigin
 from environment.network_elements import Session
@@ -121,7 +122,7 @@ def process_ensure_access_command_and_control(message: Request, node: PassiveNod
     if error:
         return 1, Response(message, message.service, Status(StatusOrigin.NODE, StatusValue.ERROR), error)
 
-    # First of all, if the attacker provided an authorization token, it is tried first asi it should not trigger
+    # First of all, if the attacker provided an authorization token, it is tried first as it should not trigger
     # a defensive reaction
     if message.authorization:
         # Authorization without enabled session creation does not work
@@ -136,10 +137,11 @@ def process_ensure_access_command_and_control(message: Request, node: PassiveNod
     if message.action.exploit:
         # Successful exploit creates a new authorization, which has a service_access_level and user = service name
         if ExploitStore().evaluate(message.action.exploit.id, message.service, message.session, node)[0]:
-            auth = Authorization(message.service, [node.id], [message.service], node.services[message.service].service_access_level, uuid.uuid4())
+            auth = Authorization(message.service, [node.id], [message.service, node.shell.id],
+                                 node.services[message.service].service_access_level, uuid.uuid4())
             Policy().add_authorization(auth)
             return 1, Response(message, message.service, Status(StatusOrigin.SERVICE, StatusValue.SUCCESS),
-                               node.view(), session=Session(message.authorization.identity, message.session, message.non_session_path),
+                               node.view(), session=Session(message.service, message.session, message.non_session_path),
                                authorization=auth)
         else:
             error = "Service {} not exploitable using the exploit {}".format(message.service, message.action.exploit.id)
@@ -147,6 +149,61 @@ def process_ensure_access_command_and_control(message: Request, node: PassiveNod
     return 1, Response(message, message.service, Status(StatusOrigin.SERVICE, StatusValue.FAILURE), error)
 
 
-def process_rit_privilege_escalation_user_privilege_escalation(message: Request, node: PassiveNode) -> Tuple[int, Response]:
-    # This action should only be possible on systems where an attacker has a user account and can
-    return 0, None
+def process_privilege_escalation_user_privilege_escalation(message: Request, node: PassiveNode) -> Tuple[int, Response]:
+    # To successfully manage a user privilege escalation, the attacker must already have an active session on the
+    # target and must try to impersonate a user with same or lower access level on a service they have auth for.
+
+    # Check if the service is running on the target
+    error = ""
+    if not message.service:
+        error = "Service for session creation not specified"
+    elif message.service not in node.services:
+        error = "Nonexistent service {} at node {}".format(message.service, message.dst_ip)
+
+    if error:
+        return 1, Response(message, message.service, Status(StatusOrigin.NODE, StatusValue.ERROR), error, session=message.session)
+
+    # Check if exploit is correctly provided
+    error = ""
+    if message.action.exploit.locality != ExploitLocality.LOCAL:
+        error = "User privilege escalation can only be done by a local exploit"
+    elif message.action.exploit.category != ExploitCategory.AUTH_MANIPULATION:
+        error = "User privilege escalation requires auth manipulation exploit"
+    elif len(message.action.exploit.parameters) != 1:
+        error = "User privilege escalation requires one parameter - resulting user id"
+    elif message.action.exploit.parameters[0].exploit_type != ExploitParameterType.IDENTITY:
+        error = "Provided exploit parameter does not specify identity"
+
+    # Check if a service is to exploit is accessible
+    if not message.session or message.session.endpoint.id != node.id:
+        error = "No session opened to the node {} to apply local exploit".format(node.id)
+    elif not message.authorization or message.service not in message.authorization.services:
+        error = "No previous access to a service {} available. Need to provide proper authorization".format(message.service)
+
+    if error:
+        return 1, Response(message, message.service, Status(StatusOrigin.SERVICE, StatusValue.ERROR), error, session=message.session)
+
+    # Check if the exploit is applicable
+    result, error = ExploitStore().evaluate(message.action.exploit.id, message.service, message.session, node)
+
+    if not result:
+        return 1, Response(message, message.service, Status(StatusOrigin.SERVICE, StatusValue.FAILURE), error, session=message.session)
+
+    # Check if the provided user id is applicable
+    user_found = False
+    user_required = message.action.exploit.parameters[0].value
+    auths = Policy().get_authorizations(node.id, message.service, AccessLevel.LIMITED)
+    for auth in auths:
+        if auth.identity == user_required:
+            user_found = True
+            break
+
+    if not user_found:
+        return 1, Response(message, message.service, Status(StatusOrigin.SERVICE, StatusValue.FAILURE),
+                           "Attempting to switch to a user {} who is not available at the service".format(user_required), session=message.session)
+
+    new_auth = Authorization(user_required, [node.id], [message.service], access_level=AccessLevel.LIMITED, token=uuid.uuid4())
+    Policy().add_authorization(new_auth)
+
+    return 1, Response(message, message.service, Status(StatusOrigin.SERVICE, StatusValue.SUCCESS), "",
+                       session=message.session, authorization=new_auth)

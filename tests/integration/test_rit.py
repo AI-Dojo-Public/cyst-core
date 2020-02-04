@@ -4,7 +4,7 @@ import uuid
 from environment.access import Authorization, AccessLevel, Policy
 from environment.action import ActionList
 from environment.environment import Environment, EnvironmentState, EnvironmentProxy, PassiveNode
-from environment.exploit import Exploit, ExploitLocality, ExploitCategory, VulnerableService
+from environment.exploit import Exploit, ExploitLocality, ExploitCategory, VulnerableService, ExploitParameter, ExploitParameterType
 from environment.exploit_store import ExploitStore
 from environment.message import StatusValue, StatusOrigin
 from environment.network import Switch
@@ -47,6 +47,18 @@ class TestRITIntegration(unittest.TestCase):
         ssh_auth2 = Authorization("user2", ["target1"], ["openssh"], AccessLevel.LIMITED, uuid.uuid4())
         Policy().add_authorization(cls._ssh_auth1, ssh_auth2)
 
+        # Bash service, accessible only locally
+        bash_service = Service("bash", "5.0.0", local=True)
+        # TODO Bash and other services should probably support local code execution exploits
+        bash_service.set_service_access_level(AccessLevel.LIMITED)
+        bash_auth1 = Authorization("user1", ["target1"], ["bash"], AccessLevel.LIMITED, uuid.uuid4())
+        bash_auth2 = Authorization("user2", ["target1"], ["bash"], AccessLevel.LIMITED, uuid.uuid4())
+        Policy().add_authorization(bash_auth1, bash_auth2)
+
+        # Setting bash as a shell - this way, any successful code-execution exploits to other services will also be
+        # given an access to the bash authorizations
+        target.set_shell(bash_service)
+
         # HTTP service provides a list of users when queried for information. May get system access with exploit
         # Authorizations only added as a public data and are not registered in the policy, because on their own, they do not
         # grant any access.
@@ -61,10 +73,12 @@ class TestRITIntegration(unittest.TestCase):
         # Add system exploitability
         exploit1 = Exploit("http_exploit", [VulnerableService("lighttpd", "1.4.54")], ExploitLocality.REMOTE, ExploitCategory.CODE_EXECUTION)
         exploit2 = Exploit("ftp_exploit", [VulnerableService("vsftpd", "3.0.3")], ExploitLocality.REMOTE, ExploitCategory.CODE_EXECUTION)
-        ExploitStore().add_exploit(exploit1, exploit2)
+        exploit3 = Exploit("bash_user_exploit", [VulnerableService("bash", "5.0.0")], ExploitLocality.LOCAL, ExploitCategory.AUTH_MANIPULATION, ExploitParameter(ExploitParameterType.IDENTITY))
+        ExploitStore().add_exploit(exploit1, exploit2, exploit3)
 
         target.add_service(ssh_service)
         target.add_service(http_service)
+        target.add_service(bash_service)
 
         # Place a switch in front of the target
         switch = Switch("switch1", cls._env)
@@ -129,7 +143,7 @@ class TestRITIntegration(unittest.TestCase):
         self.assertEqual((result, state), (True, EnvironmentState.PAUSED), "Task ran and was successfully paused.")
         self.assertEqual(message.status.origin, StatusOrigin.NODE, "Got response from the node")
         self.assertEqual(message.status.value, StatusValue.SUCCESS, "Services disclosed")
-        self.assertEqual(message.content, ["openssh", "lighttpd"])
+        self.assertEqual(message.content, ["openssh", "lighttpd", "bash"])
 
     # Test getting correct versions of services running on the target and an attempt to get a version of a
     # service, which is not running
@@ -187,7 +201,7 @@ class TestRITIntegration(unittest.TestCase):
         self.assertEqual(message.status.origin, StatusOrigin.NODE, "Got response from the node")
         self.assertEqual(message.status.value, StatusValue.ERROR, "Failed because service not specified")
 
-        self._attacker.execute_action("192.168.0.2", "nonexisten_service", action)
+        self._attacker.execute_action("192.168.0.2", "nonexistent_service", action)
 
         result, state = self._env.resume()
         message = self._attacker.get_last_response()
@@ -218,7 +232,7 @@ class TestRITIntegration(unittest.TestCase):
 
         # Create dud authorization, that fails because of wrong access token
         ssh_auth = Authorization("user2", ["target1"], ["ssh"], AccessLevel.LIMITED, uuid.uuid4())
-        good_exploit = ExploitStore().get_exploit(service="lighttpd")[0]
+        good_exploit = ExploitStore().get_exploit(service="lighttpd", category=ExploitCategory.CODE_EXECUTION)[0]
         action.set_exploit(good_exploit)
 
         self._attacker.execute_action("192.168.0.2", "lighttpd", action, authorization=ssh_auth)
@@ -246,7 +260,157 @@ class TestRITIntegration(unittest.TestCase):
         self.assertEqual(message.status.origin, StatusOrigin.SERVICE, "Got response from the service")
         self.assertEqual(message.status.value, StatusValue.FAILURE, "Wrong exploit used")
 
+    def test_0005_privilege_escalation_user_privilege_escalation(self) -> None:
 
+        cc_action = self._actions["rit:ensure_access:command_and_control"]
+        # Clear old data from the previous test
+        cc_action.set_exploit(None)
+        cc_exploit = ExploitStore().get_exploit(service="lighttpd", category=ExploitCategory.CODE_EXECUTION)[0]
+
+        # TODO With this, all auth manipulation exploits can be interchangeably used for user and root priv escalation
+        # This should probably be done otherwise
+        user_action = self._actions["rit:privilege_escalation:user_privilege_escalation"]
+        user_exploit = ExploitStore().get_exploit(service="bash", category=ExploitCategory.AUTH_MANIPULATION)[0]
+
+        # The correct order of actions is:
+        # - using an lighttpd exploit gain session with access under the lighttpd user
+        # - using a bash exploit switch to a another system user
+
+        # --------------------------------------------------------------------------------------------------------------
+        # Sanity tests (round 1)
+        # --------------------------------------------------------------------------------------------------------------
+        self._attacker.execute_action("192.168.0.2", "", user_action)
+
+        result, state = self._env.resume()
+        message = self._attacker.get_last_response()
+
+        self.assertEqual(message.status.origin, StatusOrigin.NODE, "Got response from the node")
+        self.assertEqual(message.status.value, StatusValue.ERROR, "Failed because service not specified")
+
+        self._attacker.execute_action("192.168.0.2", "nonexistent_service", user_action)
+
+        result, state = self._env.resume()
+        message = self._attacker.get_last_response()
+
+        self.assertEqual(message.status.origin, StatusOrigin.NODE, "Got response from the node")
+        self.assertEqual(message.status.value, StatusValue.ERROR, "Failed because wrong service specified")
+
+        # --------------------------------------------------------------------------------------------------------------
+        # Establish a session using the C&C action with the lighttpd exploit
+        # --------------------------------------------------------------------------------------------------------------
+        cc_action.set_exploit(cc_exploit)
+        self._attacker.execute_action("192.168.0.2", "lighttpd", cc_action)
+
+        result, state = self._env.resume()
+        message = self._attacker.get_last_response()
+
+        session = message.session
+        auth = message.authorization
+
+        self.assertEqual(session.endpoint.id, "target1", "Got correct session")
+        self.assertEqual(auth.services, ["lighttpd", "bash"], "Got correct authentication")
+
+        # --------------------------------------------------------------------------------------------------------------
+        # Sanity tests (round 2)
+        # --------------------------------------------------------------------------------------------------------------
+        intentionally_remote_exploit = ExploitStore().get_exploit(service="lighttpd", category=ExploitCategory.CODE_EXECUTION)[0]
+        user_action.set_exploit(intentionally_remote_exploit)
+        self._attacker.execute_action("192.168.0.2", "bash", user_action)
+
+        # Result and state are discarded from now on
+        self._env.resume()
+        message = self._attacker.get_last_response()
+
+        self.assertEqual(message.status.origin, StatusOrigin.SERVICE, "Got response from the service")
+        self.assertEqual(message.status.value, StatusValue.ERROR, "Failed because non-local exploit used")
+
+        # --------------------------------------------------------------------------------------------------------------
+        # Don't try this at home
+        user_action.set_exploit(Exploit("dummy_local_exploit", None, locality=ExploitLocality.LOCAL, category=ExploitCategory.DATA_MANIPULATION))
+        self._attacker.execute_action("192.168.0.2", "bash", user_action)
+
+        self._env.resume()
+        message = self._attacker.get_last_response()
+
+        self.assertEqual(message.status.origin, StatusOrigin.SERVICE, "Got response from the service")
+        self.assertEqual(message.status.value, StatusValue.ERROR, "Failed because exploit of wrong category used")
+
+        # --------------------------------------------------------------------------------------------------------------
+        user_action.set_exploit(Exploit("too_many_param_local_exploit", None, ExploitLocality.LOCAL, ExploitCategory.AUTH_MANIPULATION,
+                                        ExploitParameter(ExploitParameterType.NONE), ExploitParameter(ExploitParameterType.NONE)))
+        self._attacker.execute_action("192.168.0.2", "bash", user_action)
+
+        self._env.resume()
+        message = self._attacker.get_last_response()
+
+        self.assertEqual(message.status.origin, StatusOrigin.SERVICE, "Got response from the service")
+        self.assertEqual(message.status.value, StatusValue.ERROR, "Failed because exploit uses two parameters")
+
+        # --------------------------------------------------------------------------------------------------------------
+        user_action.set_exploit(Exploit("wrong_param_local_exploit", None, ExploitLocality.LOCAL, ExploitCategory.AUTH_MANIPULATION,
+                                ExploitParameter(ExploitParameterType.NONE)))
+        self._attacker.execute_action("192.168.0.2", "bash", user_action)
+
+        self._env.resume()
+        message = self._attacker.get_last_response()
+
+        self.assertEqual(message.status.origin, StatusOrigin.SERVICE, "Got response from the service")
+        self.assertEqual(message.status.value, StatusValue.ERROR, "Failed because exploit uses wrong parameter type")
+
+        # --------------------------------------------------------------------------------------------------------------
+        user_exploit.parameters[0].set_value("user1")
+        user_action.set_exploit(user_exploit)
+        self._attacker.execute_action("192.168.0.2", "bash", user_action)
+
+        self._env.resume()
+        message = self._attacker.get_last_response()
+
+        self.assertEqual(message.status.origin, StatusOrigin.SERVICE, "Got response from the service")
+        self.assertEqual(message.status.value, StatusValue.ERROR, "Failed because no session specified")
+
+        # --------------------------------------------------------------------------------------------------------------
+        self._attacker.execute_action("192.168.0.2", "openssh", user_action, session, auth)
+
+        self._env.resume()
+        message = self._attacker.get_last_response()
+
+        self.assertEqual(message.status.origin, StatusOrigin.SERVICE, "Got response from the service")
+        self.assertEqual(message.status.value, StatusValue.ERROR, "Failed because wrong authentication specified")
+
+        # --------------------------------------------------------------------------------------------------------------
+        user_action.set_exploit(Exploit("old_bash_user_exploit", [VulnerableService("bash", "3.0.0")], ExploitLocality.LOCAL, ExploitCategory.AUTH_MANIPULATION, ExploitParameter(ExploitParameterType.IDENTITY)))
+        self._attacker.execute_action("192.168.0.2", "bash", user_action, session, auth)
+
+        self._env.resume()
+        message = self._attacker.get_last_response()
+
+        self.assertEqual(message.status.origin, StatusOrigin.SERVICE, "Got response from the service")
+        self.assertEqual(message.status.value, StatusValue.FAILURE, "Failed because of unusable exploit")
+
+        # --------------------------------------------------------------------------------------------------------------
+        user_exploit.parameters[0].set_value("user3")
+        user_action.set_exploit(user_exploit)
+        self._attacker.execute_action("192.168.0.2", "bash", user_action, session, auth)
+
+        result, state = self._env.resume()
+        message = self._attacker.get_last_response()
+
+        self.assertEqual(message.status.origin, StatusOrigin.SERVICE, "Got response from service")
+        self.assertEqual(message.status.value, StatusValue.FAILURE, "Failed because of unavailable user")
+
+        # --------------------------------------------------------------------------------------------------------------
+        # Successful exploit
+        # --------------------------------------------------------------------------------------------------------------
+        user_exploit.parameters[0].set_value("user1")
+        user_action.set_exploit(user_exploit)
+        self._attacker.execute_action("192.168.0.2", "bash", user_action, session, auth)
+
+        result, state = self._env.resume()
+        message = self._attacker.get_last_response()
+
+        self.assertEqual(message.status.origin, StatusOrigin.SERVICE, "Got response from service")
+        self.assertEqual(message.status.value, StatusValue.SUCCESS, "We correctly commenced the exploit")
+        self.assertEqual(message.authorization.identity, "user1", "Got authorization for requested user")
 
 
 if __name__ == '__main__':
