@@ -23,9 +23,10 @@ class Data:
 
 
 class Service:
-    def __init__(self, id: str, version: str = "0.0.0") -> None:
+    def __init__(self, id: str, version: str = "0.0.0", local: bool = False) -> None:
         self._id = id
         self._version = VersionInfo.parse(version)
+        self._local = local
         self._node = None
         self._public_data = []
         self._private_data = []
@@ -43,6 +44,10 @@ class Service:
     @property
     def version(self) -> VersionInfo:
         return self._version
+
+    @property
+    def local(self) -> bool:
+        return self._local
 
     @property
     def tags(self):
@@ -107,13 +112,14 @@ class Service:
 
 
 class Node:
-    def __init__(self, id: str, type: str = "Node", ip: Union[str, IPAddress] = "", mask: str = ""):
+    def __init__(self, id: str, type: str = "Node", ip: Union[str, IPAddress] = "", mask: str = "", shell: Service = None):
         self._id = id
         self._type = type
         self._interfaces = []
         self._ip = None
         if ip:
             self._interfaces.append(Interface(ip, mask))
+        self._shell = shell
 
     @property
     def id(self) -> str:
@@ -162,6 +168,13 @@ class Node:
 
         print("Processing message at node {}. {}".format(self.id, message))
         return 0
+
+    @property
+    def shell(self) -> Optional[Service]:
+        return self._shell
+
+    def set_shell(self, value: Service) -> None:
+        self._shell = value
 
     # Active nodes should implement their own view
     def view(self) -> NodeView:

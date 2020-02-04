@@ -38,7 +38,7 @@ class Action:
     def set_content(self, content):
         self._content = content
 
-    def set_exploit(self, exploit):
+    def set_exploit(self, exploit: Exploit) -> None:
         self._exploit = exploit
 
 

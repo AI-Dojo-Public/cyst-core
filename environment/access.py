@@ -142,3 +142,17 @@ class Policy(metaclass=Singleton):
         authorization_entry_count = cursor.fetchone()[0]
 
         return PolicyStats(authorization_entry_count)
+
+    def get_authorizations(self, node: str, service: str, access_level: AccessLevel = AccessLevel.NONE) -> List[Authorization]:
+        sql = '''SELECT id FROM authorizations WHERE node=? AND service=?'''
+        if access_level != AccessLevel.NONE:
+            sql += " AND access = ?"
+            cursor = self._conn.execute(sql, (node, service, int(access_level)))
+        else:
+            cursor = self._conn.execute(sql, (node, service))
+
+        ids = set()
+        for id in cursor.fetchall():
+            ids.add(id[0])
+
+        return list(map(lambda x: Authorization(x), ids))

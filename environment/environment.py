@@ -140,20 +140,31 @@ class Environment:
         if isinstance(current_node, PassiveNode):
             # Request can be processed or passed along
             if isinstance(message, Request):
+                local_processing = True
                 # This passive node is just an end of session and should act as a proxy
                 if message.session and (message.in_session or message.session.endpoint.id == current_node.id):
+                    local_processing = False
                     if message.in_session:
                         message.set_next_hop()
                     # We've reached the end of session
                     else:
-                        # Find a way to nearest switch
-                        gateway, port = current_node.gateway(message.dst_ip)
-                        message.set_next_hop(Endpoint(current_node.id, port), current_node.interfaces[port].endpoint)
+                        # Check if the passive node is the final destination
+                        for iface in current_node.interfaces:
+                            if iface.index == message.session.endpoint.port and iface.ip == message.dst_ip:
+                                local_processing = True
+                                break
+                        # Nope, proxy it...
+                        if not local_processing:
+                            # Find a way to nearest switch
+                            gateway, port = current_node.gateway(message.dst_ip)
+                            message.set_next_hop(Endpoint(current_node.id, port), current_node.interfaces[port].endpoint)
 
-                    print("Proxying request to {} via {} on passive node {}".format(message.dst_ip, message.next_hop.id, current_node.id))
-                    processing_time = 1
+                    if not local_processing:
+                        print("Proxying request to {} via {} on passive node {}".format(message.dst_ip, message.next_hop.id, current_node.id))
+                        processing_time = 1
+
                 # Otherwise do a full processing
-                else:
+                if local_processing:
                     print("Processing request on passive node {}. {}".format(current_node.id, message))
                     processing_time, response = self._process_passive(message, current_node)
                     if response.status.origin == StatusOrigin.SYSTEM and response.status.value == StatusValue.ERROR:
