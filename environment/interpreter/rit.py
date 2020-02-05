@@ -18,10 +18,10 @@ ActionList().add_action(Action("rit:active_recon:service_discovery"))
 ActionList().add_action(Action("rit:active_recon:vulnerability_discovery"))
 ActionList().add_action(Action("rit:active_recon:information_discovery"))
 ActionList().add_action(Action("rit:privilege_escalation:user_privilege_escalation"))
+ActionList().add_action(Action("rit:privilege_escalation:root_privilege_escalation"))
 ActionList().add_action(Action("rit:ensure_access:command_and_control"))
 
 # Actions to do
-ActionList().add_action(Action("rit:privilege_escalation:root_privilege_escalation"))
 ActionList().add_action(Action("rit:privilege_escalation:network_sniffing_ca"))
 ActionList().add_action(Action("rit:privilege_escalation:brute_force_ca"))
 ActionList().add_action(Action("rit:privilege_escalation:account_manipulation"))
@@ -149,7 +149,7 @@ def process_ensure_access_command_and_control(message: Request, node: PassiveNod
     return 1, Response(message, message.service, Status(StatusOrigin.SERVICE, StatusValue.FAILURE), error)
 
 
-def process_privilege_escalation_user_privilege_escalation(message: Request, node: PassiveNode) -> Tuple[int, Response]:
+def process_privilege_escalation(message: Request, node: PassiveNode, mode: str) -> Tuple[int, Response]:
     # To successfully manage a user privilege escalation, the attacker must already have an active session on the
     # target and must try to impersonate a user with same or lower access level on a service they have auth for.
 
@@ -169,10 +169,36 @@ def process_privilege_escalation_user_privilege_escalation(message: Request, nod
         error = "User privilege escalation can only be done by a local exploit"
     elif message.action.exploit.category != ExploitCategory.AUTH_MANIPULATION:
         error = "User privilege escalation requires auth manipulation exploit"
-    elif len(message.action.exploit.parameters) != 1:
-        error = "User privilege escalation requires one parameter - resulting user id"
-    elif message.action.exploit.parameters[0].exploit_type != ExploitParameterType.IDENTITY:
-        error = "Provided exploit parameter does not specify identity"
+
+    user_required = "root"
+    impersonate_any = False
+    node_ids = []
+    service_ids = []
+
+    # The parameters were changed from list to a dict, but the iteration was kept as-is, because it makes the processing
+    # easier and more direct. But it should probably be revised, if the number of parameters for exploits starts to
+    # grow considerably.
+    for param in message.action.exploit.parameters.values():
+        if param.exploit_type == ExploitParameterType.IDENTITY:
+            user_required = param.value
+        elif param.exploit_type == ExploitParameterType.IMPACT_IDENTITY and param.value == "ALL":
+            impersonate_any = True
+        elif param.exploit_type == ExploitParameterType.IMPACT_NODE and param.value == "ALL":
+            node_ids = ["*"]
+        elif param.exploit_type == ExploitParameterType.IMPACT_SERVICE and param.value == "ALL":
+            service_ids = ["*"]
+
+    if not node_ids:
+        node_ids = [node.id]
+
+    if not service_ids:
+        service_ids = [message.service]
+
+    if mode == "user":
+        if not message.action.exploit.parameters:
+            error = "User privilege escalation requires one parameter - resulting user id"
+        elif not impersonate_any and user_required == "root":
+            error = "Either root was specified contrary to action designation or no user was provided"
 
     # Check if a service is to exploit is accessible
     if not message.session or message.session.endpoint.id != node.id:
@@ -190,20 +216,32 @@ def process_privilege_escalation_user_privilege_escalation(message: Request, nod
         return 1, Response(message, message.service, Status(StatusOrigin.SERVICE, StatusValue.FAILURE), error, session=message.session)
 
     # Check if the provided user id is applicable
-    user_found = False
-    user_required = message.action.exploit.parameters[0].value
-    auths = Policy().get_authorizations(node.id, message.service, AccessLevel.LIMITED)
-    for auth in auths:
-        if auth.identity == user_required:
-            user_found = True
-            break
+    if mode == "user" and not impersonate_any:
+        user_found = False
+        auths = Policy().get_authorizations(node.id, message.service, AccessLevel.LIMITED)
+        for auth in auths:
+            if auth.identity == user_required:
+                user_found = True
+                break
 
-    if not user_found:
-        return 1, Response(message, message.service, Status(StatusOrigin.SERVICE, StatusValue.FAILURE),
-                           "Attempting to switch to a user {} who is not available at the service".format(user_required), session=message.session)
+        if not user_found:
+            return 1, Response(message, message.service, Status(StatusOrigin.SERVICE, StatusValue.FAILURE),
+                               "Attempting to switch to a user {} who is not available at the service".format(user_required), session=message.session)
 
-    new_auth = Authorization(user_required, [node.id], [message.service], access_level=AccessLevel.LIMITED, token=uuid.uuid4())
+    if impersonate_any:
+        user_required = "*"
+
+    # Root exploit adds a new root user even if the user was not pre-existing
+    new_auth = Authorization(user_required, node_ids, service_ids, access_level=AccessLevel.LIMITED if mode == "user" else AccessLevel.ELEVATED, token=uuid.uuid4())
     Policy().add_authorization(new_auth)
 
     return 1, Response(message, message.service, Status(StatusOrigin.SERVICE, StatusValue.SUCCESS), "",
                        session=message.session, authorization=new_auth)
+
+
+def process_privilege_escalation_root_privilege_escalation(message: Request, node: PassiveNode) -> Tuple[int, Response]:
+    return process_privilege_escalation(message, node, "root")
+
+
+def process_privilege_escalation_user_privilege_escalation(message: Request, node: PassiveNode) -> Tuple[int, Response]:
+    return process_privilege_escalation(message, node, "user")
