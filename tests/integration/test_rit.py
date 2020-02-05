@@ -73,8 +73,19 @@ class TestRITIntegration(unittest.TestCase):
         # Add system exploitability
         exploit1 = Exploit("http_exploit", [VulnerableService("lighttpd", "1.4.54")], ExploitLocality.REMOTE, ExploitCategory.CODE_EXECUTION)
         exploit2 = Exploit("ftp_exploit", [VulnerableService("vsftpd", "3.0.3")], ExploitLocality.REMOTE, ExploitCategory.CODE_EXECUTION)
-        exploit3 = Exploit("bash_user_exploit", [VulnerableService("bash", "5.0.0")], ExploitLocality.LOCAL, ExploitCategory.AUTH_MANIPULATION, ExploitParameter(ExploitParameterType.IDENTITY))
-        ExploitStore().add_exploit(exploit1, exploit2, exploit3)
+        exploit3 = Exploit("bash_user_exploit", [VulnerableService("bash", "5.0.0")], ExploitLocality.LOCAL,
+                           ExploitCategory.AUTH_MANIPULATION, ExploitParameter(ExploitParameterType.IDENTITY),
+                           ExploitParameter(ExploitParameterType.ENABLE_ELEVATED_ACCESS, "FALSE", immutable=True))
+        exploit4 = Exploit("bash_root_exploit", [VulnerableService("bash", "5.0.0")], ExploitLocality.LOCAL, ExploitCategory.AUTH_MANIPULATION,
+                           ExploitParameter(ExploitParameterType.ENABLE_ELEVATED_ACCESS, "TRUE", immutable=True))
+        exploit5 = Exploit("bash_master_exploit", [VulnerableService("bash", "5.0.0")], ExploitLocality.LOCAL,
+                           ExploitCategory.AUTH_MANIPULATION,
+                           ExploitParameter(ExploitParameterType.ENABLE_ELEVATED_ACCESS, "TRUE", immutable=True),
+                           ExploitParameter(ExploitParameterType.IMPACT_IDENTITY, "ALL", immutable=True),
+                           ExploitParameter(ExploitParameterType.IMPACT_NODE, "ALL", immutable=True),
+                           ExploitParameter(ExploitParameterType.IMPACT_SERVICE, "ALL", immutable=True))
+
+        ExploitStore().add_exploit(exploit1, exploit2, exploit3, exploit4, exploit5)
 
         target.add_service(ssh_service)
         target.add_service(http_service)
@@ -260,7 +271,7 @@ class TestRITIntegration(unittest.TestCase):
         self.assertEqual(message.status.origin, StatusOrigin.SERVICE, "Got response from the service")
         self.assertEqual(message.status.value, StatusValue.FAILURE, "Wrong exploit used")
 
-    def test_0005_privilege_escalation_user_privilege_escalation(self) -> None:
+    def test_0005_privilege_escalation_user_and_root_privilege_escalation(self) -> None:
 
         cc_action = self._actions["rit:ensure_access:command_and_control"]
         # Clear old data from the previous test
@@ -270,7 +281,25 @@ class TestRITIntegration(unittest.TestCase):
         # TODO With this, all auth manipulation exploits can be interchangeably used for user and root priv escalation
         # This should probably be done otherwise
         user_action = self._actions["rit:privilege_escalation:user_privilege_escalation"]
-        user_exploit = ExploitStore().get_exploit(service="bash", category=ExploitCategory.AUTH_MANIPULATION)[0]
+        user_exploit = None
+
+        root_action = self._actions["rit:privilege_escalation:root_privilege_escalation"]
+        root_exploit = None
+
+        master_exploit = None
+
+        auth_exploits = ExploitStore().get_exploit(service="bash", category=ExploitCategory.AUTH_MANIPULATION)
+        for exploit in auth_exploits:
+            ea = exploit.parameters.get(ExploitParameterType.ENABLE_ELEVATED_ACCESS, None)
+            ii = exploit.parameters.get(ExploitParameterType.IDENTITY, None)
+            sr = exploit.parameters.get(ExploitParameterType.IMPACT_SERVICE, None)
+
+            if sr:
+                master_exploit = exploit
+            elif ea and ea.value == "TRUE":
+                root_exploit = exploit
+            elif ii:
+                user_exploit = exploit
 
         # The correct order of actions is:
         # - using an lighttpd exploit gain session with access under the lighttpd user
@@ -358,7 +387,7 @@ class TestRITIntegration(unittest.TestCase):
         self.assertEqual(message.status.value, StatusValue.ERROR, "Failed because exploit uses wrong parameter type")
 
         # --------------------------------------------------------------------------------------------------------------
-        user_exploit.parameters[0].set_value("user1")
+        user_exploit.parameters[ExploitParameterType.IDENTITY].set_value("user1")
         user_action.set_exploit(user_exploit)
         self._attacker.execute_action("192.168.0.2", "bash", user_action)
 
@@ -388,7 +417,7 @@ class TestRITIntegration(unittest.TestCase):
         self.assertEqual(message.status.value, StatusValue.FAILURE, "Failed because of unusable exploit")
 
         # --------------------------------------------------------------------------------------------------------------
-        user_exploit.parameters[0].set_value("user3")
+        user_exploit.parameters[ExploitParameterType.IDENTITY].set_value("user3")
         user_action.set_exploit(user_exploit)
         self._attacker.execute_action("192.168.0.2", "bash", user_action, session, auth)
 
@@ -399,18 +428,48 @@ class TestRITIntegration(unittest.TestCase):
         self.assertEqual(message.status.value, StatusValue.FAILURE, "Failed because of unavailable user")
 
         # --------------------------------------------------------------------------------------------------------------
-        # Successful exploit
+        # Successful user exploit
         # --------------------------------------------------------------------------------------------------------------
-        user_exploit.parameters[0].set_value("user1")
+        user_exploit.parameters[ExploitParameterType.IDENTITY].set_value("user1")
         user_action.set_exploit(user_exploit)
         self._attacker.execute_action("192.168.0.2", "bash", user_action, session, auth)
 
-        result, state = self._env.resume()
+        self._env.resume()
         message = self._attacker.get_last_response()
 
         self.assertEqual(message.status.origin, StatusOrigin.SERVICE, "Got response from service")
         self.assertEqual(message.status.value, StatusValue.SUCCESS, "We correctly commenced the exploit")
         self.assertEqual(message.authorization.identity, "user1", "Got authorization for requested user")
+
+        # --------------------------------------------------------------------------------------------------------------
+        # Successful root exploit
+        # --------------------------------------------------------------------------------------------------------------
+        root_action.set_exploit(root_exploit)
+        self._attacker.execute_action("192.168.0.2", "bash", root_action, session, auth)
+
+        self._env.resume()
+        message = self._attacker.get_last_response()
+
+        self.assertEqual(message.status.origin, StatusOrigin.SERVICE, "Got response from service")
+        self.assertEqual(message.status.value, StatusValue.SUCCESS, "We correctly commenced the exploit")
+        self.assertEqual(message.authorization.identity, "root", "Got authorization for root")
+        self.assertEqual(message.authorization.access_level, AccessLevel.ELEVATED, "Got elevated access level")
+
+        # --------------------------------------------------------------------------------------------------------------
+        # Test master exploit
+        # --------------------------------------------------------------------------------------------------------------
+        user_action.set_exploit(master_exploit)
+        self._attacker.execute_action("192.168.0.2", "bash", user_action, session, auth)
+
+        self._env.resume()
+        message = self._attacker.get_last_response()
+
+        self.assertEqual(message.status.origin, StatusOrigin.SERVICE, "Got response from service")
+        self.assertEqual(message.status.value, StatusValue.SUCCESS, "We correctly commenced the exploit")
+        self.assertEqual(message.authorization.identity, "*", "Got authorization for anyone")
+        self.assertEqual(message.authorization.nodes, ["*"], "Got authorization for anyone")
+        self.assertEqual(message.authorization.services, ["*"], "Got authorization for anyone")
+        self.assertEqual(message.authorization.access_level, AccessLevel.LIMITED, "Got elevated access level")
 
 
 if __name__ == '__main__':
