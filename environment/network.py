@@ -195,7 +195,6 @@ class Network:
         self._nodes_by_id = {}
         self._nodes_by_ip = {}
         self._graph = nx.Graph()
-        self._routers = {}
 
     def add_node(self, node: Node) -> None:
         # Ignore already present nodes
@@ -209,9 +208,6 @@ class Network:
                 self._nodes_by_ip[ip] = []
 
             self._nodes_by_ip[ip].append(node)
-
-            if isinstance(node, Router):
-                self._routers[ip] = node.id
 
         self._graph.add_node(node.id, node=node)
 
@@ -270,4 +266,3 @@ class Network:
     def reset(self) -> None:
         self._nodes_by_id.clear()
         self._graph.clear()
-        self._routers.clear()

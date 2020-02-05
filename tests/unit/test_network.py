@@ -6,6 +6,7 @@ from attackers.simple import SimpleAttacker
 from environment.access import Authorization, AccessLevel, Policy
 from environment.action import ActionList
 from environment.environment import Environment, EnvironmentProxy
+from environment.message import StatusOrigin, StatusValue
 from environment.network import Router
 from environment.network_elements import Session, Interface, Endpoint, Hop, Route
 from environment.node import PassiveNode, Service
@@ -170,6 +171,9 @@ class TestSessions(unittest.TestCase):
         router1.add_route(Route(IPNetwork("192.168.1.1/255.255.255.0"), router1_port))
         router2.add_route(Route(IPNetwork("192.168.0.1/255.255.255.0"), router2_port))
 
+        # Route to test dropping of unaccepted packets
+        router1.add_route(Route(IPNetwork("192.168.2.1/255.255.255.0"), router1_port))
+
         # Connect the nodes to routers
         env.add_connection(router1, attacker, net="192.168.0.1/24")
         # Targets 1 and 2 are connected twice using two different ports
@@ -187,9 +191,23 @@ class TestSessions(unittest.TestCase):
             actions[action.tags[0].name] = action
 
         action = actions["rit:ensure_access:command_and_control"]
-        attacker.execute_action("192.168.1.2", "ssh", action, session=None, authorization=all_root)
+
+        # Test direct connection to an inaccessible node
+        attacker.execute_action("192.168.2.2", "ssh", action, session=None, authorization=all_root)
 
         env.run()
+
+        response = attacker.get_last_response()
+        s = response.session
+
+        self.assertEqual(response.status.origin, StatusOrigin.NETWORK, "Got response from network")
+        self.assertEqual(response.status.value, StatusValue.FAILURE, "host unreachable")
+
+        # Correct via multiple sessions
+
+        attacker.execute_action("192.168.1.2", "ssh", action, session=None, authorization=all_root)
+
+        env.resume()
 
         response = attacker.get_last_response()
         s = response.session
@@ -221,5 +239,29 @@ class TestSessions(unittest.TestCase):
         self.assertEqual(response.content, ["ssh"])
 
 
+class TestRouting(unittest.TestCase):
+
+    def test_0000_routing(self):
+
+        env = Environment()
+
+        router1 = Router("router1", env)
+        router1_port = router1.add_port("10.0.0.0", "255.255.0.0")
+
+        # Technically, the last route is all tha is needed, but this is to test overlapping and correct ordering
+        router1.add_route(Route(IPNetwork("10.1.0.0/30"), router1_port))
+        router1.add_route(Route(IPNetwork("10.1.0.0/26"), router1_port, metric=30))
+        router1.add_route(Route(IPNetwork("10.1.0.0/22"), router1_port))
+        router1.add_route(Route(IPNetwork("10.1.0.0/16"), router1_port))
+        router1.add_route(Route(IPNetwork("10.1.5.4/16"), router1_port))
+        router1.add_route(Route(IPNetwork("10.1.5.4/16"), router1_port))
+
+        routes = router1.list_routes()
+        self.assertEqual(routes[0].net.prefixlen, 26, "Correctly prioritized metric")
+        self.assertEqual(routes[1].net.prefixlen, 30, "Correctly prioritized prefixlen")
+        self.assertEqual(routes[5].net.ip, IPAddress("10.1.5.4"), "Correctly ordered IP addresses")
+
+
 if __name__ == '__main__':
     unittest.main()
+
