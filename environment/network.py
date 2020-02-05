@@ -9,12 +9,12 @@ from environment.node import Node
 from environment.network_elements import Endpoint, Route, Connection, Port, Interface, Hop
 
 
-# TODO Switches do not reflect dynamic changes in port parameters. Big question is whether they should
-class Switch(Node):
+# TODO Routers do not reflect dynamic changes in port parameters. Big question is whether they should
+class Router(Node):
 
     def __init__(self, id: str, env: 'Environment') -> None:
 
-        super(Switch, self).__init__(id, "Switch")
+        super(Router, self).__init__(id, "Router")
 
         self._env = env
         self._ports = []
@@ -53,24 +53,24 @@ class Switch(Node):
                 return True
         return False
 
-    def _connect_node(self, node: Node, switch_index: int = -1, node_index: int = 0, net: str = "") -> Tuple[bool, str]:
-        # If both a specific switch and network designation si provided, bail out
-        if switch_index != -1 and net:
-            return False, "Cannot specify both switch index and network designation"
+    def _connect_node(self, node: Node, router_index: int = -1, node_index: int = 0, net: str = "") -> Tuple[bool, str]:
+        # If both a specific router index and network designation si provided, bail out
+        if router_index != -1 and net:
+            return False, "Cannot specify both router index and network designation"
 
-        # No switch port was selected, new one is dynamically added
-        new_switch_index = switch_index
-        if switch_index == -1:
+        # No router port was selected, new one is dynamically added
+        new_router_index = router_index
+        if router_index == -1:
             # Net designation was provided, use it for the port
             if net:
                 network = IPNetwork(net)
-                new_switch_index = self.add_port(next(network.iter_hosts()), str(network.netmask))
+                new_router_index = self.add_port(next(network.iter_hosts()), str(network.netmask))
             # otherwise add and unconfigured port
             else:
-                new_switch_index = self.add_port()
+                new_router_index = self.add_port()
 
         new_node_index = node_index
-        switch_port = self._ports[new_switch_index]
+        router_port = self._ports[new_router_index]
         node_interface = node.interfaces[node_index] if node.interfaces else None
 
         # Get DHCP status
@@ -79,60 +79,60 @@ class Switch(Node):
         assigned_ip = None
 
         if dhcp:
-            if new_switch_index == -1 or not switch_port.net:
-                return False, "Trying to connect a node to a switch port that does not support automatic address assignment"
+            if new_router_index == -1 or not router_port.net:
+                return False, "Trying to connect a node to a router port that does not support automatic address assignment"
 
-            # Find a suitable host from switch network
-            for h in switch_port.net.iter_hosts():
-                if h != switch_port.ip and h not in self._local_ips:
+            # Find a suitable host from router's network
+            for h in router_port.net.iter_hosts():
+                if h != router_port.ip and h not in self._local_ips:
                     assigned_ip = h
                     break
 
             if not assigned_ip:
-                return False, "Do not have any more addresses to allocate in the range {}".format(str(switch_port.net))
+                return False, "Do not have any more addresses to allocate in the range {}".format(str(router_port.net))
 
-            node_interface = Interface(assigned_ip, str(switch_port.net.netmask))
+            node_interface = Interface(assigned_ip, str(router_port.net.netmask))
             new_node_index = node.add_interface(node_interface)
 
         else:
-            # If the switch does not have network configured, accept the one by the connected node
-            if not switch_port.net:
-                switch_port.set_ip(node_interface.gateway_ip)
-                switch_port.set_net(node_interface.net)
+            # If the router does not have network configured, accept the one by the connected node
+            if not router_port.net:
+                router_port.set_ip(node_interface.gateway_ip)
+                router_port.set_net(node_interface.net)
 
-            # Check if there is a conflict between switch IP and expected IP from connected node
-            if node_interface.gateway_ip != switch_port.ip:
-                return False, "The connected node expects gateway to have an IP {}, but it has an IP {}".format(str(node_interface.gateway_ip), str(switch_port.ip))
+            # Check if there is a conflict between router's IP and expected IP from connected node
+            if node_interface.gateway_ip != router_port.ip:
+                return False, "The connected node expects gateway to have an IP {}, but it has an IP {}".format(str(node_interface.gateway_ip), str(router_port.ip))
 
             assigned_ip = node_interface.ip
 
         # Add the host ip to the list of local ips and the port net to the list of local networks
-        self._local_ips[assigned_ip] = switch_port.index
-        if switch_port.net not in self._local_nets:
-            self._local_nets.append(switch_port.net)
+        self._local_ips[assigned_ip] = router_port.index
+        if router_port.net not in self._local_nets:
+            self._local_nets.append(router_port.net)
 
         # Set endpoints on both ends
-        switch_port.connect_endpoint(Endpoint(node.id, new_node_index))
-        node_interface.connect_gateway(switch_port.ip, self.id, new_switch_index)
+        router_port.connect_endpoint(Endpoint(node.id, new_node_index))
+        node_interface.connect_gateway(router_port.ip, self.id, new_router_index)
 
         return True, ""
 
-    def _connect_switch(self, switch: 'Switch', remote_port_index: int = -1, local_port_index: int = -1) -> Tuple[bool, str]:
+    def _connect_router(self, router: 'Router', remote_port_index: int = -1, local_port_index: int = -1) -> Tuple[bool, str]:
 
         # Create missing ports if needed
         remote_port = remote_port_index
         local_port = local_port_index
 
         if remote_port == -1:
-            remote_port = switch.add_port()
+            remote_port = router.add_port()
 
         if local_port == -1:
             local_port = self.add_port()
 
-        self._ports[local_port].connect_endpoint(Endpoint(switch.id, remote_port))
-        switch._ports[remote_port].connect_endpoint(Endpoint(self.id, local_port))
+        self._ports[local_port].connect_endpoint(Endpoint(router.id, remote_port))
+        router._ports[remote_port].connect_endpoint(Endpoint(self.id, local_port))
 
-        # After switch connection, routes must be added manually
+        # After routers' connection, routes must be added manually
 
         return True, ""
 
@@ -147,15 +147,15 @@ class Switch(Node):
             return True, 1
 
         # TODO evaluate permeability between networks!
-        # When looking at the current target, the switch must also check, if the target is within the same network as
+        # When looking at the current target, the router must also check, if the target is within the same network as
         # is the net of the arriving port
-        # The same goes for switch constituency
+        # The same goes for router's constituency
 
         # The rule of thumb is - you can cross from local networks to remote networks, but you can't cross between
         # local networks and you can't go from remote network to local networks
         # Port forwarding is in the current state impossible and is ignored to reduce scope
 
-        # Check if the target is linked to a switch port
+        # Check if the target is linked to a router port
         port = self._local_ips.get(message.dst_ip, -1)
         if port != -1:
             # It is, but in another network
@@ -170,7 +170,7 @@ class Switch(Node):
             else:
                 message.set_next_hop(Endpoint(self.id, port), self._ports[port].endpoint)
                 return True, 1
-        # It is not, but belongs to switch constituency
+        # It is not, but belongs to router's constituency
         elif self._is_local_ip(message.dst_ip):
             m = Response(message, status=Status(StatusOrigin.NETWORK, StatusValue.FAILURE), content="Host unreachable")
             # The next hop is automatically calculated because it is a response
@@ -195,7 +195,7 @@ class Network:
         self._nodes_by_id = {}
         self._nodes_by_ip = {}
         self._graph = nx.Graph()
-        self._switches = {}
+        self._routers = {}
 
     def add_node(self, node: Node) -> None:
         # Ignore already present nodes
@@ -210,8 +210,8 @@ class Network:
 
             self._nodes_by_ip[ip].append(node)
 
-            if isinstance(node, Switch):
-                self._switches[ip] = node.id
+            if isinstance(node, Router):
+                self._routers[ip] = node.id
 
         self._graph.add_node(node.id, node=node)
 
@@ -227,12 +227,12 @@ class Network:
 
         result = True
         error = ""
-        if isinstance(n1, Switch):
-            if isinstance(n2, Switch):
-                result, error = n1._connect_switch(n2, n2_port_index, n1_port_index)
+        if isinstance(n1, Router):
+            if isinstance(n2, Router):
+                result, error = n1._connect_router(n2, n2_port_index, n1_port_index)
             else:
                 result, error = n1._connect_node(n2, n1_port_index, n2_port_index, net)
-        elif isinstance(n2, Switch):
+        elif isinstance(n2, Router):
             result, error = n2._connect_node(n1, n2_port_index, n1_port_index, net)
 
         if not result:
@@ -270,4 +270,4 @@ class Network:
     def reset(self) -> None:
         self._nodes_by_id.clear()
         self._graph.clear()
-        self._switches.clear()
+        self._routers.clear()
