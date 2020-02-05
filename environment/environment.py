@@ -40,8 +40,9 @@ class Environment:
     def add_node(self, node: Node) -> None:
         self._network.add_node(node)
 
-    def add_connection(self, source: Node, target: Node, connection: Connection = None) -> None:
-        self._network.add_connection(source, target, connection)
+    def add_connection(self, source: Node, target: Node, source_port_index: int = -1, target_port_index: int = -1,
+                       net: str = "", connection: Connection = None) -> Connection:
+        return self._network.add_connection(source, source_port_index, target, target_port_index, net, connection)
 
     @property
     def state(self):

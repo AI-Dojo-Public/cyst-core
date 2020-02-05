@@ -6,7 +6,7 @@ from typing import Tuple, Optional, List, Union
 
 from environment.message import _Message, MessageType, Response, Status, StatusOrigin, StatusValue
 from environment.node import Node
-from environment.network_elements import Endpoint, Route, Connection, Port, Interface
+from environment.network_elements import Endpoint, Route, Connection, Port, Interface, Hop
 
 
 # TODO Switches do not reflect dynamic changes in port parameters. Big question is whether they should
@@ -39,6 +39,13 @@ class Switch(Node):
     def port_net(self, index: int) -> Optional[IPNetwork]:
         return self._ports[index].net
 
+    def add_route(self, route: Route) -> None:
+        self._routes.append(route)
+        self._routes.sort()
+
+    def list_routes(self) -> List[Route]:
+        return self._routes
+
     # Check if IP belongs to local net
     def _is_local_ip(self, ip: IPAddress) -> bool:
         for net in self._local_nets:
@@ -46,7 +53,7 @@ class Switch(Node):
                 return True
         return False
 
-    def connect_node(self, node: Node, switch_index: int = -1, node_index: int = 0, net: str = "") -> Tuple[bool, str]:
+    def _connect_node(self, node: Node, switch_index: int = -1, node_index: int = 0, net: str = "") -> Tuple[bool, str]:
         # If both a specific switch and network designation si provided, bail out
         if switch_index != -1 and net:
             return False, "Cannot specify both switch index and network designation"
@@ -108,11 +115,9 @@ class Switch(Node):
         switch_port.connect_endpoint(Endpoint(node.id, new_node_index))
         node_interface.connect_gateway(switch_port.ip, self.id, new_switch_index)
 
-        # TODO it still remains to update the network graph
-
         return True, ""
 
-    def connect_switch(self, switch: 'Switch', remote_port_index: int = -1, local_port_index: int = -1) -> Tuple[bool, str]:
+    def _connect_switch(self, switch: 'Switch', remote_port_index: int = -1, local_port_index: int = -1) -> Tuple[bool, str]:
 
         # Create missing ports if needed
         remote_port = remote_port_index
@@ -124,19 +129,10 @@ class Switch(Node):
         if local_port == -1:
             local_port = self.add_port()
 
-        # Update local routing table
-        remote_net = switch.port_net(remote_port)
-        if not remote_net:
-            remote_net = IPNetwork("0.0.0.0/0")
-        self._routes.append(Route(remote_net, local_port))
         self._ports[local_port].connect_endpoint(Endpoint(switch.id, remote_port))
-
-        # Update remote routing table
-        local_net = self._ports[local_port].net
-        if not local_net:
-            local_net = IPNetwork("0.0.0.0/0")
-        switch._routes.append(Route(local_net, remote_port))
         switch._ports[remote_port].connect_endpoint(Endpoint(self.id, local_port))
+
+        # After switch connection, routes must be added manually
 
         return True, ""
 
@@ -157,7 +153,7 @@ class Switch(Node):
 
         # The rule of thumb is - you can cross from local networks to remote networks, but you can't cross between
         # local networks and you can't go from remote network to local networks
-        # Port forwarding is in the current state impossible and is ignore to reduce scope
+        # Port forwarding is in the current state impossible and is ignored to reduce scope
 
         # Check if the target is linked to a switch port
         port = self._local_ips.get(message.dst_ip, -1)
@@ -222,22 +218,30 @@ class Network:
     def update_node_ip(self, node: Node, ip: str):
         self._nodes_by_ip[ip] = node
 
-    def add_connection(self, n1: Node, n2: Node, connection: Connection = None) -> None:
+    def add_connection(self, n1: Node, n1_port_index: int, n2: Node, n2_port_index: int, net: str, connection: Connection = None) -> Connection:
         if not n1 or not n2:
             raise Exception("Could not add connection between nonexistent nodes")
 
         if not connection:
             connection = Connection()
 
+        result = True
+        error = ""
         if isinstance(n1, Switch):
             if isinstance(n2, Switch):
-                n1.connect_switch(n2)
+                result, error = n1._connect_switch(n2, n2_port_index, n1_port_index)
             else:
-                n1.connect_node(n2)
+                result, error = n1._connect_node(n2, n1_port_index, n2_port_index, net)
         elif isinstance(n2, Switch):
-            n2.connect_node(n1)
+            result, error = n2._connect_node(n1, n2_port_index, n1_port_index, net)
 
+        if not result:
+            raise Exception("Could not add connection between nodes {} and {}. Reason: {}".format(n1.id, n2.id, error))
+
+        connection.hop = Hop(Endpoint(n1.id, n1_port_index), Endpoint(n2.id, n2_port_index))
         self._graph.add_edge(n1.id, n2.id, connection=connection)
+
+        return connection
 
     def get_node_by_ip(self, ip: str = "") -> Optional[str]:
         if not ip:

@@ -1,13 +1,13 @@
 import unittest
 
-from netaddr import IPAddress
+from netaddr import IPAddress, IPNetwork
 
 from attackers.simple import SimpleAttacker
 from environment.access import Authorization, AccessLevel, Policy
 from environment.action import ActionList
 from environment.environment import Environment, EnvironmentProxy
 from environment.network import Switch
-from environment.network_elements import Session, Interface, Endpoint, Hop
+from environment.network_elements import Session, Interface, Endpoint, Hop, Route
 from environment.node import PassiveNode, Service
 
 
@@ -149,7 +149,9 @@ class TestSessions(unittest.TestCase):
         target2.add_service(ssh_service)
         target3.add_service(ssh_service)
 
-        # Create two switches
+        # Create two switches - the explicit declarations on switches notify, which network they are willing to route
+        #                       for messages coming from the outside
+        # TODO: Much will change, if we ever implement the notion of firewall
         switch1 = Switch("switch1", env)
         switch1_port = switch1.add_port("192.168.0.1", "255.255.255.0")
         switch2 = Switch("switch2", env)
@@ -164,15 +166,19 @@ class TestSessions(unittest.TestCase):
         env.add_node(target3)
 
         # Connect switches
-        switch1.connect_switch(switch2, switch2_port, switch1_port)
+        env.add_connection(switch1, switch2, switch1_port, switch2_port)
+        switch1.add_route(Route(IPNetwork("192.168.1.1/255.255.255.0"), switch1_port))
+        switch2.add_route(Route(IPNetwork("192.168.0.1/255.255.255.0"), switch2_port))
 
         # Connect the nodes to switches
-        switch1.connect_node(attacker, net="192.168.0.1/24")
-        switch2.connect_node(target1)
-        switch2.connect_node(target1, node_index=1)
-        switch2.connect_node(target2)
-        switch2.connect_node(target2, node_index=1)
-        switch2.connect_node(target3)
+        env.add_connection(switch1, attacker, net="192.168.0.1/24")
+        # Targets 1 and 2 are connected twice using two different ports
+        # It does not have to be specified explicitly, it is here for better readability
+        env.add_connection(switch2, target1, target_port_index=0)
+        env.add_connection(switch2, target1, target_port_index=1)
+        env.add_connection(switch2, target2, target_port_index=0)
+        env.add_connection(switch2, target2, target_port_index=1)
+        env.add_connection(switch2, target3)
 
         # Get correct actions
         actions = {}

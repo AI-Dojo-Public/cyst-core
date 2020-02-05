@@ -94,8 +94,8 @@ class TestRITIntegration(unittest.TestCase):
         cls._env.add_node(cls._attacker)
 
         # TODO change this to env method, once this is merged from bronze_butler branch
-        switch.connect_node(target, net="192.168.0.0/24")
-        switch.connect_node(cls._attacker, net="192.168.0.0/24")
+        cls._env.add_connection(switch, target, net="192.168.0.0/24")
+        cls._env.add_connection(switch, cls._attacker, net="192.168.0.0/24")
 
     # Test correct handling of active scans, namely:
     # - successful scanning of a live machine
