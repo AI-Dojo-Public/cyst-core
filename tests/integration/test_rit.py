@@ -7,7 +7,7 @@ from environment.environment import Environment, EnvironmentState, EnvironmentPr
 from environment.exploit import Exploit, ExploitLocality, ExploitCategory, VulnerableService, ExploitParameter, ExploitParameterType
 from environment.exploit_store import ExploitStore
 from environment.message import StatusValue, StatusOrigin
-from environment.network import Switch
+from environment.network import Router
 from environment.network_elements import Endpoint
 from environment.node import Service, NodeView
 from attackers.simple import SimpleAttacker
@@ -80,9 +80,9 @@ class TestRITIntegration(unittest.TestCase):
         target.add_service(http_service)
         target.add_service(bash_service)
 
-        # Place a switch in front of the target
-        switch = Switch("switch1", cls._env)
-        switch.add_port("192.168.0.1", "255.255.255.0")
+        # Place a router in front of the target
+        router = Router("router1", cls._env)
+        router.add_port("192.168.0.1", "255.255.255.0")
 
         # Create an attacker
         proxy = EnvironmentProxy(cls._env, "attacker1")
@@ -90,12 +90,12 @@ class TestRITIntegration(unittest.TestCase):
 
         # Connect the environment pieces
         cls._env.add_node(target)
-        cls._env.add_node(switch)
+        cls._env.add_node(router)
         cls._env.add_node(cls._attacker)
 
         # TODO change this to env method, once this is merged from bronze_butler branch
-        switch.connect_node(target, net="192.168.0.0/24")
-        switch.connect_node(cls._attacker, net="192.168.0.0/24")
+        cls._env.add_connection(router, target, net="192.168.0.0/24")
+        cls._env.add_connection(router, cls._attacker, net="192.168.0.0/24")
 
     # Test correct handling of active scans, namely:
     # - successful scanning of a live machine

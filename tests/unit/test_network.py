@@ -1,13 +1,14 @@
 import unittest
 
-from netaddr import IPAddress
+from netaddr import IPAddress, IPNetwork
 
 from attackers.simple import SimpleAttacker
 from environment.access import Authorization, AccessLevel, Policy
 from environment.action import ActionList
 from environment.environment import Environment, EnvironmentProxy
-from environment.network import Switch
-from environment.network_elements import Session, Interface, Endpoint, Hop
+from environment.message import StatusOrigin, StatusValue
+from environment.network import Router
+from environment.network_elements import Session, Interface, Endpoint, Hop, Route
 from environment.node import PassiveNode, Service
 
 
@@ -116,7 +117,7 @@ class TestSessions(unittest.TestCase):
             next(it2)
 
     def test_0002_message_traversal(self):
-        # Scenario: we have an attacker node, two switches and three targets linked in this fashion: A-S1-S2-T1
+        # Scenario: we have an attacker node, two routers and three targets linked in this fashion: A-S1-S2-T1
         #                                                                                                   \T2
         #                                                                                                   \T3
         # The attacker establishes a session from A to T1 and from this session establishes another to T2 and
@@ -149,30 +150,39 @@ class TestSessions(unittest.TestCase):
         target2.add_service(ssh_service)
         target3.add_service(ssh_service)
 
-        # Create two switches
-        switch1 = Switch("switch1", env)
-        switch1_port = switch1.add_port("192.168.0.1", "255.255.255.0")
-        switch2 = Switch("switch2", env)
-        switch2_port = switch2.add_port("192.168.1.1", "255.255.255.0")
+        # Create two routers - the explicit declarations on routers specify which network they are willing to route
+        #                       for messages coming from the outside
+        # TODO: Much will change, if we ever implement the notion of firewall
+        router1 = Router("router1", env)
+        router1_port = router1.add_port("192.168.0.1", "255.255.255.0")
+        router2 = Router("router2", env)
+        router2_port = router2.add_port("192.168.1.1", "255.255.255.0")
 
         # Add all nodes to the environment
         env.add_node(attacker)
-        env.add_node(switch1)
-        env.add_node(switch2)
+        env.add_node(router1)
+        env.add_node(router2)
         env.add_node(target1)
         env.add_node(target2)
         env.add_node(target3)
 
-        # Connect switches
-        switch1.connect_switch(switch2, switch2_port, switch1_port)
+        # Connect routers
+        env.add_connection(router1, router2, router1_port, router2_port)
+        router1.add_route(Route(IPNetwork("192.168.1.1/255.255.255.0"), router1_port))
+        router2.add_route(Route(IPNetwork("192.168.0.1/255.255.255.0"), router2_port))
 
-        # Connect the nodes to switches
-        switch1.connect_node(attacker, net="192.168.0.1/24")
-        switch2.connect_node(target1)
-        switch2.connect_node(target1, node_index=1)
-        switch2.connect_node(target2)
-        switch2.connect_node(target2, node_index=1)
-        switch2.connect_node(target3)
+        # Route to test dropping of unaccepted packets
+        router1.add_route(Route(IPNetwork("192.168.2.1/255.255.255.0"), router1_port))
+
+        # Connect the nodes to routers
+        env.add_connection(router1, attacker, net="192.168.0.1/24")
+        # Targets 1 and 2 are connected twice using two different ports
+        # It does not have to be specified explicitly, it is here for better readability
+        env.add_connection(router2, target1, target_port_index=0)
+        env.add_connection(router2, target1, target_port_index=1)
+        env.add_connection(router2, target2, target_port_index=0)
+        env.add_connection(router2, target2, target_port_index=1)
+        env.add_connection(router2, target3)
 
         # Get correct actions
         actions = {}
@@ -181,16 +191,30 @@ class TestSessions(unittest.TestCase):
             actions[action.tags[0].name] = action
 
         action = actions["rit:ensure_access:command_and_control"]
-        attacker.execute_action("192.168.1.2", "ssh", action, session=None, authorization=all_root)
+
+        # Test direct connection to an inaccessible node
+        attacker.execute_action("192.168.2.2", "ssh", action, session=None, authorization=all_root)
 
         env.run()
 
         response = attacker.get_last_response()
         s = response.session
 
+        self.assertEqual(response.status.origin, StatusOrigin.NETWORK, "Got response from network")
+        self.assertEqual(response.status.value, StatusValue.FAILURE, "host unreachable")
+
+        # Correct via multiple sessions
+
+        attacker.execute_action("192.168.1.2", "ssh", action, session=None, authorization=all_root)
+
+        env.resume()
+
+        response = attacker.get_last_response()
+        s = response.session
+
         self.assertTrue(response.session, "Received a session back")
 
-        session1 = Session("root", None, path=[Hop(Endpoint(id='attacker1', port=0), Endpoint(id='switch1', port=1)), Hop(Endpoint(id='switch1', port=0), Endpoint(id='switch2', port=0)), Hop(Endpoint(id='switch2', port=1), Endpoint(id='target1', port=0))])
+        session1 = Session("root", None, path=[Hop(Endpoint(id='attacker1', port=0), Endpoint(id='router1', port=1)), Hop(Endpoint(id='router1', port=0), Endpoint(id='router2', port=0)), Hop(Endpoint(id='router2', port=1), Endpoint(id='target1', port=0))])
         self.assertEqual(s, session1)
 
         attacker.execute_action("192.168.2.3", "ssh", action, session=s, authorization=all_root)
@@ -202,7 +226,7 @@ class TestSessions(unittest.TestCase):
 
         self.assertTrue(response.session, "Received a session back")
 
-        session2 = Session("root", session1, path=[Hop(src=Endpoint(id='target1', port=1), dst=Endpoint(id='switch2', port=2)), Hop(src=Endpoint(id='switch2', port=3), dst=Endpoint(id='target2', port=0))])
+        session2 = Session("root", session1, path=[Hop(src=Endpoint(id='target1', port=1), dst=Endpoint(id='router2', port=2)), Hop(src=Endpoint(id='router2', port=3), dst=Endpoint(id='target2', port=0))])
         self.assertEqual(s, session2)
 
         # Now to just try running an action over two sessions
@@ -215,5 +239,29 @@ class TestSessions(unittest.TestCase):
         self.assertEqual(response.content, ["ssh"])
 
 
+class TestRouting(unittest.TestCase):
+
+    def test_0000_routing(self):
+
+        env = Environment()
+
+        router1 = Router("router1", env)
+        router1_port = router1.add_port("10.0.0.0", "255.255.0.0")
+
+        # Technically, the last route is all tha is needed, but this is to test overlapping and correct ordering
+        router1.add_route(Route(IPNetwork("10.1.0.0/30"), router1_port))
+        router1.add_route(Route(IPNetwork("10.1.0.0/26"), router1_port, metric=30))
+        router1.add_route(Route(IPNetwork("10.1.0.0/22"), router1_port))
+        router1.add_route(Route(IPNetwork("10.1.0.0/16"), router1_port))
+        router1.add_route(Route(IPNetwork("10.1.5.4/16"), router1_port))
+        router1.add_route(Route(IPNetwork("10.1.5.4/16"), router1_port))
+
+        routes = router1.list_routes()
+        self.assertEqual(routes[0].net.prefixlen, 26, "Correctly prioritized metric")
+        self.assertEqual(routes[1].net.prefixlen, 30, "Correctly prioritized prefixlen")
+        self.assertEqual(routes[5].net.ip, IPAddress("10.1.5.4"), "Correctly ordered IP addresses")
+
+
 if __name__ == '__main__':
     unittest.main()
+
