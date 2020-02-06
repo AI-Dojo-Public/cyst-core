@@ -4,7 +4,7 @@ import uuid
 from typing import List, Tuple
 
 from environment.access import Policy, Authorization, AccessLevel
-from environment.action import Action, ActionList
+from environment.action import Action, ActionList, ActionParameterType
 from environment.environment import environment_interpreters
 from environment.exploit import ExploitCategory, ExploitLocality, ExploitParameterType
 from environment.exploit_store import ExploitStore
@@ -20,6 +20,8 @@ ActionList().add_action(Action("rit:active_recon:information_discovery"))
 ActionList().add_action(Action("rit:privilege_escalation:user_privilege_escalation"))
 ActionList().add_action(Action("rit:privilege_escalation:root_privilege_escalation"))
 ActionList().add_action(Action("rit:ensure_access:command_and_control"))
+ActionList().add_action(Action("rit:disclosure:data_exfiltration"))
+ActionList().add_action(Action("rit:destroy:data_destruction"))
 
 # Actions to do
 ActionList().add_action(Action("rit:privilege_escalation:network_sniffing_ca"))
@@ -40,12 +42,10 @@ ActionList().add_action(Action("rit:disrupt:end_point_dos"))
 ActionList().add_action(Action("rit:disrupt:network_dos"))
 ActionList().add_action(Action("rit:disrupt:service_stop"))
 ActionList().add_action(Action("rit:disrupt:resource_hijacking"))
-ActionList().add_action(Action("rit:destroy:data_destruction"))
 ActionList().add_action(Action("rit:destroy:content_wipe"))
 ActionList().add_action(Action("rit:distort:data_encryption"))
 ActionList().add_action(Action("rit:distort:defacement"))
 ActionList().add_action(Action("rit:distort:data_manipulation"))
-ActionList().add_action(Action("rit:disclosure:data_exfiltration"))
 ActionList().add_action(Action("rit:delivery:data_delivery"))
 
 
@@ -54,9 +54,9 @@ def evaluate(names: List[str], message: Request, node: PassiveNode):
         return 0, None
 
     # Gah... changing it back and forth.
-    tag = ":".join(names)
+    tag = "_".join(names)
 
-    fn = getattr(sys.modules[__name__], "process_" + tag.replace(":", "_"), process_default)
+    fn = getattr(sys.modules[__name__], "process_" + tag, process_default)
     return fn(message, node)
 
 
@@ -74,11 +74,13 @@ def process_active_recon_host_discovery(message: Request, node: PassiveNode) -> 
 
 
 def process_active_recon_service_discovery(message: Request, node: PassiveNode) -> Tuple[int, Response]:
+    # TODO Only show services, which are opened to outside
     return 1, Response(message, message.service, Status(StatusOrigin.NODE, StatusValue.SUCCESS),
                        [x for x in node.services], session=message.session, authorization=message.authorization)
 
 
 def process_active_recon_vulnerability_discovery(message: Request, node: PassiveNode) -> Tuple[int, Response]:
+    # TODO Only works on services, which are opened to outside
     if message.service and message.service in node.services:
         service_tags = [message.service + "-" + str(node.services[message.service].version)]
         service_tags.extend(node.services[message.service].tags)
@@ -91,6 +93,7 @@ def process_active_recon_vulnerability_discovery(message: Request, node: Passive
 
 
 def process_active_recon_information_discovery(message: Request, node: PassiveNode) -> Tuple[int, Response]:
+    # TODO Only works on services, which are opened to outside
     if message.service and message.service in node.services:
         public_data = node.services[message.service].public_data
         public_authorizations = node.services[message.service].public_authorizations
@@ -109,6 +112,8 @@ def process_active_recon_information_discovery(message: Request, node: PassiveNo
 
 
 def process_ensure_access_command_and_control(message: Request, node: PassiveNode) -> Tuple[int, Response]:
+    # TODO Only works on services, which are opened to outside
+
     # Check if the service is running on the target
     error = ""
     if not message.service:
@@ -245,3 +250,93 @@ def process_privilege_escalation_root_privilege_escalation(message: Request, nod
 
 def process_privilege_escalation_user_privilege_escalation(message: Request, node: PassiveNode) -> Tuple[int, Response]:
     return process_privilege_escalation(message, node, "user")
+
+
+def process_disclosure_data_exfiltration(message: Request, node: PassiveNode) -> Tuple[int, Response]:
+    # Check if the service is running on the target
+    error = ""
+    if not message.service:
+        error = "Service for session creation not specified"
+    elif message.service not in node.services:
+        error = "Nonexistent service {} at node {}".format(message.service, message.dst_ip)
+    elif node.services[message.service].local and (not message.session or message.session.endpoint.id != node.id):
+        error = "Trying to access local service without a session to the node"
+
+    if error:
+        return 1, Response(message, message.service, Status(StatusOrigin.NODE, StatusValue.ERROR), error, session=message.session)
+
+    service = node.services[message.service]
+
+    # Gather public data
+    # TODO Public data are extracted with the information discovery action. Should it be included here?
+    result = list()
+    result.extend(service.public_data)
+
+    # Go through the private data
+    # Made them accessible only if the attacker has a valid authorization for given service and the authorization
+    # lists them as an owner of the data
+    if (message.authorization and
+        message.service in message.authorization.services and
+        Policy().decide(node.id, message.service, access_level=AccessLevel.NONE, authorization=message.authorization)):
+
+        for datum in service.private_data:
+            if message.authorization.identity == '*' or message.authorization.identity == datum.owner:
+                result.append(datum)
+
+    return 1, Response(message, message.service, Status(StatusOrigin.SERVICE, StatusValue.SUCCESS), result, session=message.session)
+
+
+def process_destroy_data_destruction(message: Request, node: PassiveNode) -> Tuple[int, Response]:
+    # Check if the service is running on the target
+    error = ""
+    if not message.service:
+        error = "Service for session creation not specified"
+    elif message.service not in node.services:
+        error = "Nonexistent service {} at node {}".format(message.service, message.dst_ip)
+    elif node.services[message.service].local and (not message.session or message.session.endpoint.id != node.id):
+        error = "Trying to access local service without a session to the node"
+
+    if error:
+        return 1, Response(message, message.service, Status(StatusOrigin.NODE, StatusValue.ERROR), error,
+                           session=message.session)
+
+    service = node.services[message.service]
+
+    # Data destruction only with authorization
+    if (not message.authorization or
+        message.service not in message.authorization.services or
+        not Policy().decide(node.id, message.service, access_level=AccessLevel.NONE, authorization=message.authorization)):
+
+        return 1, Response(message, message.service, Status(StatusOrigin.SERVICE, StatusValue.FAILURE),
+                           "Unauthorized attempt to delete data", session=message.session)
+
+    # This function silently does nothing if there are no data specified for destruction
+    # TODO Decide what to do, if user has an elevated access level or is a root
+    if message.action.parameters:
+        delete_ids = []
+        new_data = []
+        for param in message.action.parameters:
+            if param.action_type == ActionParameterType.ID:
+                # There is no checking...
+                temp = uuid.UUID(param.value)
+                delete_ids.append(temp)
+
+        # Check public data
+        for datum in service.public_data:
+            if datum.id not in delete_ids or datum.owner != message.authorization.identity:
+                new_data.append(datum)
+
+        service.public_data.clear()
+        service.public_data.extend(new_data)
+
+        # Check private data
+        new_data.clear()
+
+        for datum in service.private_data:
+            if datum.id not in delete_ids or datum.owner != message.authorization.identity:
+                new_data.append(datum)
+
+        service.private_data.clear()
+        service.private_data.extend(new_data)
+
+    return 1, Response(message, message.service, Status(StatusOrigin.SERVICE, StatusValue.SUCCESS), "", session=message.session)

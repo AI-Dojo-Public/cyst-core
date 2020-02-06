@@ -1,6 +1,28 @@
+from enum import Enum
+from typing import Optional, List
+
 from environment.exploit import Exploit
 from environment.tag import TagList
 from utils.singleton import Singleton
+
+
+class ActionParameterType(Enum):
+    NONE = 0,
+    ID = 1
+
+
+class ActionParameter:
+    def __init__(self, action_type: ActionParameterType, value: str):
+        self._type = action_type
+        self._value = value
+
+    @property
+    def action_type(self) -> ActionParameterType:
+        return self._type
+
+    @property
+    def value(self) -> str:
+        return self._value
 
 
 class Action:
@@ -8,6 +30,7 @@ class Action:
         self._id = id
         self._content = content
         self._exploit = exploit
+        self._parameters = []
         self._tags = []
         for tag in tags[:9]:
             x = TagList().add_tag(tag, self)
@@ -28,6 +51,14 @@ class Action:
     @property
     def exploit(self):
         return self._exploit
+
+    @property
+    def parameters(self) -> List[ActionParameter]:
+        return self._parameters
+
+    def add_parameters(self, *parameters) -> None:
+        for parameter in parameters:
+            self._parameters.append(parameter)
 
     def get_values(self, prefix = ""):
         return [x.value for x in self._tags if x.is_prefixed_by(prefix)]

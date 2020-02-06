@@ -1,3 +1,5 @@
+import uuid
+
 from typing import List, Optional, Tuple, Union
 from netaddr import IPAddress
 from semver import VersionInfo
@@ -10,13 +12,30 @@ from environment.views import NodeView, ServiceView, InterfaceView
 
 # TODO Data handling is a next big thing - how to manage access to private data, how to express encrypted or hashed data
 #                                          how to reasonably link data, tokens and services
+# TODO implement data  encryption (probably by means of another authorization token)
 class Data:
-    def __init__(self, id, owner):
-        self._id = id
+    def __init__(self, id: Optional[uuid.UUID], owner: str, description: str = ""):
+        if id:
+            self._id = id
+        else:
+            self._id = uuid.uuid4()
         self._owner = owner
+        self._description = description
+
+    @property
+    def id(self):
+        return self._id
+
+    @property
+    def owner(self):
+        return self._owner
+
+    @property
+    def description(self):
+        return self._description
 
     def __str__(self):
-        return "Data [id: {}, owner: {}]".format(self._id, self._owner)
+        return "Data [id: {}, owner: {}, description: {}]".format(self._id, self._owner, self._description)
 
     def __repr__(self):
         return self.__str__()
@@ -78,8 +97,16 @@ class Service:
             self.add_tag(tag)
 
     @property
-    def public_data(self):
+    def private_data(self) -> List[Data]:
+        return self._private_data
+
+    @property
+    def public_data(self) -> List[Data]:
         return self._public_data
+
+    @property
+    def private_authorizations(self) -> List[Authorization]:
+        return self._private_authorizations
 
     @property
     def public_authorizations(self) -> List[Authorization]:

@@ -222,15 +222,18 @@ class Status:
         self._origin = origin
         self._value = value
 
-    def __str__(self):
+    def __str__(self) -> str:
         return "({}, {})".format(self._origin.name, self._value.name)
 
+    def __eq__(self, other: 'Status') -> bool:
+        return self._origin == other._origin and self._value == other._value
+
     @property
-    def origin(self):
+    def origin(self) -> StatusOrigin:
         return self._origin
 
     @property
-    def value(self):
+    def value(self) -> StatusValue:
         return self._value
 
 

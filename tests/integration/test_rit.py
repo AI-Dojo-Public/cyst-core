@@ -2,14 +2,14 @@ import unittest
 import uuid
 
 from environment.access import Authorization, AccessLevel, Policy
-from environment.action import ActionList
+from environment.action import ActionList, ActionParameter, ActionParameterType
 from environment.environment import Environment, EnvironmentState, EnvironmentProxy, PassiveNode
 from environment.exploit import Exploit, ExploitLocality, ExploitCategory, VulnerableService, ExploitParameter, ExploitParameterType
 from environment.exploit_store import ExploitStore
-from environment.message import StatusValue, StatusOrigin
+from environment.message import StatusValue, StatusOrigin, Status
 from environment.network import Router
 from environment.network_elements import Endpoint
-from environment.node import Service, NodeView
+from environment.node import Service, NodeView, Data
 from attackers.simple import SimpleAttacker
 
 
@@ -59,6 +59,9 @@ class TestRITIntegration(unittest.TestCase):
         # given an access to the bash authorizations
         target.set_shell(bash_service)
 
+        bash_service.add_public_data(Data(None, "user1", "Worthless data"))
+        bash_service.add_private_data(Data(None, "user1", "Interesting data, somehow hidden in bash"))
+
         # HTTP service provides a list of users when queried for information. May get system access with exploit
         # Authorizations only added as a public data and are not registered in the policy, because on their own, they do not
         # grant any access.
@@ -69,6 +72,11 @@ class TestRITIntegration(unittest.TestCase):
 
         # Successful exploit gives user a limited access to the system
         http_service.set_service_access_level(AccessLevel.LIMITED)
+
+        # Add some public and private data to the service
+        http_service.add_public_data(Data(None, "user1", "Completely useless data"))
+        http_service.add_public_data(Data(None, "user1", "Another batch of useless data"))
+        http_service.add_private_data(Data(None, "user2", "Much more interesting piece of information"))
 
         # Add system exploitability
         exploit1 = Exploit("http_exploit", [VulnerableService("lighttpd", "1.4.54")], ExploitLocality.REMOTE, ExploitCategory.CODE_EXECUTION)
@@ -121,8 +129,7 @@ class TestRITIntegration(unittest.TestCase):
         message = self._attacker.get_last_response()
 
         self.assertEqual((result, state), (True, EnvironmentState.PAUSED), "Task ran and was successfully paused.")
-        self.assertEqual(message.status.origin, StatusOrigin.NODE, "Got response from the node")
-        self.assertEqual(message.status.value, StatusValue.SUCCESS, "Liveliness confirmed")
+        self.assertEqual(message.status, Status(StatusOrigin.NODE, StatusValue.SUCCESS), "Liveliness confirmed")
 
         self._attacker.execute_action("192.168.0.6", "", action)
 
@@ -130,8 +137,7 @@ class TestRITIntegration(unittest.TestCase):
         message = self._attacker.get_last_response()
 
         self.assertEqual((result, state), (True, EnvironmentState.PAUSED), "Task ran and was successfully paused.")
-        self.assertEqual(message.status.origin, StatusOrigin.NETWORK, "Got response from the network")
-        self.assertEqual(message.status.value, StatusValue.FAILURE, "Host unreachable")
+        self.assertEqual(message.status, Status(StatusOrigin.NETWORK, StatusValue.FAILURE), "Host unreachable")
 
         self._attacker.execute_action("192.168.1.6", "", action)
 
@@ -139,8 +145,7 @@ class TestRITIntegration(unittest.TestCase):
         message = self._attacker.get_last_response()
 
         self.assertEqual((result, state), (True, EnvironmentState.PAUSED), "Task ran and was successfully paused.")
-        self.assertEqual(message.status.origin, StatusOrigin.NETWORK, "Got response from the network")
-        self.assertEqual(message.status.value, StatusValue.FAILURE, "Host un-routable")
+        self.assertEqual(message.status, Status(StatusOrigin.NETWORK, StatusValue.FAILURE), "Host un-routable")
 
     # Test correct gathering of running services
     def test_0001_active_recon_service_scan(self) -> None:
@@ -152,8 +157,7 @@ class TestRITIntegration(unittest.TestCase):
         message = self._attacker.get_last_response()
 
         self.assertEqual((result, state), (True, EnvironmentState.PAUSED), "Task ran and was successfully paused.")
-        self.assertEqual(message.status.origin, StatusOrigin.NODE, "Got response from the node")
-        self.assertEqual(message.status.value, StatusValue.SUCCESS, "Services disclosed")
+        self.assertEqual(message.status, Status(StatusOrigin.NODE, StatusValue.SUCCESS), "Services disclosed")
         self.assertEqual(message.content, ["openssh", "lighttpd", "bash"])
 
     # Test getting correct versions of services running on the target and an attempt to get a version of a
@@ -167,8 +171,7 @@ class TestRITIntegration(unittest.TestCase):
         message = self._attacker.get_last_response()
 
         self.assertEqual((result, state), (True, EnvironmentState.PAUSED), "Task ran and was successfully paused.")
-        self.assertEqual(message.status.origin, StatusOrigin.SERVICE, "Got response from the service")
-        self.assertEqual(message.status.value, StatusValue.SUCCESS, "Potential vulnerabilities disclosed")
+        self.assertEqual(message.status, Status(StatusOrigin.SERVICE, StatusValue.SUCCESS), "Potential vulnerabilities disclosed")
         self.assertEqual(message.content, ["lighttpd-1.4.54"])
 
         self._attacker.execute_action("192.168.0.2", "nonexisting_service", action)
@@ -177,8 +180,7 @@ class TestRITIntegration(unittest.TestCase):
         message = self._attacker.get_last_response()
 
         self.assertEqual((result, state), (True, EnvironmentState.PAUSED), "Task ran and was successfully paused.")
-        self.assertEqual(message.status.origin, StatusOrigin.NODE, "Got response from the node")
-        self.assertEqual(message.status.value, StatusValue.ERROR, "Vulnerability of non-existent service not disclosed")
+        self.assertEqual(message.status, Status(StatusOrigin.NODE, StatusValue.ERROR), "Vulnerability of non-existent service not disclosed")
 
     # Test extraction of publicly available information from the http service
     def test_0003_active_recon_information_discovery(self) -> None:
@@ -190,12 +192,15 @@ class TestRITIntegration(unittest.TestCase):
         message = self._attacker.get_last_response()
 
         self.assertEqual((result, state), (True, EnvironmentState.PAUSED), "Task ran and was successfully paused.")
-        self.assertEqual(message.status.origin, StatusOrigin.SERVICE, "Got response from the service")
-        self.assertEqual(message.status.value, StatusValue.SUCCESS, "Information disclosed")
+        self.assertEqual(message.status, Status(StatusOrigin.SERVICE, StatusValue.SUCCESS), "Information disclosed")
 
+        counter = 0
         authorizations = message.content
-        for index, auth in enumerate(authorizations):
-            self.assertEqual(auth, Authorization("user" + str(index + 1), ["target1"]))
+        for auth in authorizations:
+            # The service contains public data as well
+            if type(auth) is Authorization:
+                self.assertEqual(auth, Authorization("user" + str(counter + 1), ["target1"]))
+                counter += 1
 
     def test_0004_ensure_access_command_and_control(self) -> None:
 
@@ -209,8 +214,7 @@ class TestRITIntegration(unittest.TestCase):
         message = self._attacker.get_last_response()
 
         self.assertEqual((result, state), (True, EnvironmentState.PAUSED), "Task ran and was successfully paused.")
-        self.assertEqual(message.status.origin, StatusOrigin.NODE, "Got response from the node")
-        self.assertEqual(message.status.value, StatusValue.ERROR, "Failed because service not specified")
+        self.assertEqual(message.status, Status(StatusOrigin.NODE, StatusValue.ERROR), "Failed because service not specified")
 
         self._attacker.execute_action("192.168.0.2", "nonexistent_service", action)
 
@@ -218,8 +222,7 @@ class TestRITIntegration(unittest.TestCase):
         message = self._attacker.get_last_response()
 
         self.assertEqual((result, state), (True, EnvironmentState.PAUSED), "Task ran and was successfully paused.")
-        self.assertEqual(message.status.origin, StatusOrigin.NODE, "Got response from the node")
-        self.assertEqual(message.status.value, StatusValue.ERROR, "Failed because wrong service specified")
+        self.assertEqual(message.status, Status(StatusOrigin.NODE, StatusValue.ERROR), "Failed because wrong service specified")
 
         self._attacker.execute_action("192.168.0.2", "openssh", action)
 
@@ -227,8 +230,7 @@ class TestRITIntegration(unittest.TestCase):
         message = self._attacker.get_last_response()
 
         self.assertEqual((result, state), (True, EnvironmentState.PAUSED), "Task ran and was successfully paused.")
-        self.assertEqual(message.status.origin, StatusOrigin.NODE, "Got response from the node")
-        self.assertEqual(message.status.value, StatusValue.ERROR, "Failed because neither auth nor exploit were provided")
+        self.assertEqual(message.status, Status(StatusOrigin.NODE, StatusValue.ERROR), "Failed because neither auth nor exploit were provided")
 
         self._attacker.execute_action("192.168.0.2", "openssh", action, authorization=self._ssh_auth1)
 
@@ -236,8 +238,7 @@ class TestRITIntegration(unittest.TestCase):
         message = self._attacker.get_last_response()
 
         self.assertEqual((result, state), (True, EnvironmentState.PAUSED), "Task ran and was successfully paused.")
-        self.assertEqual(message.status.origin, StatusOrigin.SERVICE, "Got response from the service")
-        self.assertEqual(message.status.value, StatusValue.SUCCESS, "Correctly established a session")
+        self.assertEqual(message.status, Status(StatusOrigin.SERVICE, StatusValue.SUCCESS), "Correctly established a session")
         self.assertTrue(isinstance(message.content, NodeView), "Got a node view of the target")
         self.assertEqual(message.session.endpoint, Endpoint("target1", 0))
 
@@ -252,8 +253,7 @@ class TestRITIntegration(unittest.TestCase):
         message = self._attacker.get_last_response()
 
         self.assertEqual((result, state), (True, EnvironmentState.PAUSED), "Task ran and was successfully paused.")
-        self.assertEqual(message.status.origin, StatusOrigin.SERVICE, "Got response from the service")
-        self.assertEqual(message.status.value, StatusValue.SUCCESS, "Correctly established a session")
+        self.assertEqual(message.status, Status(StatusOrigin.SERVICE, StatusValue.SUCCESS), "Correctly established a session")
         self.assertTrue(isinstance(message.content, NodeView), "Got a node view of the target")
         self.assertEqual(message.session.endpoint, Endpoint("target1", 0))
         self.assertEqual(message.authorization.identity, "lighttpd", "Got correct identity for newly created authorization")
@@ -268,8 +268,7 @@ class TestRITIntegration(unittest.TestCase):
         message = self._attacker.get_last_response()
 
         self.assertEqual((result, state), (True, EnvironmentState.PAUSED), "Task ran and was successfully paused.")
-        self.assertEqual(message.status.origin, StatusOrigin.SERVICE, "Got response from the service")
-        self.assertEqual(message.status.value, StatusValue.FAILURE, "Wrong exploit used")
+        self.assertEqual(message.status, Status(StatusOrigin.SERVICE, StatusValue.FAILURE), "Wrong exploit used")
 
     def test_0005_privilege_escalation_user_and_root_privilege_escalation(self) -> None:
 
@@ -313,16 +312,14 @@ class TestRITIntegration(unittest.TestCase):
         result, state = self._env.resume()
         message = self._attacker.get_last_response()
 
-        self.assertEqual(message.status.origin, StatusOrigin.NODE, "Got response from the node")
-        self.assertEqual(message.status.value, StatusValue.ERROR, "Failed because service not specified")
+        self.assertEqual(message.status, Status(StatusOrigin.NODE, StatusValue.ERROR), "Failed because service not specified")
 
         self._attacker.execute_action("192.168.0.2", "nonexistent_service", user_action)
 
         result, state = self._env.resume()
         message = self._attacker.get_last_response()
 
-        self.assertEqual(message.status.origin, StatusOrigin.NODE, "Got response from the node")
-        self.assertEqual(message.status.value, StatusValue.ERROR, "Failed because wrong service specified")
+        self.assertEqual(message.status, Status(StatusOrigin.NODE, StatusValue.ERROR), "Failed because wrong service specified")
 
         # --------------------------------------------------------------------------------------------------------------
         # Establish a session using the C&C action with the lighttpd exploit
@@ -350,8 +347,7 @@ class TestRITIntegration(unittest.TestCase):
         self._env.resume()
         message = self._attacker.get_last_response()
 
-        self.assertEqual(message.status.origin, StatusOrigin.SERVICE, "Got response from the service")
-        self.assertEqual(message.status.value, StatusValue.ERROR, "Failed because non-local exploit used")
+        self.assertEqual(message.status, Status(StatusOrigin.SERVICE, StatusValue.ERROR), "Failed because non-local exploit used")
 
         # --------------------------------------------------------------------------------------------------------------
         # Don't try this at home
@@ -361,8 +357,7 @@ class TestRITIntegration(unittest.TestCase):
         self._env.resume()
         message = self._attacker.get_last_response()
 
-        self.assertEqual(message.status.origin, StatusOrigin.SERVICE, "Got response from the service")
-        self.assertEqual(message.status.value, StatusValue.ERROR, "Failed because exploit of wrong category used")
+        self.assertEqual(message.status, Status(StatusOrigin.SERVICE, StatusValue.ERROR), "Failed because exploit of wrong category used")
 
         # --------------------------------------------------------------------------------------------------------------
         user_action.set_exploit(Exploit("too_many_param_local_exploit", None, ExploitLocality.LOCAL, ExploitCategory.AUTH_MANIPULATION,
@@ -372,8 +367,7 @@ class TestRITIntegration(unittest.TestCase):
         self._env.resume()
         message = self._attacker.get_last_response()
 
-        self.assertEqual(message.status.origin, StatusOrigin.SERVICE, "Got response from the service")
-        self.assertEqual(message.status.value, StatusValue.ERROR, "Failed because exploit uses two parameters")
+        self.assertEqual(message.status, Status(StatusOrigin.SERVICE, StatusValue.ERROR), "Failed because exploit uses two parameters")
 
         # --------------------------------------------------------------------------------------------------------------
         user_action.set_exploit(Exploit("wrong_param_local_exploit", None, ExploitLocality.LOCAL, ExploitCategory.AUTH_MANIPULATION,
@@ -383,8 +377,7 @@ class TestRITIntegration(unittest.TestCase):
         self._env.resume()
         message = self._attacker.get_last_response()
 
-        self.assertEqual(message.status.origin, StatusOrigin.SERVICE, "Got response from the service")
-        self.assertEqual(message.status.value, StatusValue.ERROR, "Failed because exploit uses wrong parameter type")
+        self.assertEqual(message.status, Status(StatusOrigin.SERVICE, StatusValue.ERROR), "Failed because exploit uses wrong parameter type")
 
         # --------------------------------------------------------------------------------------------------------------
         user_exploit.parameters[ExploitParameterType.IDENTITY].set_value("user1")
@@ -394,8 +387,7 @@ class TestRITIntegration(unittest.TestCase):
         self._env.resume()
         message = self._attacker.get_last_response()
 
-        self.assertEqual(message.status.origin, StatusOrigin.SERVICE, "Got response from the service")
-        self.assertEqual(message.status.value, StatusValue.ERROR, "Failed because no session specified")
+        self.assertEqual(message.status, Status(StatusOrigin.SERVICE, StatusValue.ERROR), "Failed because no session specified")
 
         # --------------------------------------------------------------------------------------------------------------
         self._attacker.execute_action("192.168.0.2", "openssh", user_action, session, auth)
@@ -403,8 +395,7 @@ class TestRITIntegration(unittest.TestCase):
         self._env.resume()
         message = self._attacker.get_last_response()
 
-        self.assertEqual(message.status.origin, StatusOrigin.SERVICE, "Got response from the service")
-        self.assertEqual(message.status.value, StatusValue.ERROR, "Failed because wrong authentication specified")
+        self.assertEqual(message.status, Status(StatusOrigin.SERVICE, StatusValue.ERROR), "Failed because wrong authentication specified")
 
         # --------------------------------------------------------------------------------------------------------------
         user_action.set_exploit(Exploit("old_bash_user_exploit", [VulnerableService("bash", "3.0.0")], ExploitLocality.LOCAL, ExploitCategory.AUTH_MANIPULATION, ExploitParameter(ExploitParameterType.IDENTITY)))
@@ -413,8 +404,7 @@ class TestRITIntegration(unittest.TestCase):
         self._env.resume()
         message = self._attacker.get_last_response()
 
-        self.assertEqual(message.status.origin, StatusOrigin.SERVICE, "Got response from the service")
-        self.assertEqual(message.status.value, StatusValue.FAILURE, "Failed because of unusable exploit")
+        self.assertEqual(message.status, Status(StatusOrigin.SERVICE, StatusValue.FAILURE), "Failed because of unusable exploit")
 
         # --------------------------------------------------------------------------------------------------------------
         user_exploit.parameters[ExploitParameterType.IDENTITY].set_value("user3")
@@ -424,8 +414,7 @@ class TestRITIntegration(unittest.TestCase):
         result, state = self._env.resume()
         message = self._attacker.get_last_response()
 
-        self.assertEqual(message.status.origin, StatusOrigin.SERVICE, "Got response from service")
-        self.assertEqual(message.status.value, StatusValue.FAILURE, "Failed because of unavailable user")
+        self.assertEqual(message.status, Status(StatusOrigin.SERVICE, StatusValue.FAILURE), "Failed because of unavailable user")
 
         # --------------------------------------------------------------------------------------------------------------
         # Successful user exploit
@@ -437,8 +426,7 @@ class TestRITIntegration(unittest.TestCase):
         self._env.resume()
         message = self._attacker.get_last_response()
 
-        self.assertEqual(message.status.origin, StatusOrigin.SERVICE, "Got response from service")
-        self.assertEqual(message.status.value, StatusValue.SUCCESS, "We correctly commenced the exploit")
+        self.assertEqual(message.status, Status(StatusOrigin.SERVICE, StatusValue.SUCCESS), "We correctly commenced the exploit")
         self.assertEqual(message.authorization.identity, "user1", "Got authorization for requested user")
 
         # --------------------------------------------------------------------------------------------------------------
@@ -450,8 +438,7 @@ class TestRITIntegration(unittest.TestCase):
         self._env.resume()
         message = self._attacker.get_last_response()
 
-        self.assertEqual(message.status.origin, StatusOrigin.SERVICE, "Got response from service")
-        self.assertEqual(message.status.value, StatusValue.SUCCESS, "We correctly commenced the exploit")
+        self.assertEqual(message.status, Status(StatusOrigin.SERVICE, StatusValue.SUCCESS), "We correctly commenced the exploit")
         self.assertEqual(message.authorization.identity, "root", "Got authorization for root")
         self.assertEqual(message.authorization.access_level, AccessLevel.ELEVATED, "Got elevated access level")
 
@@ -464,12 +451,251 @@ class TestRITIntegration(unittest.TestCase):
         self._env.resume()
         message = self._attacker.get_last_response()
 
-        self.assertEqual(message.status.origin, StatusOrigin.SERVICE, "Got response from service")
-        self.assertEqual(message.status.value, StatusValue.SUCCESS, "We correctly commenced the exploit")
+        self.assertEqual(message.status, Status(StatusOrigin.SERVICE, StatusValue.SUCCESS), "We correctly commenced the exploit")
         self.assertEqual(message.authorization.identity, "*", "Got authorization for anyone")
         self.assertEqual(message.authorization.nodes, ["*"], "Got authorization for anyone")
         self.assertEqual(message.authorization.services, ["*"], "Got authorization for anyone")
         self.assertEqual(message.authorization.access_level, AccessLevel.LIMITED, "Got elevated access level")
+
+    def test_0006_disclosure_data_exfiltration(self) -> None:
+
+        action = self._actions["rit:disclosure:data_exfiltration"]
+
+        # --------------------------------------------------------------------------------------------------------------
+        # Sanity tests
+        # --------------------------------------------------------------------------------------------------------------
+        self._attacker.execute_action("192.168.0.2", "", action)
+
+        self._env.resume()
+        message = self._attacker.get_last_response()
+
+        self.assertEqual(message.status, Status(StatusOrigin.NODE, StatusValue.ERROR), "Failed because service not specified")
+
+        self._attacker.execute_action("192.168.0.2", "nonexistent_service", action)
+
+        self._env.resume()
+        message = self._attacker.get_last_response()
+
+        self.assertEqual(message.status, Status(StatusOrigin.NODE, StatusValue.ERROR), "Failed because wrong service specified")
+
+        self._attacker.execute_action("192.168.0.2", "bash", action)
+
+        self._env.resume()
+        message = self._attacker.get_last_response()
+
+        self.assertEqual(message.status, Status(StatusOrigin.NODE, StatusValue.ERROR), "Failed because local service specified")
+
+        # --------------------------------------------------------------------------------------------------------------
+        # Disclose publicly available data
+        self._attacker.execute_action("192.168.0.2", "lighttpd", action)
+
+        self._env.resume()
+        message = self._attacker.get_last_response()
+
+        self.assertEqual(message.status, Status(StatusOrigin.SERVICE, StatusValue.SUCCESS), "Got public data from lighttpd service")
+        self.assertTrue(type(message.content) is list and len(message.content) == 2 and message.content[0].owner == "user1", "Got correct data")
+
+        # Exploit httpd to get access
+        remote_exploit = ExploitStore().get_exploit(service="lighttpd")[0]
+        cc_action = self._actions["rit:ensure_access:command_and_control"]
+        cc_action.set_exploit(remote_exploit)
+
+        self._attacker.execute_action("192.168.0.2", "lighttpd", cc_action)
+
+        self._env.resume()
+        message = self._attacker.get_last_response()
+
+        session = message.session
+        auth = message.authorization
+
+        # At this point, we can guess which users are present on the system from message.content, which is a NodeView.
+        # TODO However, there is no clear mapping of service -> user accounts
+
+        self.assertEqual(message.status, Status(StatusOrigin.SERVICE, StatusValue.SUCCESS), "Established a session")
+        self.assertTrue("lighttpd" in auth.services, "Exploited lighttpd successfully")
+
+        # Now that we have session, we got access to bash. Let's extract public data from it
+        self._attacker.execute_action("192.168.0.2", "bash", action, session)
+
+        self._env.resume()
+        message = self._attacker.get_last_response()
+
+        self.assertEqual(message.status, Status(StatusOrigin.SERVICE, StatusValue.SUCCESS), "Got data out of local service")
+        self.assertEqual(message.content[0].owner, "user1", "Got public data of user1")
+
+        # Time to get private data from bash
+        # But first, get access as a user1
+        exploits = ExploitStore().get_exploit(service="bash", category=ExploitCategory.AUTH_MANIPULATION)
+        # TODO currently there is no way for root to access user data. There are case where we may want it, there are
+        #      other cases. We need to ind a good way to choose the right action
+        # TODO we also need a better mechanism for exploit selection
+        user_exploit = None
+        for e in exploits:
+            if ExploitParameterType.IDENTITY in e.parameters:
+                user_exploit = e
+                break
+
+        user_action = self._actions["rit:privilege_escalation:user_privilege_escalation"]
+
+        user_exploit.parameters[ExploitParameterType.IDENTITY].set_value("user1")
+        user_action.set_exploit(user_exploit)
+
+        self._attacker.execute_action("192.168.0.2", "bash", user_action, session, auth)
+
+        self._env.resume()
+        message = self._attacker.get_last_response()
+
+        user_auth = message.authorization
+
+        self.assertEqual(message.status, Status(StatusOrigin.SERVICE, StatusValue.SUCCESS), "Escalated privileges")
+        self.assertEqual(user_auth.identity, "user1", "Got access as user1")
+
+        # and now, finally, use the user1 credentials to get the private data
+        self._attacker.execute_action("192.168.0.2", "bash", action, session, user_auth)
+
+        self._env.resume()
+        message = self._attacker.get_last_response()
+
+        self.assertEqual(message.status, Status(StatusOrigin.SERVICE, StatusValue.SUCCESS), "Got data")
+        self.assertTrue(len(message.content) == 2, "Got both public and private data")
+
+        # Try to unsuccessfully get access to lighttpd private data
+        # and now, finally, use the user1 credentials to get the private data
+        self._attacker.execute_action("192.168.0.2", "lighttpd", action, session, user_auth)
+
+        self._env.resume()
+        message = self._attacker.get_last_response()
+
+        self.assertEqual(message.status, Status(StatusOrigin.SERVICE, StatusValue.SUCCESS), "Got data")
+        self.assertTrue(len(message.content) == 2 and message.content[0].owner == "user1" and
+                        message.content[1].owner == "user1", "Got only public data")
+
+    def test_0007_destroy_data_destruction(self) -> None:
+
+        action_destruction = self._actions["rit:destroy:data_destruction"]
+        action_exfiltration = self._actions["rit:disclosure:data_exfiltration"]
+        action_cc = self._actions["rit:ensure_access:command_and_control"]
+        action_cc.set_exploit(ExploitStore().get_exploit(service="lighttpd")[0])
+
+        # --------------------------------------------------------------------------------------------------------------
+        # Sanity tests
+        # --------------------------------------------------------------------------------------------------------------
+        self._attacker.execute_action("192.168.0.2", "", action_destruction)
+
+        self._env.resume()
+        message = self._attacker.get_last_response()
+
+        self.assertEqual(message.status, Status(StatusOrigin.NODE, StatusValue.ERROR), "Failed because service not specified")
+
+        self._attacker.execute_action("192.168.0.2", "nonexistent_service", action_destruction)
+
+        self._env.resume()
+        message = self._attacker.get_last_response()
+
+        self.assertEqual(message.status, Status(StatusOrigin.NODE, StatusValue.ERROR), "Failed because wrong service specified")
+
+        self._attacker.execute_action("192.168.0.2", "bash", action_destruction)
+
+        self._env.resume()
+        message = self._attacker.get_last_response()
+
+        self.assertEqual(message.status, Status(StatusOrigin.NODE, StatusValue.ERROR), "Failed because local service specified")
+
+        # --------------------------------------------------------------------------------------------------------------
+        # Attempt to remove data without any authorization
+        self._attacker.execute_action("192.168.0.2", "lighttpd", action_destruction)
+
+        self._env.resume()
+        message = self._attacker.get_last_response()
+
+        self.assertEqual(message.status, Status(StatusOrigin.SERVICE, StatusValue.FAILURE), "Unauthorized attempt to delete accessible data")
+
+        # --------------------------------------------------------------------------------------------------------------
+        # Attempt to remove data without proper authorization
+        self._attacker.execute_action("192.168.0.2", "lighttpd", action_cc)
+
+        self._env.resume()
+        message = self._attacker.get_last_response()
+
+        self.assertEqual(message.status, Status(StatusOrigin.SERVICE, StatusValue.SUCCESS), "Gained session to the target")
+
+        view = message.content
+        auth = message.authorization
+        sess = message.session
+
+        # Get IDs of public data
+        for datum in view.services[message.service].public_data:
+            action_destruction.add_parameters(ActionParameter(ActionParameterType.ID, str(datum.id)))
+
+        self._attacker.execute_action("192.168.0.2", "lighttpd", action_destruction, sess, auth)
+
+        self._env.resume()
+        message = self._attacker.get_last_response()
+
+        # Check if the data vanished
+        self.assertEqual(message.status, Status(StatusOrigin.SERVICE, StatusValue.SUCCESS), "Destruction commenced successfully")
+
+        self._attacker.execute_action("192.168.0.2", "lighttpd", action_exfiltration, sess, auth)
+
+        self._env.resume()
+        message = self._attacker.get_last_response()
+
+        self.assertEqual(message.status, Status(StatusOrigin.SERVICE, StatusValue.SUCCESS), "Exfiltration successful")
+        self.assertTrue(len(message.content) == 2, "Nothing was deleted")
+
+        # --------------------------------------------------------------------------------------------------------------
+        # Attempt to remove data with authorization
+        exploits = ExploitStore().get_exploit(service="bash", category=ExploitCategory.AUTH_MANIPULATION)
+
+        user_exploit = None
+        for e in exploits:
+            if ExploitParameterType.IDENTITY in e.parameters:
+                user_exploit = e
+                break
+
+        user_action = self._actions["rit:privilege_escalation:user_privilege_escalation"]
+
+        user_exploit.parameters[ExploitParameterType.IDENTITY].set_value("user1")
+        user_action.set_exploit(user_exploit)
+
+        self._attacker.execute_action("192.168.0.2", "bash", user_action, sess, auth)
+
+        self._env.resume()
+        message = self._attacker.get_last_response()
+
+        user_auth = message.authorization
+
+        self.assertEqual(message.status, Status(StatusOrigin.SERVICE, StatusValue.SUCCESS), "Escalated privileges")
+        self.assertEqual(user_auth.identity, "user1", "Got access as user1")
+
+        # Get data from bash to extract user ids for subsequent deletion
+        self._attacker.execute_action("192.168.0.2", "bash", action_exfiltration, sess, user_auth)
+
+        self._env.resume()
+        message = self._attacker.get_last_response()
+
+        self.assertEqual(message.status, Status(StatusOrigin.SERVICE, StatusValue.SUCCESS), "Got data")
+
+        action_destruction.parameters.clear()
+        for datum in message.content:
+            action_destruction.add_parameters(ActionParameter(ActionParameterType.ID, str(datum.id)))
+
+        # Delete the data
+        self._attacker.execute_action("192.168.0.2", "bash", action_destruction, sess, user_auth)
+
+        self._env.resume()
+        message = self._attacker.get_last_response()
+
+        self.assertEqual(message.status, Status(StatusOrigin.SERVICE, StatusValue.SUCCESS), "Performed data deletion")
+
+        # Check if the data really vanished
+        self._attacker.execute_action("192.168.0.2", "bash", action_exfiltration, sess, user_auth)
+
+        self._env.resume()
+        message = self._attacker.get_last_response()
+
+        self.assertEqual(message.status, Status(StatusOrigin.SERVICE, StatusValue.SUCCESS), "Exfiltrated data")
+        self.assertTrue(len(message.content) == 0, "Data really deleted")
 
 
 if __name__ == '__main__':

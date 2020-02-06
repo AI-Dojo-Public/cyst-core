@@ -8,7 +8,7 @@ import uuid
 
 from netaddr import IPAddress
 from dataclasses import dataclass
-from typing import Optional
+from typing import Optional, List, Dict
 
 from environment.access import AccessLevel
 
@@ -50,13 +50,21 @@ class ServiceView:
 class NodeView:
     def __init__(self):
         self._interfaces = []
-        self._services = []
+        self._services = {}
 
     def add_interface(self, interface: InterfaceView) -> None:
         self._interfaces.append(interface)
 
+    @property
+    def interfaces(self) -> List[InterfaceView]:
+        return self._interfaces
+
     def add_service(self, service: ServiceView) -> None:
-        self._services.append(service)
+        self._services[service.id] = service
+
+    @property
+    def services(self) -> Dict[str, ServiceView]:
+        return self._services
 
     def __repr__(self) -> str:
         return "[Interfaces: {}, Services: {}]".format(self._interfaces, self._services)
