@@ -2,7 +2,7 @@ import unittest
 import uuid
 
 from environment.access import Authorization, AccessLevel, Policy
-from environment.action import ActionList
+from environment.action import ActionList, ActionParameter, ActionParameterType
 from environment.environment import Environment, EnvironmentState, EnvironmentProxy, PassiveNode
 from environment.exploit import Exploit, ExploitLocality, ExploitCategory, VulnerableService, ExploitParameter, ExploitParameterType
 from environment.exploit_store import ExploitStore
@@ -569,6 +569,134 @@ class TestRITIntegration(unittest.TestCase):
         self.assertEqual(message.status, Status(StatusOrigin.SERVICE, StatusValue.SUCCESS), "Got data")
         self.assertTrue(len(message.content) == 2 and message.content[0].owner == "user1" and
                         message.content[1].owner == "user1", "Got only public data")
+
+    def test_0007_destroy_data_destruction(self) -> None:
+
+        action_destruction = self._actions["rit:destroy:data_destruction"]
+        action_exfiltration = self._actions["rit:disclosure:data_exfiltration"]
+        action_cc = self._actions["rit:ensure_access:command_and_control"]
+        action_cc.set_exploit(ExploitStore().get_exploit(service="lighttpd")[0])
+
+        # --------------------------------------------------------------------------------------------------------------
+        # Sanity tests
+        # --------------------------------------------------------------------------------------------------------------
+        self._attacker.execute_action("192.168.0.2", "", action_destruction)
+
+        self._env.resume()
+        message = self._attacker.get_last_response()
+
+        self.assertEqual(message.status, Status(StatusOrigin.NODE, StatusValue.ERROR), "Failed because service not specified")
+
+        self._attacker.execute_action("192.168.0.2", "nonexistent_service", action_destruction)
+
+        self._env.resume()
+        message = self._attacker.get_last_response()
+
+        self.assertEqual(message.status, Status(StatusOrigin.NODE, StatusValue.ERROR), "Failed because wrong service specified")
+
+        self._attacker.execute_action("192.168.0.2", "bash", action_destruction)
+
+        self._env.resume()
+        message = self._attacker.get_last_response()
+
+        self.assertEqual(message.status, Status(StatusOrigin.NODE, StatusValue.ERROR), "Failed because local service specified")
+
+        # --------------------------------------------------------------------------------------------------------------
+        # Attempt to remove data without any authorization
+        self._attacker.execute_action("192.168.0.2", "lighttpd", action_destruction)
+
+        self._env.resume()
+        message = self._attacker.get_last_response()
+
+        self.assertEqual(message.status, Status(StatusOrigin.SERVICE, StatusValue.FAILURE), "Unauthorized attempt to delete accessible data")
+
+        # --------------------------------------------------------------------------------------------------------------
+        # Attempt to remove data without proper authorization
+        self._attacker.execute_action("192.168.0.2", "lighttpd", action_cc)
+
+        self._env.resume()
+        message = self._attacker.get_last_response()
+
+        self.assertEqual(message.status, Status(StatusOrigin.SERVICE, StatusValue.SUCCESS), "Gained session to the target")
+
+        view = message.content
+        auth = message.authorization
+        sess = message.session
+
+        # Get IDs of public data
+        for datum in view.services[message.service].public_data:
+            action_destruction.add_parameters(ActionParameter(ActionParameterType.ID, str(datum.id)))
+
+        self._attacker.execute_action("192.168.0.2", "lighttpd", action_destruction, sess, auth)
+
+        self._env.resume()
+        message = self._attacker.get_last_response()
+
+        # Check if the data vanished
+        self.assertEqual(message.status, Status(StatusOrigin.SERVICE, StatusValue.SUCCESS), "Destruction commenced successfully")
+
+        self._attacker.execute_action("192.168.0.2", "lighttpd", action_exfiltration, sess, auth)
+
+        self._env.resume()
+        message = self._attacker.get_last_response()
+
+        self.assertEqual(message.status, Status(StatusOrigin.SERVICE, StatusValue.SUCCESS), "Exfiltration successful")
+        self.assertTrue(len(message.content) == 2, "Nothing was deleted")
+
+        # --------------------------------------------------------------------------------------------------------------
+        # Attempt to remove data with authorization
+        exploits = ExploitStore().get_exploit(service="bash", category=ExploitCategory.AUTH_MANIPULATION)
+
+        user_exploit = None
+        for e in exploits:
+            if ExploitParameterType.IDENTITY in e.parameters:
+                user_exploit = e
+                break
+
+        user_action = self._actions["rit:privilege_escalation:user_privilege_escalation"]
+
+        user_exploit.parameters[ExploitParameterType.IDENTITY].set_value("user1")
+        user_action.set_exploit(user_exploit)
+
+        self._attacker.execute_action("192.168.0.2", "bash", user_action, sess, auth)
+
+        self._env.resume()
+        message = self._attacker.get_last_response()
+
+        user_auth = message.authorization
+
+        self.assertEqual(message.status, Status(StatusOrigin.SERVICE, StatusValue.SUCCESS), "Escalated privileges")
+        self.assertEqual(user_auth.identity, "user1", "Got access as user1")
+
+        # Get data from bash to extract user ids for subsequent deletion
+        self._attacker.execute_action("192.168.0.2", "bash", action_exfiltration, sess, user_auth)
+
+        self._env.resume()
+        message = self._attacker.get_last_response()
+
+        self.assertEqual(message.status, Status(StatusOrigin.SERVICE, StatusValue.SUCCESS), "Got data")
+
+        action_destruction.parameters.clear()
+        for datum in message.content:
+            action_destruction.add_parameters(ActionParameter(ActionParameterType.ID, str(datum.id)))
+
+        # Delete the data
+        self._attacker.execute_action("192.168.0.2", "bash", action_destruction, sess, user_auth)
+
+        self._env.resume()
+        message = self._attacker.get_last_response()
+
+        self.assertEqual(message.status, Status(StatusOrigin.SERVICE, StatusValue.SUCCESS), "Performed data deletion")
+
+        # Check if the data really vanished
+        self._attacker.execute_action("192.168.0.2", "bash", action_exfiltration, sess, user_auth)
+
+        self._env.resume()
+        message = self._attacker.get_last_response()
+
+        self.assertEqual(message.status, Status(StatusOrigin.SERVICE, StatusValue.SUCCESS), "Exfiltrated data")
+        self.assertTrue(len(message.content) == 0, "Data really deleted")
+
 
 if __name__ == '__main__':
     unittest.main()
