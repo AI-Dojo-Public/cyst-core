@@ -54,9 +54,9 @@ def evaluate(names: List[str], message: Request, node: PassiveNode):
         return 0, None
 
     # Gah... changing it back and forth.
-    tag = ":".join(names)
+    tag = "_".join(names)
 
-    fn = getattr(sys.modules[__name__], "process_" + tag.replace(":", "_"), process_default)
+    fn = getattr(sys.modules[__name__], "process_" + tag, process_default)
     return fn(message, node)
 
 
@@ -74,11 +74,13 @@ def process_active_recon_host_discovery(message: Request, node: PassiveNode) -> 
 
 
 def process_active_recon_service_discovery(message: Request, node: PassiveNode) -> Tuple[int, Response]:
+    # TODO Only show services, which are opened to outside
     return 1, Response(message, message.service, Status(StatusOrigin.NODE, StatusValue.SUCCESS),
                        [x for x in node.services], session=message.session, authorization=message.authorization)
 
 
 def process_active_recon_vulnerability_discovery(message: Request, node: PassiveNode) -> Tuple[int, Response]:
+    # TODO Only works on services, which are opened to outside
     if message.service and message.service in node.services:
         service_tags = [message.service + "-" + str(node.services[message.service].version)]
         service_tags.extend(node.services[message.service].tags)
@@ -91,6 +93,7 @@ def process_active_recon_vulnerability_discovery(message: Request, node: Passive
 
 
 def process_active_recon_information_discovery(message: Request, node: PassiveNode) -> Tuple[int, Response]:
+    # TODO Only works on services, which are opened to outside
     if message.service and message.service in node.services:
         public_data = node.services[message.service].public_data
         public_authorizations = node.services[message.service].public_authorizations
@@ -109,6 +112,8 @@ def process_active_recon_information_discovery(message: Request, node: PassiveNo
 
 
 def process_ensure_access_command_and_control(message: Request, node: PassiveNode) -> Tuple[int, Response]:
+    # TODO Only works on services, which are opened to outside
+
     # Check if the service is running on the target
     error = ""
     if not message.service:
@@ -245,3 +250,37 @@ def process_privilege_escalation_root_privilege_escalation(message: Request, nod
 
 def process_privilege_escalation_user_privilege_escalation(message: Request, node: PassiveNode) -> Tuple[int, Response]:
     return process_privilege_escalation(message, node, "user")
+
+
+def process_disclosure_data_exfiltration(message: Request, node: PassiveNode) -> Tuple[int, Response]:
+    # Check if the service is running on the target
+    error = ""
+    if not message.service:
+        error = "Service for session creation not specified"
+    elif message.service not in node.services:
+        error = "Nonexistent service {} at node {}".format(message.service, message.dst_ip)
+    elif node.services[message.service].local and (not message.session or message.session.endpoint.id != node.id):
+        error = "Trying to access local service without a session to the node"
+
+    if error:
+        return 1, Response(message, message.service, Status(StatusOrigin.NODE, StatusValue.ERROR), error, session=message.session)
+
+    service = node.services[message.service]
+
+    # Gather public data
+    # TODO Public data are extracted with the information discovery action. Should it be included here?
+    result = list()
+    result.extend(service.public_data)
+
+    # Go through the private data
+    # Made them accessible only if the attacker has a valid authorization for given service and the authorization
+    # lists them as an owner of the data
+    if (message.authorization and
+        message.service in message.authorization.services and
+        Policy().decide(node.id, message.service, access_level=AccessLevel.NONE, authorization=message.authorization)):
+
+        for datum in service.private_data:
+            if message.authorization.identity == '*' or message.authorization.identity == datum.owner:
+                result.append(datum)
+
+    return 1, Response(message, message.service, Status(StatusOrigin.SERVICE, StatusValue.SUCCESS), result, session=message.session)
