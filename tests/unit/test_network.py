@@ -9,7 +9,7 @@ from environment.environment import Environment, EnvironmentProxy
 from environment.message import StatusOrigin, StatusValue
 from environment.network import Router
 from environment.network_elements import Session, Interface, Endpoint, Hop, Route
-from environment.node import PassiveNode, Service
+from environment.node import Node, PassiveService, ActiveService
 
 
 class TestInterface(unittest.TestCase):
@@ -124,8 +124,8 @@ class TestSessions(unittest.TestCase):
         # from this one sends a message to T3.
         # An entire environment must be constructed for this to test, because the environment shuffles around
         # messages.
-        env = Environment(pause_on_response=["attacker1"])
-        proxy = EnvironmentProxy(env, "attacker1")
+        env = Environment(pause_on_response=["attacker_node.attacker1"])
+        proxy = EnvironmentProxy(env, "attacker_node")
         Policy().reset()
 
         # We discard testing all authorizations for this scenario
@@ -133,16 +133,18 @@ class TestSessions(unittest.TestCase):
         Policy().add_authorization(all_root)
 
         # Create a simple attacker
+        attacker_node = Node("attacker_node")
         attacker = SimpleAttacker("attacker1", env=proxy)
+        attacker_node.add_service(attacker)
 
         # Create three identical passive nodes with ssh enabled
-        target1 = PassiveNode("target1", ip="192.168.1.2", mask="255.255.255.0")
+        target1 = Node("target1", ip="192.168.1.2", mask="255.255.255.0")
         target1.add_interface(Interface(ip="192.168.2.2", mask="255.255.255.0"))
-        target2 = PassiveNode("target2", ip="192.168.2.3", mask="255.255.255.0")
+        target2 = Node("target2", ip="192.168.2.3", mask="255.255.255.0")
         target2.add_interface(Interface(ip="192.168.3.3", mask="255.255.255.0"))
-        target3 = PassiveNode("target3", ip="192.168.3.4", mask="255.255.255.0")
+        target3 = Node("target3", ip="192.168.3.4", mask="255.255.255.0")
 
-        ssh_service = Service("ssh")
+        ssh_service = PassiveService("ssh", owner="ssh")
         ssh_service.set_enable_session(True)
         ssh_service.set_session_access_level(AccessLevel.LIMITED)
 
@@ -159,7 +161,7 @@ class TestSessions(unittest.TestCase):
         router2_port = router2.add_port("192.168.1.1", "255.255.255.0")
 
         # Add all nodes to the environment
-        env.add_node(attacker)
+        env.add_node(attacker_node)
         env.add_node(router1)
         env.add_node(router2)
         env.add_node(target1)
@@ -175,7 +177,7 @@ class TestSessions(unittest.TestCase):
         router1.add_route(Route(IPNetwork("192.168.2.1/255.255.255.0"), router1_port))
 
         # Connect the nodes to routers
-        env.add_connection(router1, attacker, net="192.168.0.1/24")
+        env.add_connection(router1, attacker_node, net="192.168.0.1/24")
         # Targets 1 and 2 are connected twice using two different ports
         # It does not have to be specified explicitly, it is here for better readability
         env.add_connection(router2, target1, target_port_index=0)
@@ -214,7 +216,7 @@ class TestSessions(unittest.TestCase):
 
         self.assertTrue(response.session, "Received a session back")
 
-        session1 = Session("root", None, path=[Hop(Endpoint(id='attacker1', port=0), Endpoint(id='router1', port=1)), Hop(Endpoint(id='router1', port=0), Endpoint(id='router2', port=0)), Hop(Endpoint(id='router2', port=1), Endpoint(id='target1', port=0))])
+        session1 = Session("root", None, path=[Hop(Endpoint(id='attacker_node', port=0), Endpoint(id='router1', port=1)), Hop(Endpoint(id='router1', port=0), Endpoint(id='router2', port=0)), Hop(Endpoint(id='router2', port=1), Endpoint(id='target1', port=0))])
         self.assertEqual(s, session1)
 
         attacker.execute_action("192.168.2.3", "ssh", action, session=s, authorization=all_root)

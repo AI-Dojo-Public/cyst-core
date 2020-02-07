@@ -42,11 +42,43 @@ class Data:
 
 
 class Service:
-    def __init__(self, id: str, version: str = "0.0.0", local: bool = False) -> None:
+    def __init__(self, id: str, owner: str, passive: bool, local: bool = True, access_level: AccessLevel = AccessLevel.LIMITED) -> None:
         self._id = id
-        self._version = VersionInfo.parse(version)
+        self._owner = owner
+        self._passive = passive
         self._local = local
+        self._service_access_level = access_level
         self._node = None
+
+    @property
+    def id(self) -> str:
+        return self._id
+
+    @property
+    def owner(self) -> str:
+        return self._id
+
+    @property
+    def passive(self) -> bool:
+        return self._passive
+
+    @property
+    def local(self) -> bool:
+        return self._local
+
+    @property
+    def service_access_level(self) -> AccessLevel:
+        return self._service_access_level
+
+    def set_node(self, id):
+        self._node = id
+
+
+class PassiveService(Service):
+    def __init__(self, id: str, owner: str, version: str = "0.0.0", local: bool = False, service_access_level: AccessLevel = AccessLevel.LIMITED) -> None:
+        super(PassiveService, self).__init__(id, owner, True, local, service_access_level)
+
+        self._version = VersionInfo.parse(version)
         self._public_data = []
         self._private_data = []
         self._public_authorizations = []
@@ -54,47 +86,32 @@ class Service:
         self._tags = set()
         self._enable_session = False
         self._session_access_level = AccessLevel.NONE
-        self._service_access_level = AccessLevel.LIMITED
-
-    @property
-    def id(self) -> str:
-        return self._id
 
     @property
     def version(self) -> VersionInfo:
         return self._version
 
     @property
-    def local(self) -> bool:
-        return self._local
-
-    @property
     def tags(self):
         return self._tags
-
-    def set_node(self, id):
-        self._node = id
-
-    def add_private_data(self, data):
-        self._private_data.append(data)
 
     def add_public_data(self, data):
         self._public_data.append(data)
 
-    def add_private_authorization(self, *authorization: Authorization) -> None:
-        for auth in authorization:
-            self._private_authorizations.append(auth)
+    def add_private_data(self, data):
+        self._private_data.append(data)
 
     def add_public_authorization(self, *authorization: Authorization) -> None:
         for auth in authorization:
             self._public_authorizations.append(auth)
 
-    def add_tag(self, tag):
-        self._tags.add(tag)
+    def add_private_authorization(self, *authorization: Authorization) -> None:
+        for auth in authorization:
+            self._private_authorizations.append(auth)
 
     def add_tags(self, *tags):
         for tag in tags:
-            self.add_tag(tag)
+            self._tags.add(tag)
 
     @property
     def private_data(self) -> List[Data]:
@@ -126,16 +143,21 @@ class Service:
     def set_session_access_level(self, value) -> None:
         self._session_access_level = value
 
-    @property
-    def service_access_level(self) -> AccessLevel:
-        return self._service_access_level
-
-    def set_service_access_level(self, value) -> None:
-        self._service_access_level = value
-
     def view(self) -> ServiceView:
         return ServiceView(self._id, self._tags, self._public_data, self._public_authorizations, self._enable_session,
                            self._session_access_level, self._service_access_level)
+
+
+class ActiveService(Service):
+    def __init__(self, id: str, owner: str, env: 'EnvironmentProxy', local: bool = True, access_level: AccessLevel = AccessLevel.LIMITED) -> None:
+        super(ActiveService, self).__init__(id, owner, False, local, access_level)
+        pass
+
+    def run(self):
+        pass
+
+    def process_message(self, message) -> Tuple[bool, int]:
+        pass
 
 
 class Node:
@@ -143,6 +165,7 @@ class Node:
         self._id = id
         self._type = type
         self._interfaces = []
+        self._services = {}
         self._ip = None
         if ip:
             self._interfaces.append(Interface(ip, mask))
@@ -203,32 +226,6 @@ class Node:
     def set_shell(self, value: Service) -> None:
         self._shell = value
 
-    # Active nodes should implement their own view
-    def view(self) -> NodeView:
-        pass
-
-
-class PassiveNode(Node):
-    def __init__(self, id: str, ip: str = "", mask: str = "") -> None:
-        self._data = []
-        self._tokens = []
-        self._services = {}
-        super(PassiveNode, self).__init__(id, type="Passive node", ip=ip, mask=mask)
-
-    def add_data(self, data):
-        self._data.append(data)
-
-    def add_token(self, token):
-        self._tokens.append(token)
-
-    def add_service(self, service):
-        self._services[service.id] = service
-        service.set_node(self._id)
-
-    @property
-    def services(self):
-        return self._services
-
     def view(self) -> NodeView:
         nv = NodeView()
 
@@ -237,6 +234,19 @@ class PassiveNode(Node):
 
         for service in self._services.values():
             nv.add_service(ServiceView(service.id, service.tags, service.public_data, service.public_authorizations,
-                                       service.enable_session, service.session_access_level, service.service_access_level))
+                                       service.enable_session, service.session_access_level,
+                                       service.service_access_level))
 
         return nv
+
+    # I would rather pass base class instead of derived, but I really can't upcast to derived
+    def add_service(self, service: Union[ActiveService, PassiveService]) -> None:
+        self._services[service.id] = service
+        service.set_node(self._id)
+        # Initiate active services
+        if type(service) is ActiveService:
+            service.run()
+
+    @property
+    def services(self):
+        return self._services

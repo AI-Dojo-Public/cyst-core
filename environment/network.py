@@ -137,9 +137,6 @@ class Router(Node):
         return True, ""
 
     def process_message(self, message: _Message) -> Tuple[bool, int]:
-        if message.type == MessageType.ACK:
-            return True, 0
-
         # If message is still going through a session then pass it along where it should go
         # the same goes for responses, which travel back from whence they came
         if message.in_session:  # or message.type == MessageType.RESPONSE:

@@ -1,23 +1,24 @@
 import unittest
 import uuid
 
+from attackers.simple import SimpleAttacker
+from attackers.attacker_store import AttackerStore
 from environment.access import Authorization, AccessLevel, Policy
 from environment.action import ActionList, ActionParameter, ActionParameterType
-from environment.environment import Environment, EnvironmentState, EnvironmentProxy, PassiveNode
+from environment.environment import Environment, EnvironmentState, EnvironmentProxy, Node
 from environment.exploit import Exploit, ExploitLocality, ExploitCategory, VulnerableService, ExploitParameter, ExploitParameterType
 from environment.exploit_store import ExploitStore
 from environment.message import StatusValue, StatusOrigin, Status
 from environment.network import Router
 from environment.network_elements import Endpoint
-from environment.node import Service, NodeView, Data
-from attackers.simple import SimpleAttacker
+from environment.node import PassiveService, NodeView, Data
 
 
 class TestRITIntegration(unittest.TestCase):
 
     @classmethod
     def setUpClass(cls) -> None:
-        cls._env = Environment(pause_on_response=["attacker1"])
+        cls._env = Environment()
 
         cls._action_list = ActionList().get_actions("rit")
         cls._actions = {}
@@ -30,27 +31,25 @@ class TestRITIntegration(unittest.TestCase):
         # - is running two services - ssh and a http
         # - has two users and a root
         # - contains interesting data data can be shared
-        target = PassiveNode("target1")
+        target = Node("target1")
         node_root = Authorization("root", ["target1"], None, AccessLevel.ELEVATED, uuid.uuid4())
         Policy().add_authorization(node_root)
 
         # SSH service, with valid authentication grants a user access to the system
-        ssh_service = Service("openssh", "8.1.0")
+        # Exploiting the service grants a root access to the system
+        ssh_service = PassiveService("openssh", owner="ssh", version="8.1.0", service_access_level=AccessLevel.ELEVATED)
         # SSH enables session creation
         ssh_service.set_enable_session(True)
         # Sessions can be opened by ordinary users and root
         ssh_service.set_session_access_level(AccessLevel.LIMITED)
-        # Successful exploit of the service grants attacker a root level access to the system
-        ssh_service.set_service_access_level(AccessLevel.ELEVATED)
         # make the ssh authorization available to the attacker
         cls._ssh_auth1 = Authorization("user1", ["target1"], ["openssh"], AccessLevel.LIMITED, uuid.uuid4())
         ssh_auth2 = Authorization("user2", ["target1"], ["openssh"], AccessLevel.LIMITED, uuid.uuid4())
         Policy().add_authorization(cls._ssh_auth1, ssh_auth2)
 
         # Bash service, accessible only locally
-        bash_service = Service("bash", "5.0.0", local=True)
+        bash_service = PassiveService("bash", owner="bash", version="5.0.0", local=True, service_access_level=AccessLevel.LIMITED)
         # TODO Bash and other services should probably support local code execution exploits
-        bash_service.set_service_access_level(AccessLevel.LIMITED)
         bash_auth1 = Authorization("user1", ["target1"], ["bash"], AccessLevel.LIMITED, uuid.uuid4())
         bash_auth2 = Authorization("user2", ["target1"], ["bash"], AccessLevel.LIMITED, uuid.uuid4())
         Policy().add_authorization(bash_auth1, bash_auth2)
@@ -65,13 +64,10 @@ class TestRITIntegration(unittest.TestCase):
         # HTTP service provides a list of users when queried for information. May get system access with exploit
         # Authorizations only added as a public data and are not registered in the policy, because on their own, they do not
         # grant any access.
-        http_service = Service("lighttpd", "1.4.54")
+        http_service = PassiveService("lighttpd", owner="lighttpd", version="1.4.54", service_access_level=AccessLevel.LIMITED)
         http_auth1 = Authorization("user1", ["target1"])
         http_auth2 = Authorization("user2", ["target1"])
         http_service.add_public_authorization(http_auth1, http_auth2)
-
-        # Successful exploit gives user a limited access to the system
-        http_service.set_service_access_level(AccessLevel.LIMITED)
 
         # Add some public and private data to the service
         http_service.add_public_data(Data(None, "user1", "Completely useless data"))
@@ -104,17 +100,21 @@ class TestRITIntegration(unittest.TestCase):
         router.add_port("192.168.0.1", "255.255.255.0")
 
         # Create an attacker
-        proxy = EnvironmentProxy(cls._env, "attacker1")
+        attacker_node = Node("attacker_node")
+        proxy = EnvironmentProxy(cls._env, "attacker_node")
         cls._attacker = SimpleAttacker("attacker1", env=proxy)
+        attacker_node.add_service(cls._attacker)
+
+        cls._env.add_pause_on_response("attacker_node.attacker1")
 
         # Connect the environment pieces
         cls._env.add_node(target)
         cls._env.add_node(router)
-        cls._env.add_node(cls._attacker)
+        cls._env.add_node(attacker_node)
 
         # TODO change this to env method, once this is merged from bronze_butler branch
         cls._env.add_connection(router, target, net="192.168.0.0/24")
-        cls._env.add_connection(router, cls._attacker, net="192.168.0.0/24")
+        cls._env.add_connection(router, attacker_node, net="192.168.0.0/24")
 
     # Test correct handling of active scans, namely:
     # - successful scanning of a live machine
@@ -624,7 +624,7 @@ class TestRITIntegration(unittest.TestCase):
         sess = message.session
 
         # Get IDs of public data
-        for datum in view.services[message.service].public_data:
+        for datum in view.services[message.src_service].public_data:
             action_destruction.add_parameters(ActionParameter(ActionParameterType.ID, str(datum.id)))
 
         self._attacker.execute_action("192.168.0.2", "lighttpd", action_destruction, sess, auth)
@@ -697,6 +697,8 @@ class TestRITIntegration(unittest.TestCase):
         self.assertEqual(message.status, Status(StatusOrigin.SERVICE, StatusValue.SUCCESS), "Exfiltrated data")
         self.assertTrue(len(message.content) == 0, "Data really deleted")
 
+    def test_0008_ensure_access_lateral_movement(self) -> None:
+        a = AttackerStore()
 
 if __name__ == '__main__':
     unittest.main()
