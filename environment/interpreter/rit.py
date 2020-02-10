@@ -5,12 +5,14 @@ from typing import List, Tuple
 
 from environment.access import Policy, Authorization, AccessLevel
 from environment.action import Action, ActionList, ActionParameterType
-from environment.environment import environment_interpreters
+from environment.environment import environment_interpreters, EnvironmentProxy
 from environment.exploit import ExploitCategory, ExploitLocality, ExploitParameterType
 from environment.exploit_store import ExploitStore
+from environment.malware_store import MalwareStore
 from environment.message import Response, Request, Status, StatusValue, StatusOrigin
 from environment.network_elements import Session
-from environment.node import PassiveNode
+from environment.node import Node
+from utils.counter import Counter
 
 # Implemented actions
 ActionList().add_action(Action("rit:active_recon:host_discovery"))
@@ -22,6 +24,7 @@ ActionList().add_action(Action("rit:privilege_escalation:root_privilege_escalati
 ActionList().add_action(Action("rit:ensure_access:command_and_control"))
 ActionList().add_action(Action("rit:disclosure:data_exfiltration"))
 ActionList().add_action(Action("rit:destroy:data_destruction"))
+ActionList().add_action(Action("rit:ensure_access:lateral_movement"))
 
 # Actions to do
 ActionList().add_action(Action("rit:privilege_escalation:network_sniffing_ca"))
@@ -34,7 +37,6 @@ ActionList().add_action(Action("rit:targeted_exploits:spearphishing"))
 ActionList().add_action(Action("rit:targeted_exploits:service_specific_exploitation"))
 ActionList().add_action(Action("rit:targeted_exploits:arbitrary_code_execution"))
 ActionList().add_action(Action("rit:ensure_access:defense_evasion"))
-ActionList().add_action(Action("rit:ensure_access:lateral_movement"))
 ActionList().add_action(Action("rit:zero_day:privilege_escalation"))
 ActionList().add_action(Action("rit:zero_day:targeted_exploit"))
 ActionList().add_action(Action("rit:zero_day:ensure_access"))
@@ -49,7 +51,7 @@ ActionList().add_action(Action("rit:distort:data_manipulation"))
 ActionList().add_action(Action("rit:delivery:data_delivery"))
 
 
-def evaluate(names: List[str], message: Request, node: PassiveNode):
+def evaluate(names: List[str], message: Request, node: Node, env: 'Environment'):
     if not names:
         return 0, None
 
@@ -57,116 +59,116 @@ def evaluate(names: List[str], message: Request, node: PassiveNode):
     tag = "_".join(names)
 
     fn = getattr(sys.modules[__name__], "process_" + tag, process_default)
-    return fn(message, node)
+    return fn(message, node, env)
 
 
 environment_interpreters["rit"] = evaluate
 
 
-def process_default(message, node) -> Tuple[int, Response]:
+def process_default(message, node, env) -> Tuple[int, Response]:
     print("Could not evaluate message. Tag in `rit` namespace unknown. " + str(message))
     return 0, Response(message, status=Status(StatusOrigin.SYSTEM, StatusValue.ERROR))
 
 
-def process_active_recon_host_discovery(message: Request, node: PassiveNode) -> Tuple[int, Response]:
-    return 1, Response(message, message.service, Status(StatusOrigin.NODE, StatusValue.SUCCESS),
+def process_active_recon_host_discovery(message: Request, node: Node, env: 'Environment') -> Tuple[int, Response]:
+    return 1, Response(message, Status(StatusOrigin.NODE, StatusValue.SUCCESS),
                        None, session=message.session, authorization=message.authorization)
 
 
-def process_active_recon_service_discovery(message: Request, node: PassiveNode) -> Tuple[int, Response]:
+def process_active_recon_service_discovery(message: Request, node: Node, env: 'Environment') -> Tuple[int, Response]:
     # TODO Only show services, which are opened to outside
-    return 1, Response(message, message.service, Status(StatusOrigin.NODE, StatusValue.SUCCESS),
+    return 1, Response(message, Status(StatusOrigin.NODE, StatusValue.SUCCESS),
                        [x for x in node.services], session=message.session, authorization=message.authorization)
 
 
-def process_active_recon_vulnerability_discovery(message: Request, node: PassiveNode) -> Tuple[int, Response]:
+def process_active_recon_vulnerability_discovery(message: Request, node: Node, env: 'Environment') -> Tuple[int, Response]:
     # TODO Only works on services, which are opened to outside
-    if message.service and message.service in node.services:
-        service_tags = [message.service + "-" + str(node.services[message.service].version)]
-        service_tags.extend(node.services[message.service].tags)
-        return 1, Response(message, message.service, Status(StatusOrigin.SERVICE, StatusValue.SUCCESS),
+    if message.dst_service and message.dst_service in node.services:
+        service_tags = [message.dst_service + "-" + str(node.services[message.dst_service].version)]
+        service_tags.extend(node.services[message.dst_service].tags)
+        return 1, Response(message, Status(StatusOrigin.SERVICE, StatusValue.SUCCESS),
                            service_tags, session=message.session, authorization=message.authorization)
     else:
-        return 1, Response(message, message.service, Status(StatusOrigin.NODE, StatusValue.ERROR),
+        return 1, Response(message, Status(StatusOrigin.NODE, StatusValue.ERROR),
                            "No/wrong service specified for vulnerability discovery", session=message.session,
                            authorization=message.authorization)
 
 
-def process_active_recon_information_discovery(message: Request, node: PassiveNode) -> Tuple[int, Response]:
+def process_active_recon_information_discovery(message: Request, node: Node, env: 'Environment') -> Tuple[int, Response]:
     # TODO Only works on services, which are opened to outside
-    if message.service and message.service in node.services:
-        public_data = node.services[message.service].public_data
-        public_authorizations = node.services[message.service].public_authorizations
+    if message.dst_service and message.dst_service in node.services:
+        public_data = node.services[message.dst_service].public_data
+        public_authorizations = node.services[message.dst_service].public_authorizations
         if public_authorizations or public_data:
-            return 1, Response(message, message.service, Status(StatusOrigin.SERVICE, StatusValue.SUCCESS),
+            return 1, Response(message, Status(StatusOrigin.SERVICE, StatusValue.SUCCESS),
                                public_data + public_authorizations, session=message.session,
                                authorization=message.authorization)
         else:
-            return 1, Response(message, message.service, Status(StatusOrigin.SERVICE, StatusValue.SUCCESS),
+            return 1, Response(message, Status(StatusOrigin.SERVICE, StatusValue.SUCCESS),
                                None, session=message.session,
                                authorization=message.authorization)
 
-    return 1, Response(message, message.service, Status(StatusOrigin.NODE, StatusValue.ERROR),
+    return 1, Response(message, Status(StatusOrigin.NODE, StatusValue.ERROR),
                        "No/wrong service specified for vulnerability discovery", session=message.session,
                        authorization=message.authorization)
 
 
-def process_ensure_access_command_and_control(message: Request, node: PassiveNode) -> Tuple[int, Response]:
+def process_ensure_access_command_and_control(message: Request, node: Node, env: 'Environment') -> Tuple[int, Response]:
     # TODO Only works on services, which are opened to outside
 
     # Check if the service is running on the target
     error = ""
-    if not message.service:
+    if not message.dst_service:
         error = "Service for session creation not specified"
-    elif message.service not in node.services:
-        error = "Nonexistent service {} at node {}".format(message.service, message.dst_ip)
     # ... and if the attacker provided either an authorization, or an exploit
     elif not message.authorization and not message.action.exploit:
         error = "Neither authorization token nor exploit specified to ensure command and control"
 
     if error:
-        return 1, Response(message, message.service, Status(StatusOrigin.NODE, StatusValue.ERROR), error)
+        return 1, Response(message, Status(StatusOrigin.NODE, StatusValue.ERROR), error)
 
     # First of all, if the attacker provided an authorization token, it is tried first as it should not trigger
     # a defensive reaction
     if message.authorization:
         # Authorization without enabled session creation does not work
-        if not node.services[message.service].enable_session:
-            error = "Service {} at node {} does not enable session creation.".format(message.service, message.dst_ip)
+        if not node.services[message.dst_service].enable_session:
+            error = "Service {} at node {} does not enable session creation.".format(message.dst_service, message.dst_ip)
 
         # check authorization and eventually create a session object to return
-        elif Policy().decide(node.id, message.service, node.services[message.service].session_access_level, message.authorization)[0]:
-            return 1, Response(message, message.service, Status(StatusOrigin.SERVICE, StatusValue.SUCCESS),
+        elif Policy().decide(node.id, message.dst_service, node.services[message.dst_service].session_access_level, message.authorization)[0]:
+            return 1, Response(message, Status(StatusOrigin.SERVICE, StatusValue.SUCCESS),
                                node.view(), session=Session(message.authorization.identity, message.session, message.non_session_path),
                                authorization=message.authorization)
     if message.action.exploit:
         # Successful exploit creates a new authorization, which has a service_access_level and user = service name
-        if ExploitStore().evaluate(message.action.exploit.id, message.service, message.session, node)[0]:
-            auth = Authorization(message.service, [node.id], [message.service, node.shell.id],
-                                 node.services[message.service].service_access_level, uuid.uuid4())
+        if ExploitStore().evaluate(message.action.exploit.id, message.dst_service, message.session, node)[0]:
+            access_level = node.services[message.dst_service].service_access_level
+            param = message.action.exploit.parameters.get(ExploitParameterType.ENABLE_ELEVATED_ACCESS, None)
+            if param and param.value == "TRUE":
+                access_level = AccessLevel.ELEVATED
+            auth = Authorization(message.dst_service, [node.id], [message.dst_service, node.shell.id],
+                                 access_level, uuid.uuid4())
             Policy().add_authorization(auth)
-            return 1, Response(message, message.service, Status(StatusOrigin.SERVICE, StatusValue.SUCCESS),
-                               node.view(), session=Session(message.service, message.session, message.non_session_path),
+            return 1, Response(message, Status(StatusOrigin.SERVICE, StatusValue.SUCCESS),
+                               node.view(), session=Session(message.dst_service, message.session, message.non_session_path),
                                authorization=auth)
         else:
-            error = "Service {} not exploitable using the exploit {}".format(message.service, message.action.exploit.id)
+            error = "Service {} not exploitable using the exploit {}".format(message.dst_service, message.action.exploit.id)
 
-    return 1, Response(message, message.service, Status(StatusOrigin.SERVICE, StatusValue.FAILURE), error)
+    return 1, Response(message, Status(StatusOrigin.SERVICE, StatusValue.FAILURE), error)
 
 
-def process_privilege_escalation(message: Request, node: PassiveNode, mode: str) -> Tuple[int, Response]:
+def process_privilege_escalation(message: Request, node: Node, mode: str, env: 'Environment') -> Tuple[int, Response]:
     # To successfully manage a user privilege escalation, the attacker must already have an active session on the
     # target and must try to impersonate a user with same or lower access level on a service they have auth for.
 
     # Check if the service is running on the target
     error = ""
-    if not message.service:
+    if not message.dst_service:
         error = "Service for session creation not specified"
-    elif message.service not in node.services:
-        error = "Nonexistent service {} at node {}".format(message.service, message.dst_ip)
 
     if error:
-        return 1, Response(message, message.service, Status(StatusOrigin.NODE, StatusValue.ERROR), error, session=message.session)
+        return 1, Response(message, Status(StatusOrigin.NODE, StatusValue.ERROR), error, session=message.session)
 
     # Check if exploit is correctly provided
     error = ""
@@ -197,7 +199,7 @@ def process_privilege_escalation(message: Request, node: PassiveNode, mode: str)
         node_ids = [node.id]
 
     if not service_ids:
-        service_ids = [message.service]
+        service_ids = [message.dst_service]
 
     if mode == "user":
         if not message.action.exploit.parameters:
@@ -208,29 +210,29 @@ def process_privilege_escalation(message: Request, node: PassiveNode, mode: str)
     # Check if a service is to exploit is accessible
     if not message.session or message.session.endpoint.id != node.id:
         error = "No session opened to the node {} to apply local exploit".format(node.id)
-    elif not message.authorization or message.service not in message.authorization.services:
-        error = "No previous access to a service {} available. Need to provide proper authorization".format(message.service)
+    elif not message.authorization or message.dst_service not in message.authorization.services:
+        error = "No previous access to a service {} available. Need to provide proper authorization".format(message.dst_service)
 
     if error:
-        return 1, Response(message, message.service, Status(StatusOrigin.SERVICE, StatusValue.ERROR), error, session=message.session)
+        return 1, Response(message, Status(StatusOrigin.SERVICE, StatusValue.ERROR), error, session=message.session)
 
     # Check if the exploit is applicable
-    result, error = ExploitStore().evaluate(message.action.exploit.id, message.service, message.session, node)
+    result, error = ExploitStore().evaluate(message.action.exploit.id, message.dst_service, message.session, node)
 
     if not result:
-        return 1, Response(message, message.service, Status(StatusOrigin.SERVICE, StatusValue.FAILURE), error, session=message.session)
+        return 1, Response(message, Status(StatusOrigin.SERVICE, StatusValue.FAILURE), error, session=message.session)
 
     # Check if the provided user id is applicable
     if mode == "user" and not impersonate_any:
         user_found = False
-        auths = Policy().get_authorizations(node.id, message.service, AccessLevel.LIMITED)
+        auths = Policy().get_authorizations(node.id, message.dst_service, AccessLevel.LIMITED)
         for auth in auths:
             if auth.identity == user_required:
                 user_found = True
                 break
 
         if not user_found:
-            return 1, Response(message, message.service, Status(StatusOrigin.SERVICE, StatusValue.FAILURE),
+            return 1, Response(message, Status(StatusOrigin.SERVICE, StatusValue.FAILURE),
                                "Attempting to switch to a user {} who is not available at the service".format(user_required), session=message.session)
 
     if impersonate_any:
@@ -240,32 +242,30 @@ def process_privilege_escalation(message: Request, node: PassiveNode, mode: str)
     new_auth = Authorization(user_required, node_ids, service_ids, access_level=AccessLevel.LIMITED if mode == "user" else AccessLevel.ELEVATED, token=uuid.uuid4())
     Policy().add_authorization(new_auth)
 
-    return 1, Response(message, message.service, Status(StatusOrigin.SERVICE, StatusValue.SUCCESS), "",
+    return 1, Response(message, Status(StatusOrigin.SERVICE, StatusValue.SUCCESS), "",
                        session=message.session, authorization=new_auth)
 
 
-def process_privilege_escalation_root_privilege_escalation(message: Request, node: PassiveNode) -> Tuple[int, Response]:
-    return process_privilege_escalation(message, node, "root")
+def process_privilege_escalation_root_privilege_escalation(message: Request, node: Node, env: 'Environment') -> Tuple[int, Response]:
+    return process_privilege_escalation(message, node, "root", env)
 
 
-def process_privilege_escalation_user_privilege_escalation(message: Request, node: PassiveNode) -> Tuple[int, Response]:
-    return process_privilege_escalation(message, node, "user")
+def process_privilege_escalation_user_privilege_escalation(message: Request, node: Node, env: 'Environment') -> Tuple[int, Response]:
+    return process_privilege_escalation(message, node, "user", env)
 
 
-def process_disclosure_data_exfiltration(message: Request, node: PassiveNode) -> Tuple[int, Response]:
+def process_disclosure_data_exfiltration(message: Request, node: Node, env: 'Environment') -> Tuple[int, Response]:
     # Check if the service is running on the target
     error = ""
-    if not message.service:
+    if not message.dst_service:
         error = "Service for session creation not specified"
-    elif message.service not in node.services:
-        error = "Nonexistent service {} at node {}".format(message.service, message.dst_ip)
-    elif node.services[message.service].local and (not message.session or message.session.endpoint.id != node.id):
+    elif node.services[message.dst_service].local and (not message.session or message.session.endpoint.id != node.id):
         error = "Trying to access local service without a session to the node"
 
     if error:
-        return 1, Response(message, message.service, Status(StatusOrigin.NODE, StatusValue.ERROR), error, session=message.session)
+        return 1, Response(message, Status(StatusOrigin.NODE, StatusValue.ERROR), error, session=message.session)
 
-    service = node.services[message.service]
+    service = node.services[message.dst_service]
 
     # Gather public data
     # TODO Public data are extracted with the information discovery action. Should it be included here?
@@ -276,38 +276,35 @@ def process_disclosure_data_exfiltration(message: Request, node: PassiveNode) ->
     # Made them accessible only if the attacker has a valid authorization for given service and the authorization
     # lists them as an owner of the data
     if (message.authorization and
-        message.service in message.authorization.services and
-        Policy().decide(node.id, message.service, access_level=AccessLevel.NONE, authorization=message.authorization)):
+        message.dst_service in message.authorization.services and
+        Policy().decide(node.id, message.dst_service, access_level=AccessLevel.NONE, authorization=message.authorization)):
 
         for datum in service.private_data:
             if message.authorization.identity == '*' or message.authorization.identity == datum.owner:
                 result.append(datum)
 
-    return 1, Response(message, message.service, Status(StatusOrigin.SERVICE, StatusValue.SUCCESS), result, session=message.session)
+    return 1, Response(message, Status(StatusOrigin.SERVICE, StatusValue.SUCCESS), result, session=message.session)
 
 
-def process_destroy_data_destruction(message: Request, node: PassiveNode) -> Tuple[int, Response]:
+def process_destroy_data_destruction(message: Request, node: Node, env: 'Environment') -> Tuple[int, Response]:
     # Check if the service is running on the target
     error = ""
-    if not message.service:
+    if not message.dst_service:
         error = "Service for session creation not specified"
-    elif message.service not in node.services:
-        error = "Nonexistent service {} at node {}".format(message.service, message.dst_ip)
-    elif node.services[message.service].local and (not message.session or message.session.endpoint.id != node.id):
+    elif node.services[message.dst_service].local and (not message.session or message.session.endpoint.id != node.id):
         error = "Trying to access local service without a session to the node"
 
     if error:
-        return 1, Response(message, message.service, Status(StatusOrigin.NODE, StatusValue.ERROR), error,
-                           session=message.session)
+        return 1, Response(message, Status(StatusOrigin.NODE, StatusValue.ERROR), error, session=message.session)
 
-    service = node.services[message.service]
+    service = node.services[message.dst_service]
 
     # Data destruction only with authorization
     if (not message.authorization or
-        message.service not in message.authorization.services or
-        not Policy().decide(node.id, message.service, access_level=AccessLevel.NONE, authorization=message.authorization)):
+        message.dst_service not in message.authorization.services or
+        not Policy().decide(node.id, message.dst_service, access_level=AccessLevel.NONE, authorization=message.authorization)):
 
-        return 1, Response(message, message.service, Status(StatusOrigin.SERVICE, StatusValue.FAILURE),
+        return 1, Response(message, Status(StatusOrigin.SERVICE, StatusValue.FAILURE),
                            "Unauthorized attempt to delete data", session=message.session)
 
     # This function silently does nothing if there are no data specified for destruction
@@ -339,4 +336,44 @@ def process_destroy_data_destruction(message: Request, node: PassiveNode) -> Tup
         service.private_data.clear()
         service.private_data.extend(new_data)
 
-    return 1, Response(message, message.service, Status(StatusOrigin.SERVICE, StatusValue.SUCCESS), "", session=message.session)
+    return 1, Response(message, Status(StatusOrigin.SERVICE, StatusValue.SUCCESS), "", session=message.session)
+
+
+def process_ensure_access_lateral_movement(message: Request, node: Node, env: 'Environment') -> Tuple[int, Response]:
+    # Sanity checks - having a session here and having correct parameters
+    error = ""
+    if not message.session or message.session.endpoint.id != node.id:
+        error = "Could not do a lateral movement without a correct session"
+
+    # Should we reuse the ID for a name?
+    attacker_name = ""
+    for param in message.action.parameters:
+        if param.action_type == ActionParameterType.ID:
+            attacker_name = param.value
+            break
+
+    if not attacker_name:
+        error = "Name of attacker not specified"
+
+    if error:
+        return 1, Response(message, Status(StatusOrigin.NODE, StatusValue.ERROR), error, session=message.session)
+
+    attacker_id = attacker_name + "_" + str(Counter().get(attacker_name))
+    attacker_fqdn = node.id + "." + attacker_id
+    attacker_service = MalwareStore().create_malware(attacker_name, attacker_id, env=EnvironmentProxy(env, attacker_fqdn))
+
+    if not attacker_service:
+        return 1, Response(message, Status(StatusOrigin.NODE, StatusValue.ERROR),
+                           "Could not find attacker with name {}".format(attacker_id), session=message.session)
+
+    # Check if the permissions are ok
+    if attacker_service.service_access_level > message.authorization.access_level:
+        return 1, Response(message, Status(StatusOrigin.NODE, StatusValue.FAILURE),
+                           "Insufficient privileges to run attacker {}".format(attacker_id), session=message.session)
+
+    # Currently, there is no way to instruct environment to pause on actions of new attacker instances
+
+    node.add_service(attacker_service)
+    attacker_service.run()
+
+    return 1, Response(message, Status(StatusOrigin.NODE, StatusValue.SUCCESS), node.view(), session=message.session)

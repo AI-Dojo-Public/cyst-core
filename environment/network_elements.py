@@ -313,6 +313,13 @@ class Session:
     def endpoint(self) -> Endpoint:
         return self._path[-1].dst
 
+    @property
+    def start(self) -> Endpoint:
+        if self._parent:
+            return self._parent.start
+        else:
+            return self._path[0].src
+
     def __str__(self) -> str:
         result = []
         for node in self.get_forward_iterator():

@@ -2,15 +2,12 @@ from enum import Enum
 from heapq import heappush, heappop
 from typing import Tuple, List
 
-from environment.message import MessageType, Ack, Request, Response, _Message, StatusValue, StatusOrigin
+from environment.message import MessageType, Request, Response, _Message, StatusValue, StatusOrigin, Status
 from environment.network import Network, Connection
 from environment.network_elements import Endpoint
-from environment.node import PassiveNode, Node
+from environment.node import Node
 
 environment_interpreters = {}
-
-# This is to register all interpreters
-from environment.interpreter import *
 
 
 class EnvironmentState(Enum):
@@ -60,7 +57,7 @@ class Environment:
         self._terminate = False
         self._state = EnvironmentState.INIT
 
-    def _process_passive(self, message: Request, node: PassiveNode):
+    def _process_passive(self, message: Request, node: Node):
         time = 0
         response = None
 
@@ -69,7 +66,7 @@ class Environment:
             names = tag.name_list
 
             if names[0] in environment_interpreters:
-                time, response = environment_interpreters[names[0]](names[1:], message, node)
+                time, response = environment_interpreters[names[0]](names[1:], message, node, self)
                 break
 
         return time, response
@@ -120,78 +117,104 @@ class Environment:
             self._pause = True
 
     def _send_message(self, message: _Message) -> None:
+        message_type = "request" if isinstance(message, Request) else "response"
 
         # shortcut for wakeup messages
         if message.type == MessageType.TIMEOUT:
             self._network.get_node_by_id(message.origin.id).process_message(message)
             return
 
-        current_node = self._network.get_node_by_id(message.current.id)
-
-        # Ack for successfully sending a message
-        if current_node and not isinstance(current_node, PassiveNode):
-            current_node.process_message(Ack(message.id))
-
         # Move message to a next hop
         message.hop()
         current_node = self._network.get_node_by_id(message.current.id)
 
         processing_time = 0
-        # If the node is passive, let the environment process it
-        if isinstance(current_node, PassiveNode):
-            # Request can be processed or passed along
-            if isinstance(message, Request):
-                local_processing = True
-                # This passive node is just an end of session and should act as a proxy
-                if message.session and (message.in_session or message.session.endpoint.id == current_node.id):
-                    local_processing = False
-                    if message.in_session:
-                        message.set_next_hop()
-                    # We've reached the end of session
-                    else:
-                        # Check if the passive node is the final destination
-                        for iface in current_node.interfaces:
-                            if iface.index == message.session.endpoint.port and iface.ip == message.dst_ip:
-                                local_processing = True
-                                break
-                        # Nope, proxy it...
-                        if not local_processing:
-                            # Find a way to nearest switch
-                            gateway, port = current_node.gateway(message.dst_ip)
-                            message.set_next_hop(Endpoint(current_node.id, port), current_node.interfaces[port].endpoint)
 
-                    if not local_processing:
-                        print("Proxying request to {} via {} on passive node {}".format(message.dst_ip, message.next_hop.id, current_node.id))
-                        processing_time = 1
-
-                # Otherwise do a full processing
-                if local_processing:
-                    print("Processing request on passive node {}. {}".format(current_node.id, message))
-                    processing_time, response = self._process_passive(message, current_node)
-                    if response.status.origin == StatusOrigin.SYSTEM and response.status.value == StatusValue.ERROR:
-                        print("Could not process the request, unknown semantics.")
-                    else:
-                        self.send_message(response, processing_time)
-            # Responses can only be passed along
-            elif isinstance(message, Response):
-                if message.session and (message.in_session or message.session.endpoint.id == current_node.id):
-                    message.set_next_hop()
-                    print("Proxying response to {} via {} on passive node {}".format(message.dst_ip, message.next_hop.id, current_node.id))
-                    processing_time = 1
-                else:
-                    raise Exception("Response traversing over passive node without a session")
-        else:
+        if current_node.type == "Router":
             result, processing_time = current_node.process_message(message)
+            if result:
+                heappush(self._tasks, (self._time + processing_time, message))
 
-            if not result:
+            return
+
+        # Message has a session
+        if message.session:
+            local_processing = False
+            # Message still in session, pass it along
+            if message.in_session:
+                message.set_next_hop()
+                heappush(self._tasks, (self._time + processing_time, message))
+                return
+            # The session ends in the current node
+            elif message.session.endpoint.id == current_node.id:
+                # Check if the node is the final destination
+                for iface in current_node.interfaces:
+                    if iface.index == message.session.endpoint.port and iface.ip == message.dst_ip:
+                        local_processing = True
+                        break
+                # It is not, this means the node was only a proxy to some other target
+                if not local_processing:
+                    # Find a way to nearest switch
+                    gateway, port = current_node.gateway(message.dst_ip)
+                    message.set_next_hop(Endpoint(current_node.id, port), current_node.interfaces[port].endpoint)
+                    print("Proxying {} to {} via {} on a node {}".format(message_type, message.dst_ip, message.next_hop.id, current_node.id))
+                    heappush(self._tasks, (self._time + processing_time, message))
+                    return
+
+        # Message has to be processed locally
+        print("Processing {} on a node {}. {}".format(message_type, current_node.id, message))
+
+        # Service is requested
+        response = None
+        if message.dst_service:
+            # Check if the requested service exists on the current node
+            if message.dst_service not in current_node.services:
+                # There is a theoretical chance for response not finding dst service for responses, if e.g. attacker
+                # shut down the service after firing request and before receiving the response. In such case the
+                # error is silently dropped
+                if message_type == "response":
+                    return
+
+                processing_time = 1
+                response = Response(message, Status(StatusOrigin.NODE, StatusValue.ERROR), "Nonexistent service {} at node {}".format(message.dst_service, message.dst_ip))
+                self.send_message(response, processing_time)
+
+            # Service exists and it is passive
+            elif current_node.services[message.dst_service].passive:
+                # Passive services just discard the responses and only process the requests
+                if message_type == "response":
+                    return
+
+                processing_time, response = self._process_passive(message, current_node)
+                if response.status.origin == StatusOrigin.SYSTEM and response.status.value == StatusValue.ERROR:
+                    print("Could not process the request, unknown semantics.")
+                else:
+                    self.send_message(response, processing_time)
+
+            # Service exists and it is active
+            else:
+                # An active service does not necessarily produce Responses, so we should just move time
+                # somehow and be done with it.
+                # TODO How to move time?
+                current_node.services[message.dst_service].process_message(message)
+
+                if message_type == "response" and current_node.id + "." + message.dst_service in self._pause_on_response:
+                    self._pause = True
+
+        # If no service is specified, it is a message to a node, but still, it is processed as a request for
+        # passive service and processed with the interpreter
+        # No service is specified
+        else:
+            # If there is response arriving without destination service, just drop it
+            if message_type == "response":
                 return
 
-            # Only active nodes can be source of a pause and pause is not triggered by Ack message
-            if current_node.id in self._pause_on_response:
-                self._pause = True
-
-        if current_node.interfaces and current_node.interfaces[message.current.port].ip != message.dst_ip:
-            heappush(self._tasks, (self._time + processing_time, message))
+            # If it is a request, then it is processed as a request for passive service and processed with the interpreter
+            processing_time, response = self._process_passive(message, current_node)
+            if response.status.origin == StatusOrigin.SYSTEM and response.status.value == StatusValue.ERROR:
+                print("Could not process the request, unknown semantics.")
+            else:
+                self.send_message(response, processing_time)
 
     def run(self) -> Tuple[bool, EnvironmentState]:
 
@@ -236,6 +259,18 @@ class Environment:
 
         self._terminate = True
         return True, self._state
+
+    def add_pause_on_request(self, id: str) -> None:
+        self._pause_on_request.append(id)
+
+    def remove_pause_on_request(self, id: str) -> None:
+        self._pause_on_request = [x for x in self._pause_on_request if x != id]
+
+    def add_pause_on_response(self, id: str) -> None:
+        self._pause_on_response.append(id)
+
+    def remove_pause_on_response(self, id: str) -> None:
+        self._pause_on_response = [x for x in self._pause_on_response if x != id]
 
     def _process(self) -> Tuple[bool, EnvironmentState]:
 
@@ -282,3 +317,8 @@ class EnvironmentProxy:
         request.set_origin(Endpoint(self._node_id, -1))
 
         self._env.send_message(request, delay)
+
+
+# This is to register all interpreters
+# At the bottom to resolve cyclic import troubles
+from environment.interpreter import *

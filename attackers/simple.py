@@ -5,27 +5,26 @@ from environment.access import Authorization
 from environment.environment import EnvironmentProxy
 from environment.message import Request, Response, MessageType
 from environment.network_elements import Session
-from environment.node import Node
+from environment.node import ActiveService, AccessLevel
 
 
-class SimpleAttacker(Node):
-    def __init__(self, id: str, type: str = "Attacker", env: EnvironmentProxy = None) -> None:
+class SimpleAttacker(ActiveService):
+    def __init__(self, id: str, owner: str = "nobody", env: EnvironmentProxy = None) -> None:
+        super(SimpleAttacker, self).__init__(id, owner, env)
         self._env = env
-        super(SimpleAttacker, self).__init__(id, type)
-
         self._responses = []
+        # This attacker requires root for testing purposes
+        self._service_access_level = AccessLevel.ELEVATED
 
     # This attacker only runs given actions. No own initiative
     def run(self):
-        pass
+        print("Launched a simple attacker with ID: {}".format(self.id))
 
     def execute_action(self, target: str, service: str, action: Action, session: Session = None, authorization: Authorization = None) -> None:
-        request = Request(target, service, action, session=session, authorization=authorization)
+        request = Request(target, service, self.id, action, session=session, authorization=authorization)
         self._env.send_request(request)
 
     def process_message(self, message) -> Tuple[bool, int]:
-        if message.type == MessageType.ACK:
-            return True, 0
 
         print("Got response on request {} : {}".format(message.id, str(message)))
 
