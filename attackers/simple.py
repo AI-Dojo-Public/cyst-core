@@ -5,7 +5,7 @@ from environment.access import Authorization
 from environment.environment import EnvironmentProxy
 from environment.message import Request, Response, MessageType
 from environment.network_elements import Session
-from environment.node import ActiveService
+from environment.node import ActiveService, AccessLevel
 
 
 class SimpleAttacker(ActiveService):
@@ -13,10 +13,12 @@ class SimpleAttacker(ActiveService):
         super(SimpleAttacker, self).__init__(id, owner, env)
         self._env = env
         self._responses = []
+        # This attacker requires root for testing purposes
+        self._service_access_level = AccessLevel.ELEVATED
 
     # This attacker only runs given actions. No own initiative
     def run(self):
-        pass
+        print("Launched a simple attacker with ID: {}".format(self.id))
 
     def execute_action(self, target: str, service: str, action: Action, session: Session = None, authorization: Authorization = None) -> None:
         request = Request(target, service, self.id, action, session=session, authorization=authorization)

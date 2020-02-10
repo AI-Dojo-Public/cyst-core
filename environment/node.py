@@ -7,7 +7,7 @@ from semver import VersionInfo
 from environment.access import Authorization, AccessLevel
 from environment.message import MessageType
 from environment.network_elements import Interface
-from environment.views import NodeView, ServiceView, InterfaceView
+from environment.views import NodeView, ServiceView, InterfaceView, PassiveServiceView
 
 
 # TODO Data handling is a next big thing - how to manage access to private data, how to express encrypted or hashed data
@@ -233,9 +233,12 @@ class Node:
             nv.add_interface(InterfaceView(iface.ip, iface.mask, iface.gateway_ip))
 
         for service in self._services.values():
-            nv.add_service(ServiceView(service.id, service.tags, service.public_data, service.public_authorizations,
-                                       service.enable_session, service.session_access_level,
-                                       service.service_access_level))
+            if service.passive:
+                nv.add_service(PassiveServiceView(service.id, service.tags, service.public_data, service.public_authorizations,
+                                                  service.enable_session, service.session_access_level,
+                                                  service.service_access_level))
+            else:
+                nv.add_service(ServiceView(service.id, service.service_access_level))
 
         return nv
 

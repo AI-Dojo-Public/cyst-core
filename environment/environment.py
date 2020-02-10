@@ -9,9 +9,6 @@ from environment.node import Node
 
 environment_interpreters = {}
 
-# This is to register all interpreters
-from environment.interpreter import *
-
 
 class EnvironmentState(Enum):
     INIT = 0,
@@ -69,7 +66,7 @@ class Environment:
             names = tag.name_list
 
             if names[0] in environment_interpreters:
-                time, response = environment_interpreters[names[0]](names[1:], message, node)
+                time, response = environment_interpreters[names[0]](names[1:], message, node, self)
                 break
 
         return time, response
@@ -320,3 +317,8 @@ class EnvironmentProxy:
         request.set_origin(Endpoint(self._node_id, -1))
 
         self._env.send_message(request, delay)
+
+
+# This is to register all interpreters
+# At the bottom to resolve cyclic import troubles
+from environment.interpreter import *

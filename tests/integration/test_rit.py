@@ -2,7 +2,6 @@ import unittest
 import uuid
 
 from attackers.simple import SimpleAttacker
-from attackers.attacker_store import AttackerStore
 from environment.access import Authorization, AccessLevel, Policy
 from environment.action import ActionList, ActionParameter, ActionParameterType
 from environment.environment import Environment, EnvironmentState, EnvironmentProxy, Node
@@ -76,20 +75,22 @@ class TestRITIntegration(unittest.TestCase):
 
         # Add system exploitability
         exploit1 = Exploit("http_exploit", [VulnerableService("lighttpd", "1.4.54")], ExploitLocality.REMOTE, ExploitCategory.CODE_EXECUTION)
-        exploit2 = Exploit("ftp_exploit", [VulnerableService("vsftpd", "3.0.3")], ExploitLocality.REMOTE, ExploitCategory.CODE_EXECUTION)
-        exploit3 = Exploit("bash_user_exploit", [VulnerableService("bash", "5.0.0")], ExploitLocality.LOCAL,
+        exploit2 = Exploit("http_root_exploit", [VulnerableService("lighttpd", "1.4.54")], ExploitLocality.REMOTE, ExploitCategory.CODE_EXECUTION,
+                           ExploitParameter(ExploitParameterType.ENABLE_ELEVATED_ACCESS, "TRUE", immutable=True))
+        exploit3 = Exploit("ftp_exploit", [VulnerableService("vsftpd", "3.0.3")], ExploitLocality.REMOTE, ExploitCategory.CODE_EXECUTION)
+        exploit4 = Exploit("bash_user_exploit", [VulnerableService("bash", "5.0.0")], ExploitLocality.LOCAL,
                            ExploitCategory.AUTH_MANIPULATION, ExploitParameter(ExploitParameterType.IDENTITY),
                            ExploitParameter(ExploitParameterType.ENABLE_ELEVATED_ACCESS, "FALSE", immutable=True))
-        exploit4 = Exploit("bash_root_exploit", [VulnerableService("bash", "5.0.0")], ExploitLocality.LOCAL, ExploitCategory.AUTH_MANIPULATION,
+        exploit5 = Exploit("bash_root_exploit", [VulnerableService("bash", "5.0.0")], ExploitLocality.LOCAL, ExploitCategory.AUTH_MANIPULATION,
                            ExploitParameter(ExploitParameterType.ENABLE_ELEVATED_ACCESS, "TRUE", immutable=True))
-        exploit5 = Exploit("bash_master_exploit", [VulnerableService("bash", "5.0.0")], ExploitLocality.LOCAL,
+        exploit6 = Exploit("bash_master_exploit", [VulnerableService("bash", "5.0.0")], ExploitLocality.LOCAL,
                            ExploitCategory.AUTH_MANIPULATION,
                            ExploitParameter(ExploitParameterType.ENABLE_ELEVATED_ACCESS, "TRUE", immutable=True),
                            ExploitParameter(ExploitParameterType.IMPACT_IDENTITY, "ALL", immutable=True),
                            ExploitParameter(ExploitParameterType.IMPACT_NODE, "ALL", immutable=True),
                            ExploitParameter(ExploitParameterType.IMPACT_SERVICE, "ALL", immutable=True))
 
-        ExploitStore().add_exploit(exploit1, exploit2, exploit3, exploit4, exploit5)
+        ExploitStore().add_exploit(exploit1, exploit2, exploit3, exploit4, exploit5, exploit6)
 
         target.add_service(ssh_service)
         target.add_service(http_service)
@@ -104,6 +105,7 @@ class TestRITIntegration(unittest.TestCase):
         proxy = EnvironmentProxy(cls._env, "attacker_node")
         cls._attacker = SimpleAttacker("attacker1", env=proxy)
         attacker_node.add_service(cls._attacker)
+        cls._attacker.run()
 
         cls._env.add_pause_on_response("attacker_node.attacker1")
 
@@ -698,7 +700,90 @@ class TestRITIntegration(unittest.TestCase):
         self.assertTrue(len(message.content) == 0, "Data really deleted")
 
     def test_0008_ensure_access_lateral_movement(self) -> None:
-        a = AttackerStore()
+        action_lm = self._actions["rit:ensure_access:lateral_movement"]
+
+        # Sanity check - no action without session
+        self._attacker.execute_action("192.168.0.2", "", action_lm)
+
+        self._env.resume()
+        message = self._attacker.get_last_response()
+
+        self.assertEqual(message.status, Status(StatusOrigin.NODE, StatusValue.ERROR), "No lateral movement without a session")
+
+        # Get the session
+        action_cc = self._actions["rit:ensure_access:command_and_control"]
+        action_cc.set_exploit(ExploitStore().get_exploit("http_exploit")[0])
+
+        self._attacker.execute_action("192.168.0.2", "lighttpd", action_cc)
+
+        self._env.resume()
+        message = self._attacker.get_last_response()
+
+        self.assertEqual(message.status, Status(StatusOrigin.SERVICE, StatusValue.SUCCESS), "Gained session to the target")
+
+        sess = message.session
+        auth = message.authorization
+
+        # Run the action without an attacker id
+        self._attacker.execute_action("192.168.0.2", "", action_lm, sess, auth)
+
+        self._env.resume()
+        message = self._attacker.get_last_response()
+
+        self.assertEqual(message.status, Status(StatusOrigin.NODE, StatusValue.ERROR), "No ID of an attacker to instantiate specified")
+
+        # Set the wrong ID
+        action_lm.add_parameters(ActionParameter(ActionParameterType.ID, "NonexistentAttacker"))
+
+        self._attacker.execute_action("192.168.0.2", "", action_lm, sess, auth)
+
+        self._env.resume()
+        message = self._attacker.get_last_response()
+
+        self.assertEqual(message.status, Status(StatusOrigin.NODE, StatusValue.ERROR), "Wrong attacker ID specified")
+
+        # Set the correct ID but don't have adequate privileges
+        action_lm.parameters.clear()
+        action_lm.add_parameters(ActionParameter(ActionParameterType.ID, "SimpleAttacker"))
+
+        self._attacker.execute_action("192.168.0.2", "", action_lm, sess, auth)
+
+        self._env.resume()
+        message = self._attacker.get_last_response()
+
+        self.assertEqual(message.status, Status(StatusOrigin.NODE, StatusValue.FAILURE), "Insufficient privileges to run the attacker")
+
+        # Get the root-level session
+        # Get the session
+        action_root_cc = self._actions["rit:ensure_access:command_and_control"]
+        action_root_cc.set_exploit(ExploitStore().get_exploit("http_root_exploit")[0])
+
+        self._attacker.execute_action("192.168.0.2", "lighttpd", action_root_cc)
+
+        self._env.resume()
+        message = self._attacker.get_last_response()
+
+        self.assertEqual(message.status, Status(StatusOrigin.SERVICE, StatusValue.SUCCESS), "Gained session to the target")
+
+        root_sess = message.session
+        root_auth = message.authorization
+
+        # And finally launch the attacker on the remote system
+        self._attacker.execute_action("192.168.0.2", "", action_lm, root_sess, root_auth)
+
+        self._env.resume()
+        message = self._attacker.get_last_response()
+
+        self.assertEqual(message.status, Status(StatusOrigin.NODE, StatusValue.SUCCESS), "Successfully launched an attacker instance")
+        self.assertTrue(type(message.content is NodeView), "Got correct response")
+
+        found = False
+        for service in message.content.services:
+            if service.startswith("SimpleAttacker_"):
+                found = True
+
+        self.assertTrue(found, "Attacker service was correctly started")
+
 
 if __name__ == '__main__':
     unittest.main()
