@@ -17,7 +17,7 @@ class MessageType(Enum):
 class _Message:
     def __init__(self, type: MessageType, origin: Endpoint = None, src_ip: IPAddress = None, dst_ip: IPAddress = None,
                  src_service: str = "", dst_service: str = "", session: 'Session' = None,
-                 authorization: Authorization = None, force_id: int = -1) -> None:
+                 authorization: Authorization = None, force_id: int = -1, ttl: int = 64) -> None:
         # Messages are globally indexed so that they can be ordered and are unique
         if force_id == -1:
             self._id = Counter().get("message")
@@ -42,6 +42,8 @@ class _Message:
 
         self._session_iterator = None
         self._in_session = False
+
+        self._ttl = ttl
 
     @property
     def id(self) -> int:
@@ -172,6 +174,14 @@ class _Message:
     @property
     def dst_service(self):
         return self._dst_service
+
+    @property
+    def ttl(self):
+        return self._ttl
+
+    def decrease_ttl(self):
+        self._ttl -= 1
+        return self._ttl
 
 
 class Request(_Message):
