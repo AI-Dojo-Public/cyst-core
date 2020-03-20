@@ -6,7 +6,7 @@ from attackers.simple import SimpleAttacker
 from environment.access import Authorization, AccessLevel, Policy
 from environment.action import ActionList
 from environment.environment import Environment, EnvironmentProxy
-from environment.message import StatusOrigin, StatusValue
+from environment.message import StatusOrigin, StatusValue, Status
 from environment.network import Router
 from environment.network_elements import Session, Interface, Endpoint, Hop, Route
 from environment.node import Node, PassiveService, ActiveService
@@ -262,6 +262,102 @@ class TestRouting(unittest.TestCase):
         self.assertEqual(routes[0].net.prefixlen, 26, "Correctly prioritized metric")
         self.assertEqual(routes[1].net.prefixlen, 30, "Correctly prioritized prefixlen")
         self.assertEqual(routes[5].net.ip, IPAddress("10.1.5.4"), "Correctly ordered IP addresses")
+
+    def test_0001_cycle(self):
+
+        env = Environment(pause_on_response=["attacker1"])
+        proxy = EnvironmentProxy(env, "attacker_node")
+
+        # Router connected to attacker and router2
+        router1 = Router("router1", env)
+        # attacker-facing port
+        router1_port1 = router1.add_port("10.0.0.1", "255.255.0.0")
+        # router2-facing port
+        router1_port2 = router1.add_port()
+
+        # Router connected only to router1
+        router2 = Router("router2", env)
+        # router1-facing port
+        router2_port1 = router2.add_port()
+
+        # Make an endless routing loop
+        router1.add_route(Route(IPNetwork("192.168.0.0/24"), router1_port2))
+        router2.add_route(Route(IPNetwork("192.168.0.0/24"), router2_port1))
+        router2.add_route(Route(IPNetwork("10.0.0.0/8"), router2_port1))
+
+        # Connect routers
+        env.add_node(router1)
+        env.add_node(router2)
+        env.add_connection(router1, router2, router1_port2, router2_port1)
+
+        # attacker sending the message
+        attacker_node = Node("attacker_node")
+        attacker = SimpleAttacker("attacker1", env=proxy)
+        attacker_node.add_service(attacker)
+
+        # Connect attacker
+        env.add_node(attacker_node)
+        env.add_connection(attacker_node, router1, -1, router1_port1)
+
+        # Let attacker send a probe message
+        action = ActionList().get_actions("rit:active_recon:host_discovery")[0]
+
+        attacker.execute_action("192.168.0.2", "", action)
+
+        env.run()
+
+        response = attacker.get_last_response()
+
+        self.assertEqual(response.status, Status(StatusOrigin.NETWORK, StatusValue.FAILURE), "Network failure occurred")
+        self.assertEqual(response.content, "Message stuck in a cycle")
+
+    def test_0002_ttl(self):
+
+        env = Environment(pause_on_response=["attacker1"])
+        proxy = EnvironmentProxy(env, "attacker_node")
+
+        # Router connected to attacker and router2
+        router1 = Router("router1", env)
+        # attacker-facing port
+        router1_port1 = router1.add_port("10.0.0.1", "255.255.0.0")
+        # router2-facing port
+        router1_port2 = router1.add_port()
+
+        env.add_node(router1)
+
+        last_router = router1
+        # Make a chain of 70 routers
+        for i in range(2,70):
+            router = Router("router{}".format(i), env)
+            router.add_port()  # port 0
+            router.add_port()  # port 1
+
+            env.add_node(router)
+            env.add_connection(last_router, router, 1, 0)
+
+            last_router.add_route(Route(IPNetwork("192.168.0.0/16"), 1))
+            last_router = router
+
+        # attacker sending the message
+        attacker_node = Node("attacker_node")
+        attacker = SimpleAttacker("attacker1", env=proxy)
+        attacker_node.add_service(attacker)
+
+        # Connect attacker
+        env.add_node(attacker_node)
+        env.add_connection(attacker_node, router1, -1, router1_port1)
+
+        # Let attacker send a probe message
+        action = ActionList().get_actions("rit:active_recon:host_discovery")[0]
+
+        attacker.execute_action("192.168.0.2", "", action)
+
+        env.run()
+
+        response = attacker.get_last_response()
+
+        self.assertEqual(response.status, Status(StatusOrigin.NETWORK, StatusValue.FAILURE), "Network failure occurred")
+        self.assertEqual(response.content, "TTL expired")
 
 
 if __name__ == '__main__':

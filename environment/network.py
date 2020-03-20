@@ -1,6 +1,7 @@
 import networkx as nx
 
 from netaddr import *
+from cachetools.lru import LRUCache
 
 from typing import Tuple, Optional, List, Union
 
@@ -21,6 +22,8 @@ class Router(Node):
         self._local_ips = {}
         self._local_nets = []
         self._routes = []
+        # Cache storing last 64 requests
+        self._request_cache = LRUCache(64)
 
     @property
     def interfaces(self) -> List[Port]:
@@ -137,11 +140,37 @@ class Router(Node):
         return True, ""
 
     def process_message(self, message: _Message) -> Tuple[bool, int]:
-        # If message is still going through a session then pass it along where it should go
-        # the same goes for responses, which travel back from whence they came
-        if message.in_session:  # or message.type == MessageType.RESPONSE:
+        # Do not process messages that are going on for far too long
+        if message.decrease_ttl() == 0:
+            m = Response(message, status=Status(StatusOrigin.NETWORK, StatusValue.FAILURE), content="TTL expired")
+            m.set_next_hop()
+            self._env.send_message(m)
+            return False, 1
+
+        # If message is still going through a session then pass it along where it should go...
+        if message.in_session:
             message.set_next_hop()
             return True, 1
+
+        # ...the same goes for responses, which travel back from whence they came
+        if message.type == MessageType.RESPONSE:
+            port = self._request_cache.get(message.id, -1)
+            if port != -1:
+                message.set_next_hop(Endpoint(self.id, port), self._ports[port].endpoint)
+                return True, 1
+
+        # Unless the request vanished from cache - then we have to try to to deliver it the old-fashioned way
+
+        # Check for messages running around in circles
+        if message.type == MessageType.REQUEST:
+            port = self._request_cache.get(message.id, -1)
+            if port != -1:
+                m = Response(message, status=Status(StatusOrigin.NETWORK, StatusValue.FAILURE),
+                             content="Message stuck in a cycle")
+                # The next hop is automatically calculated because it is a response
+                m.set_next_hop(Endpoint(self.id, port), self._ports[port].endpoint)
+                self._env.send_message(m)
+                return False, 1
 
         # TODO evaluate permeability between networks!
         # When looking at the current target, the router must also check, if the target is within the same network as
@@ -166,6 +195,9 @@ class Router(Node):
             # The same network, let's go
             else:
                 message.set_next_hop(Endpoint(self.id, port), self._ports[port].endpoint)
+                # Store the info about incoming port to enable pass-through of responses
+                if message.type == MessageType.REQUEST:
+                    self._request_cache[message.id] = message.current.port
                 return True, 1
         # It is not, but belongs to router's constituency
         elif self._is_local_ip(message.dst_ip):
@@ -179,6 +211,9 @@ class Router(Node):
             for route in self._routes:
                 if message.dst_ip in route.net:
                     message.set_next_hop(Endpoint(self.id, route.port), self._ports[route.port].endpoint)
+                    # Store the info about incoming port to enable pass-through of responses
+                    if message.type == MessageType.REQUEST:
+                        self._request_cache[message.id] = message.current.port
                     return True, 1
 
             m = Response(message, status=Status(StatusOrigin.NETWORK, StatusValue.FAILURE), content="Network address {} not routable".format(message.dst_ip))
