@@ -359,8 +359,10 @@ def process_ensure_access_lateral_movement(message: Request, node: Node, env: 'E
         return 1, Response(message, Status(StatusOrigin.NODE, StatusValue.ERROR), error, session=message.session)
 
     attacker_id = attacker_name + "_" + str(Counter().get(attacker_name))
-    attacker_fqdn = node.id + "." + attacker_id
-    attacker_service = MalwareStore().create_malware(attacker_name, attacker_id, env=EnvironmentProxy(env, attacker_fqdn))
+    # TODO: attacker_fqdn is required only for correct handling of environment pauses. Leaving it here for future,
+    #       when a correct mechanism is devised.
+    # attacker_fqdn = node.id + "." + attacker_id
+    attacker_service = MalwareStore().create_malware(attacker_name, attacker_id, env=EnvironmentProxy(env, node.id))
 
     if not attacker_service:
         return 1, Response(message, Status(StatusOrigin.NODE, StatusValue.ERROR),
