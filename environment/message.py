@@ -128,7 +128,8 @@ class _Message:
             self._path.append(Hop(src, self._next_hop))
 
             # If the next hop is one of the session's end, turn off session flag
-            if self._next_hop.id == self._session.endpoint.id or self._next_hop.id == self._session.start.id:
+            if (self.type == MessageType.REQUEST and self._next_hop.id == self._session.endpoint.id) or \
+                    (self.type == MessageType.RESPONSE and self._next_hop.id == self._session.start.id):
                 self._in_session = False
 
     # Can't really type it other then using string literal, because of dependency issues
