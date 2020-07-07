@@ -1,0 +1,46 @@
+{
+    "classes": [
+        {
+            "label": "Request", 
+            "name": "Request",
+            "fields": [
+                {
+                    "name": "src_ip",
+                    "label": "From",
+                    "severity": "debug"
+                },
+                {
+                    "name": "dst_ip",
+                    "label": "To",
+                    "severity": "debug"
+                }
+            ]
+        },
+        {
+            "label": "no-request",
+            "name": "Request",
+            "fields": []
+        }
+    ],
+    "loggers": [
+        {
+            "name": "console-debug",
+            "severity": "debug"
+        },
+        {
+            "name": "console-info",
+            "severity": "info"
+        },
+        {
+            "name": "file-info",
+            "severity": "info",
+            "output_file": "log.txt",
+            "classes": ["Request"]
+        },
+        {
+            "name": "file-info.no-request",
+            "classes": ["no-request"]
+        }
+
+    ]
+}
