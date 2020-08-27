@@ -3,3 +3,5 @@ networkx==2.3
 netaddr==0.7.19
 semver==2.9.0
 cachetools==4.0.0
+multipledispatch==0.6.0
+py-flags==1.1.4
