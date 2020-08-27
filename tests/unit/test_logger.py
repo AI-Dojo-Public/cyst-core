@@ -1,5 +1,6 @@
 import unittest
-from utils.logger import Log, Category
+from pathlib import Path
+from cyst.api.utils.logger import Log, Category
 
 
 class LogTest1:
@@ -46,8 +47,8 @@ def e():
 class TestPolicy(unittest.TestCase):
 
     def test_logger(self):
-
-        Log.set_config_file("tests/unit/logconfig.json")
+        base_path = Path(__file__ + "/../../../").resolve()
+        Log.set_config_file(str(base_path) + "/tests/unit/logconfig.json")
         LogTest1.test()
         LogTest2()
         Log.print("default logger")
