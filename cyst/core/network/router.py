@@ -1,15 +1,18 @@
 from cachetools.lru import LRUCache
-from typing import List, Union, Optional, Tuple, Dict
+from enum import Enum
+from typing import List, Union, Optional, Tuple, Dict, NamedTuple
 from netaddr import IPAddress, IPNetwork
 
 from cyst.api.environment.environment import EnvironmentMessaging
 from cyst.api.environment.message import StatusValue, StatusOrigin, MessageType, Status
 from cyst.api.network.elements import Route
 from cyst.api.network.node import Node
+from cyst.api.network.firewall import FirewallPolicy, FirewallRule, FirewallChainType
 
 from cyst.core.environment.message import MessageImpl, RequestImpl, ResponseImpl
 from cyst.core.network.node import NodeImpl
 from cyst.core.network.elements import PortImpl, InterfaceImpl, Endpoint, Resolver
+from cyst.core.network.firewall import FirewallImpl
 
 
 class Router(NodeImpl):
@@ -25,6 +28,9 @@ class Router(NodeImpl):
         self._routes: List[Route] = []
         # Cache storing last 64 requests
         self._request_cache: LRUCache = LRUCache(64)
+
+        # set a firewall, which controls routing policy
+        self._fw = FirewallImpl(env)
 
     @property
     def interfaces(self) -> List[PortImpl]:
@@ -75,7 +81,10 @@ class Router(NodeImpl):
 
         new_node_index = node_index
         router_port = self._ports[new_router_index]
-        node_interface = node.interfaces[node_index] if node.interfaces else None
+        if new_node_index != -1:
+            node_interface = node.interfaces[new_node_index] if node.interfaces else None
+        else:
+            node_interface = None
 
         # Get DHCP status
         dhcp = False if node_interface and node_interface.ip else True
@@ -140,10 +149,47 @@ class Router(NodeImpl):
 
         return True, ""
 
+    def add_routing_rule(self, rule: FirewallRule) -> None:
+        # This can be brittle, but we assume that FW is always preprocessor no. 1
+        self._fw.add_rule(FirewallChainType.FORWARD, rule)
+
+    def remove_routing_rule(self, index) -> None:
+        self._fw.remove_rule(FirewallChainType.FORWARD, index)
+
+    def list_routing_rules(self) -> List[Tuple[FirewallChainType, FirewallPolicy, List[FirewallRule]]]:
+        return self._fw.list_rules(FirewallChainType.FORWARD)
+
+    def set_default_routing_policy(self, policy: FirewallPolicy) -> None:
+        self._fw.set_default_policy(FirewallChainType.FORWARD, policy)
+
+    def get_default_routing_policy(self) -> FirewallPolicy:
+        return self._fw.get_default_policy(FirewallChainType.FORWARD)
+
+    def routes(self, src: IPAddress, dst: IPAddress, service: str) -> Optional[PortImpl]:
+        # I lost the code, so this may or may not be enough here
+        # It is a butchered version of process message
+        port = self._local_ips.get(dst, -1)
+        if port != -1:
+            if src in self._ports[port].net or self._fw.evaluate(src, dst, service)[0]:
+                return self._ports[port]
+            else:
+                return None
+
+        # TODO: i do not understand this check
+        elif self._is_local_ip(dst):
+            return None
+
+        else:
+            for route in self._routes:
+                if dst in route.net:
+                    return self._ports[route.port]
+
+        return None
+
     def process_message(self, message: MessageImpl) -> Tuple[bool, int]:
         # Do not process messages that are going on for far too long
         if message.decrease_ttl() == 0:
-            m = ResponseImpl(message, status=Status(StatusOrigin.NETWORK, StatusValue.FAILURE), content="TTL expired")
+            m = ResponseImpl(message, status=Status(StatusOrigin.NETWORK, StatusValue.FAILURE), content="TTL expired", session=message.session)
             m.set_next_hop()
             self._env.send_message(m)
             return False, 1
@@ -167,7 +213,7 @@ class Router(NodeImpl):
             port = self._request_cache.get(message.id, -1)
             if port != -1:
                 m = ResponseImpl(message, status=Status(StatusOrigin.NETWORK, StatusValue.FAILURE),
-                                 content="Message stuck in a cycle")
+                                 content="Message stuck in a cycle", session=message.session)
                 # The next hop is automatically calculated because it is a response
                 m.set_next_hop(Endpoint(self.id, port, self._ports[port].ip), self._ports[port].endpoint)
                 self._env.send_message(m)
@@ -181,28 +227,33 @@ class Router(NodeImpl):
         # The rule of thumb is - you can cross from local networks to remote networks, but you can't cross between
         # local networks and you can't go from remote network to local networks
         # Port forwarding is in the current state impossible and is ignored to reduce scope
+        # Addendum (until more robust solution is found) - the aforementioned holds, but in addition, the FW is
+        # consulted to check for explicitly allowed paths for crossing between local networks
 
         # Check if the target is linked to a router port
         port = self._local_ips.get(message.dst_ip, -1)
         if port != -1:
-            # It is, but in another network
-            if message.dst_ip not in self._ports[message.current.port].net:
-                m = ResponseImpl(message, status=Status(StatusOrigin.NETWORK, StatusValue.FAILURE),
-                             content="Host unreachable")
-                # The next hop is automatically calculated because it is a response
-                m.set_next_hop()
-                self._env.send_message(m)
-                return False, 1
-            # The same network, let's go
-            else:
-                message.set_next_hop(Endpoint(self.id, port, self._ports[port].ip), self._ports[port].endpoint)
+            # It is and (it is in the same network or have explicit permission in the firewall/routing policy)
+            # This would break when the message traversed more routers
+            if (self._ports[message.current.port].net and message.dst_ip in self._ports[message.current.port].net) or self._fw.evaluate(message.non_session_path[0].src.ip, message.dst_ip, message.dst_service)[0]:
+                src_ip = self._ports[port].ip
+                message.set_next_hop(Endpoint(self.id, port, src_ip), self._ports[port].endpoint)
                 # Store the info about incoming port to enable pass-through of responses
                 if message.type == MessageType.REQUEST:
                     self._request_cache[message.id] = message.current.port
                 return True, 1
+            # It is, but in another network
+            else:
+                m = ResponseImpl(message, status=Status(StatusOrigin.NETWORK, StatusValue.FAILURE),
+                             content="Host unreachable", session=message.session)
+                # The next hop is automatically calculated because it is a response
+                m.set_next_hop()
+                self._env.send_message(m)
+                return False, 1
+
         # It is not, but belongs to router's constituency
         elif self._is_local_ip(message.dst_ip):
-            m = ResponseImpl(message, status=Status(StatusOrigin.NETWORK, StatusValue.FAILURE), content="Host unreachable")
+            m = ResponseImpl(message, status=Status(StatusOrigin.NETWORK, StatusValue.FAILURE), content="Host unreachable", session=message.session)
             # The next hop is automatically calculated because it is a response
             m.set_next_hop()
             self._env.send_message(m)
@@ -217,7 +268,7 @@ class Router(NodeImpl):
                         self._request_cache[message.id] = message.current.port
                     return True, 1
 
-            m = ResponseImpl(message, status=Status(StatusOrigin.NETWORK, StatusValue.FAILURE), content="Network address {} not routable".format(message.dst_ip))
+            m = ResponseImpl(message, status=Status(StatusOrigin.NETWORK, StatusValue.FAILURE), content="Network address {} not routable".format(message.dst_ip), session=message.session)
             m.set_next_hop()
             self._env.send_message(m)
             return False, 1

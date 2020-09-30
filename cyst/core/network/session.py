@@ -23,8 +23,9 @@ class SessionImpl(Session):
         if parent:
             self._parent = SessionImpl.cast_from(parent)
 
-        if self._parent and parent.owner != self._owner:
-            raise Exception("Cannot link sessions with different owners")
+        # TODO: Session ownership is a dead-end concept and needs to be removed
+        # if self._parent and parent.owner != self._owner:
+        #     raise Exception("Cannot link sessions with different owners")
 
         if not path:
             raise Exception("Cannot create a session without a path")
@@ -145,6 +146,14 @@ class SessionImpl(Session):
             return self._parent.start
         else:
             return self._path[0].src.ip
+
+    def terminates_at(self, node: Node) -> bool:
+        end_ip = self.end
+        for iface in node.interfaces:
+            if iface.ip == end_ip:
+                return True
+        return False
+
     # ------------------------------------------------------------------------------------------------------------------
 
     @property
@@ -190,13 +199,34 @@ class SessionImpl(Session):
             parent = parent.parent
         return "[ID: {}, Owner: {}, Path: {}]".format(self.id, self.owner, full_path)
 
-    def __eq__(self, other) -> bool:
+    def __eq__(self, other: 'SessionImpl') -> bool:
+        # Comparing to None, everything is False
         if not other:
             return False
 
-        return self.owner == other.owner and \
-            self.parent == other.parent and \
-            self.path == other.path
+        # Hard type check
+        if not isinstance(other, SessionImpl):
+            return False
+
+        # Owner comparison - to be removed
+        if self.owner != other.owner:
+            return False
+
+        # If one session has parent and the other does not they are not the same
+        # Also, looking for a better way to write it
+        if (self.parent is None and other.parent is not None) or \
+           (self.parent is not None and other.parent is None):
+            return False
+
+        # If their parents don't match, they are not the same
+        if self.parent and self.parent != other.parent:
+            return False
+
+        # If their paths don't match, they are not the same
+        if self._path != other._path:
+            return False
+
+        return True
 
     @staticmethod
     def cast_from(o: Session) -> 'SessionImpl':

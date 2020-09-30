@@ -1,6 +1,6 @@
 from abc import ABC, abstractmethod
 
-from cyst.api.environment.stores import ActionStore, ServiceStore, ExploitStore
+from cyst.api.environment.stores import ActionStore, ExploitStore
 
 
 class EnvironmentResources(ABC):
@@ -13,9 +13,4 @@ class EnvironmentResources(ABC):
     @property
     @abstractmethod
     def exploit_store(self) -> ExploitStore:
-        pass
-
-    @property
-    @abstractmethod
-    def service_store(self) -> ServiceStore:
         pass

@@ -2,7 +2,8 @@ from typing import List, Optional, Dict, Union, Tuple, Any
 
 from cyst.api.environment.environment import EnvironmentMessaging
 from cyst.api.environment.message import Message
-from cyst.api.environment.stores import ActionStore, ServiceStore, ExploitStore
+from cyst.api.environment.stores import ActionStore, ExploitStore
+from cyst.api.environment.resources import EnvironmentResources
 from cyst.api.logic.access import AccessLevel
 from cyst.api.logic.action import ActionDescription, Action
 from cyst.api.logic.exploit import Exploit, ExploitCategory, ExploitLocality
@@ -16,11 +17,12 @@ from cyst.core.network.session import SessionImpl
 from cyst.core.network.node import NodeImpl
 
 
-class ServiceStoreImpl(ServiceStore):
+class ServiceStoreImpl:
 
-    def __init__(self, messaging: EnvironmentMessaging):
+    def __init__(self, messaging: EnvironmentMessaging, resources: EnvironmentResources):
         self._services = {}
         self._messaging = messaging
+        self._resources = resources
 
     def add_service(self, description: ActiveServiceDescription) -> None:
         self._services[description.name] = description
@@ -31,7 +33,7 @@ class ServiceStoreImpl(ServiceStore):
         else:
             return None
 
-    def create_active_service(self, id: str, owner: str, node: Node,
+    def create_active_service(self, id: str, owner: str, name: str, node: Node,
                               service_access_level: AccessLevel = AccessLevel.LIMITED,
                               configuration: Optional[Dict[str, Any]] = None) -> Optional[Service]:
         if not id in self._services:
@@ -39,8 +41,8 @@ class ServiceStoreImpl(ServiceStore):
         node = NodeImpl.cast_from(node)
         proxy = EnvironmentProxy(self._messaging, node.id, id)
         service_description: ActiveServiceDescription = self._services[id]
-        service = service_description.creation_fn(proxy, configuration)
-        return ServiceImpl(id, service, id, owner, service_access_level)
+        service = service_description.creation_fn(proxy, self._resources, configuration)
+        return ServiceImpl(id, service, name, owner, service_access_level)
 
 
 class ActionStoreImpl(ActionStore):

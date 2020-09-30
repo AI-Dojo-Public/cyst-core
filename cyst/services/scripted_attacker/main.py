@@ -4,13 +4,24 @@ from typing import Tuple, Optional, Dict, Any
 from cyst.api.logic.action import Action
 from cyst.api.logic.access import Authorization, AccessLevel
 from cyst.api.environment.environment import EnvironmentMessaging
-from cyst.api.environment.message import Request, Response, MessageType
+from cyst.api.environment.message import Request, Response, MessageType, Message
+from cyst.api.environment.resources import EnvironmentResources
 from cyst.api.network.session import Session
 from cyst.api.host.service import ActiveService, ActiveServiceDescription, Service
 
 
-class ScriptedAttacker(ActiveService):
-    def __init__(self, env: EnvironmentMessaging = None, args: Optional[Dict[str, Any]] = None) -> None:
+class ScriptedAttackerControl(ABC):
+    @abstractmethod
+    def execute_action(self, target: str, service: str, action: Action, session: Session = None, authorization: Authorization = None) -> None:
+        pass
+
+    @abstractmethod
+    def get_last_response(self) -> Optional[Response]:
+        pass
+
+
+class ScriptedAttacker(ActiveService, ScriptedAttackerControl):
+    def __init__(self, env: EnvironmentMessaging = None, res: EnvironmentResources = None, args: Optional[Dict[str, Any]] = None) -> None:
         self._env = env
         self._responses = []
 
@@ -22,7 +33,7 @@ class ScriptedAttacker(ActiveService):
         request = self._env.create_request(target, service, action, session=session, authorization=authorization)
         self._env.send_message(request)
 
-    def process_message(self, message) -> Tuple[bool, int]:
+    def process_message(self, message: Message) -> Tuple[bool, int]:
         print("Got response on request {} : {}".format(message.id, str(message)))
         self._responses.append(message)
         return True, 1
@@ -46,8 +57,8 @@ class ScriptedAttacker(ActiveService):
             raise ValueError("Not an active service passed")
 
 
-def create_attacker(env: EnvironmentMessaging, args: Optional[Dict[str, Any]]) -> ActiveService:
-    attacker = ScriptedAttacker(env, args)
+def create_attacker(msg: EnvironmentMessaging, res: EnvironmentResources, args: Optional[Dict[str, Any]]) -> ActiveService:
+    attacker = ScriptedAttacker(msg, res, args)
     return attacker
 
 

@@ -28,6 +28,9 @@ class AuthorizationImpl(Authorization):
         self._token = token
 
     def __eq__(self, other: 'Authorization') -> bool:
+        if not other:
+            return False
+
         other = AuthorizationImpl.cast_from(other)
         return (
                 self.identity == other.identity and

@@ -7,10 +7,6 @@ from cyst.api.logic.exploit import Exploit, ExploitCategory
 from cyst.api.network.node import Node
 
 
-class ServiceStore(ABC):
-    pass
-
-
 class ActionStore(ABC):
 
     @abstractmethod

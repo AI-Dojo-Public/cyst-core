@@ -8,13 +8,13 @@ from netaddr import IPAddress
 
 from cyst.api.environment.environment import Environment
 from cyst.api.environment.control import EnvironmentState, EnvironmentControl
-from cyst.api.environment.configuration import EnvironmentConfiguration, NodeConfiguration, ServiceConfiguration, NetworkConfiguration, ServiceParameter, ExploitConfiguration
+from cyst.api.environment.configuration import EnvironmentConfiguration, NodeConfiguration, ServiceConfiguration, NetworkConfiguration, ServiceParameter, ExploitConfiguration, ActiveServiceInterfaceType
 from cyst.api.environment.messaging import EnvironmentMessaging
 from cyst.api.environment.policy import EnvironmentPolicy
 from cyst.api.environment.resources import EnvironmentResources
 from cyst.api.environment.message import Message, MessageType, Request, StatusValue, StatusOrigin, Status, Response
 from cyst.api.environment.interpreter import ActionInterpreterDescription
-from cyst.api.environment.stores import ServiceStore, ActionStore, ExploitStore
+from cyst.api.environment.stores import ActionStore, ExploitStore
 from cyst.api.network.elements import Interface, Route
 from cyst.api.network.node import Node
 from cyst.api.logic.access import Authorization, AccessLevel
@@ -22,7 +22,8 @@ from cyst.api.logic.action import Action
 from cyst.api.logic.data import Data
 from cyst.api.logic.exploit import VulnerableService, ExploitParameter, ExploitParameterType, ExploitLocality, ExploitCategory, Exploit
 from cyst.api.network.session import Session
-from cyst.api.host.service import ActiveServiceDescription, Service, PassiveService
+from cyst.api.network.firewall import FirewallRule, FirewallPolicy
+from cyst.api.host.service import ActiveServiceDescription, Service, PassiveService, ActiveService
 
 from cyst.core.environment.message import MessageImpl, RequestImpl, ResponseImpl
 from cyst.core.environment.proxy import EnvironmentProxy
@@ -32,6 +33,7 @@ from cyst.core.logic.access import Policy
 from cyst.core.logic.data import DataImpl
 from cyst.core.logic.exploit import VulnerableServiceImpl, ExploitImpl, ExploitParameterImpl
 from cyst.core.network.elements import Endpoint, Connection, InterfaceImpl, Hop, PortImpl
+from cyst.core.network.firewall import service_description as firewall_service_description
 from cyst.core.network.network import Network
 from cyst.core.network.node import NodeImpl
 from cyst.core.network.router import Router
@@ -62,7 +64,7 @@ class _Environment(Environment, EnvironmentControl, EnvironmentMessaging, Enviro
         self._pause_on_response = pause_on_response
 
         self._action_store = ActionStoreImpl()
-        self._service_store = ServiceStoreImpl(self)
+        self._service_store = ServiceStoreImpl(self.messaging, self.resources)
         self._exploit_store = ExploitStoreImpl()
 
         self._interpreters = {}
@@ -122,11 +124,13 @@ class _Environment(Environment, EnvironmentControl, EnvironmentMessaging, Enviro
             if message.type == MessageType.REQUEST and message.session:
                 message.set_next_hop()
                 # Not a pretty thing, but I am not sure how to make it better
-                it = SessionImpl.cast_from(message.session).forward_iterator
-                hop = next(it)
-                port = hop.src.port
-                iface = source.interfaces[port]
-                message.set_src_ip(iface.ip)
+                # it = SessionImpl.cast_from(message.session).forward_iterator
+                # hop = next(it)
+                # port = hop.src.port
+                # iface = source.interfaces[port]
+
+                # If this works it is a proof that the entire routing must be reviewed
+                message.set_src_ip(message.path[0].src.ip)
             elif message.type == MessageType.RESPONSE:
                 if message.session and message.current == SessionImpl.cast_from(message.session).endpoint:
                     # This is stupid, but it complains...
@@ -140,10 +144,11 @@ class _Environment(Environment, EnvironmentControl, EnvironmentMessaging, Enviro
                 if not gateway:
                     raise Exception("Could not send a message, no gateway to route it through.")
 
-                message.set_origin(Endpoint(source.id, port))
-
                 iface = InterfaceImpl.cast_from(source.interfaces[port])
                 message.set_src_ip(iface.ip)
+
+                message.set_origin(Endpoint(source.id, port, iface.ip))
+
                 # First sending is specific, because the current value is set to origin
                 message.set_next_hop(message.origin, iface.endpoint)
         try:
@@ -152,6 +157,8 @@ class _Environment(Environment, EnvironmentControl, EnvironmentMessaging, Enviro
             print("Error sending a message, reason: {}".format(e))
 
         message.sent = True
+
+        print("Sending a message: " + str(message))
 
         if message.origin.id in self._pause_on_request:
             self._pause = True
@@ -176,10 +183,11 @@ class _Environment(Environment, EnvironmentControl, EnvironmentMessaging, Enviro
             waypoints = session[1]
             parent = session[2]
             service = session[3]
+            reverse = session[4]
 
             # It is a questionable thing to create a deferred session and not to pass it to anyone, but in case it
             # is used/needed later, I will create it anyway
-            session = self._create_session(owner, waypoints, parent)
+            session = self._create_session(owner, waypoints, parent, reverse)
             if service:
                 node: Node
                 if isinstance(waypoints[0], str):
@@ -256,10 +264,6 @@ class _Environment(Environment, EnvironmentControl, EnvironmentMessaging, Enviro
         return self._action_store
 
     @property
-    def service_store(self) -> ServiceStore:
-        return self._service_store
-
-    @property
     def exploit_store(self) -> ExploitStore:
         return self._exploit_store
 
@@ -309,20 +313,33 @@ class _Environment(Environment, EnvironmentControl, EnvironmentMessaging, Enviro
         if mask:
             iface.set_mask(mask)
 
-    def add_service(self, node: Node, service: Service) -> None:
+    def add_service(self, node: Node, *service: Service) -> None:
         node = NodeImpl.cast_from(node)
-        service = ServiceImpl.cast_from(service)
 
-        node.add_service(service)
+        for srv in service:
+            node.add_service(ServiceImpl.cast_from(srv))
 
     def set_shell(self, node: Node, service: Service) -> None:
         NodeImpl.cast_from(node).set_shell(service)
 
-    def add_route(self, node: Node, route: Route) -> None:
+    def add_route(self, node: Node, *route: Route) -> None:
         if node.type != "Router":
             raise RuntimeError("Attempting to add route to non-router node")
 
-        Router.cast_from(node).add_route(route)
+        for r in route:
+            Router.cast_from(node).add_route(r)
+
+    def add_routing_rule(self, node: Node, rule: FirewallRule) -> None:
+        if node.type != "Router":
+            raise RuntimeError("Attempting to add route to non-router node")
+
+        Router.cast_from(node).add_routing_rule(rule)
+
+    def set_routing_policy(self, node: Node, policy: FirewallPolicy) -> None:
+        if node.type != "Router":
+            raise RuntimeError("Attempting to set routing policy to non-router node")
+
+        Router.cast_from(node).set_default_routing_policy(policy)
 
     def list_routes(self, node: Node) -> List[Route]:
         if node.type != "Router":
@@ -332,10 +349,16 @@ class _Environment(Environment, EnvironmentControl, EnvironmentMessaging, Enviro
 
     # ------------------------------------------------------------------------------------------------------------------
     # ServiceConfiguration
-    def create_active_service(self, id: str, owner: str, node: Node,
+    def create_active_service(self, id: str, owner: str, name: str, node: Node,
                               service_access_level: AccessLevel = AccessLevel.LIMITED,
                               configuration: Optional[Dict[str, Any]] = None) -> Optional[Service]:
-        return self._service_store.create_active_service(id, owner, node, service_access_level, configuration)
+        return self._service_store.create_active_service(id, owner, name, node, service_access_level, configuration)
+
+    def get_service_interface(self, service: ActiveService, interface_type: ActiveServiceInterfaceType) -> ActiveServiceInterfaceType:
+        if isinstance(service, interface_type):
+            return service
+        else:
+            raise RuntimeError("Given active service does not provide control interface of given type.")
 
     def create_passive_service(self, id: str, owner: str, version: str = "0.0.0", local: bool = False,
                                service_access_level: AccessLevel = AccessLevel.LIMITED) -> Service:
@@ -363,6 +386,9 @@ class _Environment(Environment, EnvironmentControl, EnvironmentMessaging, Enviro
     def private_authorizations(self, service: PassiveService) -> List[Authorization]:
         return PassiveServiceImpl.cast_from(service).private_authorizations
 
+    def sessions(self, service: PassiveService) -> List[Session]:
+        return PassiveServiceImpl.cast_from(service).sessions
+
     # ------------------------------------------------------------------------------------------------------------------
     # NetworkConfiguration
     def add_node(self, node: Node) -> None:
@@ -375,13 +401,13 @@ class _Environment(Environment, EnvironmentControl, EnvironmentMessaging, Enviro
     # TODO: Decide if we want to have service association a part of the session creation, or if we rather leave it
     #       to service interface
     def create_session(self, owner: str, waypoints: List[Union[str, Node]], parent: Optional[Session] = None,
-                       defer: bool = False, service: Optional[str] = None) -> Optional[Session]:
+                       defer: bool = False, service: Optional[str] = None, reverse: bool = False) -> Optional[Session]:
 
         if defer:
-            self._sessions_to_add.append((owner, waypoints, parent, service))
+            self._sessions_to_add.append((owner, waypoints, parent, service, reverse))
             return None
         else:
-            session = self._create_session(owner, waypoints, parent)
+            session = self._create_session(owner, waypoints, parent, reverse)
             if service:
                 node: Node
                 if isinstance(waypoints[0], str):
@@ -401,7 +427,19 @@ class _Environment(Environment, EnvironmentControl, EnvironmentMessaging, Enviro
         path = message.non_session_path
         parent = message.session
 
+        # In case someone attempts to create another session in the endpoint of already provided session, just return
+        # that session instead.
+        # TODO: Document this behavior
+        if not path:
+            return parent
+
         return SessionImpl(owner, parent, path, self._network)
+
+    def append_session(self, original_session: Session, appended_session: Session) -> Session:
+        original = SessionImpl.cast_from(original_session)
+        appended = SessionImpl.cast_from(appended_session)
+
+        return SessionImpl(appended.owner, original, appended.path_id)
 
     # ------------------------------------------------------------------------------------------------------------------
     # Exploit configuration
@@ -429,72 +467,124 @@ class _Environment(Environment, EnvironmentControl, EnvironmentMessaging, Enviro
     def _get_network(self) -> Network:
         return self._network
 
-    def _create_session(self, owner: str, waypoints: List[Union[str, Node]], parent: Optional[Session]) -> Session:
+    # When creating sessions from nodes, there are two options - either nodes are connected directly, or they
+    # go through a router. So correct hops are evaluated either in N-R*-N form or N-N
+    # TODO: If one direction fails, session should try constructing itself in reverse order and then restructure hops
+    #       so that the origin is always at the first waypoint.
+    def _create_session(self, owner: str, waypoints: List[Union[str, Node]], parent: Optional[Session], reverse: bool) -> Session:
         path: List[Hop] = []
         source: NodeImpl
+        session_reversed = False
 
         if len(waypoints) < 2:
             raise ValueError("The session path needs at least two ids")
 
-        # Right now, expecting everything to be str
-        last_waypoint = waypoints[0]
-        if isinstance(last_waypoint, str):
-            last_node = self._network.get_node_by_id(last_waypoint)
-        else:
-            last_node = last_waypoint
-            last_waypoint = NodeImpl.cast_from(last_node).id
+        session_constructed = True
+        for direction in ("forward", "reverse"):
 
-        path_candidates: List[List[Hop]] = []
-
-        # Create a set of candidate hops
-        for i, waypoint in enumerate(waypoints):
-            # Skip the first waypoint
-            if i == 0:
-                continue
-
-            if isinstance(waypoint, str):
-                new_node = self._network.get_node_by_id(waypoint)
-            else:
-                new_node = waypoint
-                waypoint = NodeImpl.cast_from(new_node).id
-
-            for index, iface in enumerate(last_node.interfaces):
-                if isinstance(iface, InterfaceImpl):
-                    iface = InterfaceImpl.cast_from(iface)
+            if direction == "reverse":
+                if not session_constructed:
+                    path.clear()
+                    waypoints.reverse()
+                    session_reversed = True
+                    session_constructed = True
                 else:
-                    iface = PortImpl.cast_from(iface)
-
-                if iface.endpoint.id != waypoint:
-                    continue
-
-                hop = Hop(Endpoint(last_waypoint, index, iface.ip), iface.endpoint)
-
-                if len(path_candidates) < i:
-                    path_candidates.append([hop])
-                else:
-                    path_candidates[i - 1].append(hop)
-
-            # Path candidates were not extended, give up
-            if len(path_candidates) < i:
-                raise RuntimeError("Could not find connection between {} and {} to establish a session".format(last_waypoint, waypoint))
-
-            last_waypoint = waypoint
-            last_node = new_node
-
-        # Go through each hop and add only those that are linked to next hops. If there are multiple possible paths,
-        # select the first viable one
-        path_len = len(path_candidates)
-        for i in range(0, path_len - 1):
-            for element in product(path_candidates[i], path_candidates[i + 1]):
-                hop_dst = NodeImpl.cast_from(self._network.get_node_by_id(element[0].dst.id))
-                if (hop_dst.type == "Router" and element[0].dst.ip == element[1].src.ip) or hop_dst.type == "Node":
-                    path.append(element[0])
-                    if i == path_len - 2:
-                        path.append(element[1])
                     break
 
-        if path_len == 1:
-            path = [path_candidates[0][0]]
+            i = 0
+            while i < len(waypoints) - 1:
+                # There was an error in partial session construction
+                if not session_constructed:
+                    break
+
+                node0 = None
+                node1 = None
+                node2 = None
+
+                def get_node_from_waypoint(self, i: int) -> Node:
+                    if isinstance(waypoints[i], str):
+                        node = self._network.get_node_by_id(waypoints[i])
+                    else:
+                        node = waypoints[i]
+                    return node
+
+                # Get the nodes
+                node0 = get_node_from_waypoint(self, i)
+                node1 = get_node_from_waypoint(self, i + 1)
+
+                routers = []
+                # N-R*-N
+                if node1.type == "Router":
+                    router = Router.cast_from(node1)
+
+                    routers.append(router)
+                    node2 = get_node_from_waypoint(self, i + len(routers) + 1)
+
+                    while node2.type == "Router":
+                        routers.append(Router.cast_from(node2))
+                        node2 = get_node_from_waypoint(self, i + len(routers) + 1)
+
+                    path_candidate = []
+                    for elements in product(node0.interfaces, node2.interfaces):
+                        node0_iface = InterfaceImpl.cast_from(elements[0])
+                        node2_iface = InterfaceImpl.cast_from(elements[1])
+
+                        path_candidate.clear()
+
+                        # Check if the next router is connected to the first node
+                        if node0_iface.endpoint.id != routers[0].id:
+                            continue
+
+                        # It is, so it's a first hop
+                        path_candidate.append(Hop(Endpoint(NodeImpl.cast_from(node0).id, node0_iface.index, node0_iface.ip), node0_iface.endpoint))
+
+                        # Check for every router if it routes the source and destination
+                        for j, r in enumerate(routers):
+                            # Find if there is a forward port
+                            # Ports are returned in order of priority: local IPs, remote IPs sorted by specificity (CIDR)
+                            port = r.routes(node0_iface.ip, node2_iface.ip, "*")
+
+                            # No suitable port found, try again
+                            if not port:
+                                break
+
+                            path_candidate.append(Hop(Endpoint(r.id, port.index, port.ip), port.endpoint))
+
+                        if len(path_candidate) == len(routers) + 1:
+                            path.extend(path_candidate)
+                            break
+
+                    i += len(routers) + 1
+
+                    if len(path) < i:
+                        session_constructed = False
+                        break
+                        # raise RuntimeError("Could not find connection between {} and {} to establish a session".format(NodeImpl.cast_from(node0).id, NodeImpl.cast_from(node2).id))
+                else:
+                    # N-N
+                    for iface in node0.interfaces:
+                        node0_iface = InterfaceImpl.cast_from(iface)
+
+                        if node0_iface.endpoint.id == NodeImpl.cast_from(node1).id:
+                            path.append(Hop(Endpoint(NodeImpl.cast_from(node0).id, node0_iface.index, node0_iface.ip), node0_iface.endpoint))
+                            break
+
+                    i += 1
+                    if len(path) < i:
+                        session_constructed = False
+                        break
+                        # raise RuntimeError("Could not find connection between {} and {} to establish a session".format(NodeImpl.cast_from(node0).id, NodeImpl.cast_from(node1).id))
+
+        if not session_constructed:
+            # Sessions are always tried to be constructed in both directions, so we need to reverse the waypoints again
+            waypoints.reverse()
+            raise RuntimeError("Could not find connection between the following waypoints to establish a session".format(waypoints))
+
+        # If the session was constructed from the end to front, we need to reverse the path
+        if session_reversed:
+            path.reverse()
+            for i in range(0, len(path)):
+                path[i] = path[i].swap()
 
         return SessionImpl(owner, parent, path, self._network)
 
@@ -538,10 +628,17 @@ class _Environment(Environment, EnvironmentControl, EnvironmentMessaging, Enviro
                 heappush(self._tasks, (self._time + processing_time, message))
                 return
             # The session ends in the current node
-            elif message.session.endpoint.id == current_node.id:
+            elif message.session.endpoint.id == current_node.id or message.session.startpoint.id == current_node.id:
+                # TODO bi-directional session complicate the situation soooo much
+                end_port = None
+                if message.session.endpoint.id == current_node.id:
+                    end_port = message.session.endpoint.port
+                elif message.session.startpoint.id == current_node.id:
+                    end_port = message.session.startpoint.port
+
                 # Check if the node is the final destination
                 for iface in current_node.interfaces:
-                    if iface.index == message.session.endpoint.port and iface.ip == message.dst_ip:
+                    if iface.index == end_port and iface.ip == message.dst_ip:
                         local_processing = True
                         break
                 # It is not, this means the node was only a proxy to some other target
@@ -573,7 +670,7 @@ class _Environment(Environment, EnvironmentControl, EnvironmentMessaging, Enviro
                     return
 
                 processing_time = 1
-                response = ResponseImpl(message, Status(StatusOrigin.NODE, StatusValue.ERROR), "Nonexistent service {} at node {}".format(message.dst_service, message.dst_ip))
+                response = ResponseImpl(message, Status(StatusOrigin.NODE, StatusValue.ERROR), "Nonexistent service {} at node {}".format(message.dst_service, message.dst_ip), session=message.session, authorization=message.authorization)
                 self.send_message(response, processing_time)
 
             # Service exists and it is passive
@@ -670,6 +767,9 @@ class _Environment(Environment, EnvironmentControl, EnvironmentMessaging, Enviro
                     # Given service does not provide a service description
                     print("Service {} does not provide its description in the 'main.py' module".format(x.parts[-1]))
                     pass
+
+        # Explicit addition of built-in active services
+        self._service_store.add_service(firewall_service_description)
 
     def _register_actions(self) -> None:
         # Check subdirectories in the cyst/interpreters/ directory
