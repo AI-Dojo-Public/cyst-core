@@ -105,6 +105,10 @@ class AIFInterpreter(ActionInterpreter):
                                                   (ActionToken.EXPLOIT | ActionToken.SESSION, ActionToken.NONE),
                                                   (ActionToken.EXPLOIT, ActionToken.NONE)]))
 
+        self._action_store.add(ActionDescription("aif:targeted_exploits:exploit_remote_services",
+                                                 "Get access to session provided by an exploitable service",
+                                                 [(ActionToken.EXPLOIT | ActionToken.SESSION, ActionToken.SESSION)]))
+
     def evaluate(self, message: Request, node: Node) -> Tuple[int, Response]:
         if not message.action:
             raise ValueError("Action not provided")
@@ -115,7 +119,7 @@ class AIFInterpreter(ActionInterpreter):
 
     def process_default(self, message: Request, node: Node) -> Tuple[int, Response]:
         print("Could not evaluate message. Tag in `aif` namespace unknown. " + str(message))
-        return 0, self._messaging.create_response(message, status=Status(StatusOrigin.SYSTEM, StatusValue.ERROR))
+        return 0, self._messaging.create_response(message, status=Status(StatusOrigin.SYSTEM, StatusValue.ERROR), session=message.session)
 
     def process_active_recon_host_discovery(self, message: Request, node: Node) -> Tuple[int, Response]:
         return 1, self._messaging.create_response(message, Status(StatusOrigin.NODE, StatusValue.SUCCESS),
@@ -141,11 +145,24 @@ class AIFInterpreter(ActionInterpreter):
     def process_active_recon_information_discovery(self, message: Request, node: Node) -> Tuple[int, Response]:
         # TODO Only works on services, which are opened to outside
         if message.dst_service and message.dst_service in node.services:
-            public_data = node.services[message.dst_service].public_data
-            public_authorizations = node.services[message.dst_service].public_authorizations
-            if public_authorizations or public_data:
+            public_data = self._configuration.service.public_data(node.services[message.dst_service].passive_service)
+            public_authorizations = self._configuration.service.public_authorizations(node.services[message.dst_service].passive_service)
+            private_authorizations = []
+
+            # TODO: this needs to be extended for data manipulation and I must decided what to do when user presents
+            #       authorization. The situation is not clear-cut especially if the target service is a shell
+            #       Also exploit locality must be considered
+            es = message.action.exploit
+            if es:
+                if es and es.category == ExploitCategory.AUTH_MANIPULATION:
+                    if self._exploit_store.evaluate_exploit(es, message, node):
+                        # successful exploit
+                        # TODO: should it be possible to limit access to private authorizations based on the id?
+                        private_authorizations.extend(self._configuration.service.private_authorizations(node.services[message.dst_service].passive_service))
+
+            if public_authorizations or public_data or private_authorizations:
                 return 1, self._messaging.create_response(message, Status(StatusOrigin.SERVICE, StatusValue.SUCCESS),
-                                                          public_data + public_authorizations, session=message.session,
+                                                          public_data + public_authorizations + private_authorizations, session=message.session,
                                                           authorization=message.authorization)
             else:
                 return 1, self._messaging.create_response(message, Status(StatusOrigin.SERVICE, StatusValue.SUCCESS),
@@ -168,7 +185,7 @@ class AIFInterpreter(ActionInterpreter):
             error = "Neither authorization token nor exploit specified to ensure command and control"
 
         if error:
-            return 1, self._messaging.create_response(message, Status(StatusOrigin.NODE, StatusValue.ERROR), error)
+            return 1, self._messaging.create_response(message, Status(StatusOrigin.NODE, StatusValue.ERROR), error, session=message.session)
 
         # First of all, if the attacker provided an authorization token, it is tried first as it should not trigger
         # a defensive reaction
@@ -197,7 +214,7 @@ class AIFInterpreter(ActionInterpreter):
             else:
                 error = "Service {} not exploitable using the exploit {}".format(message.dst_service, message.action.exploit.id)
 
-        return 1, self._messaging.create_response(message, Status(StatusOrigin.SERVICE, StatusValue.FAILURE), error)
+        return 1, self._messaging.create_response(message, Status(StatusOrigin.SERVICE, StatusValue.FAILURE), error, session=message.session, authorization=message.authorization)
 
     def process_privilege_escalation(self, message: Request, node: Node, mode: str) -> Tuple[int, Response]:
         # To successfully manage a user privilege escalation, the attacker must already have an active session on the
@@ -209,7 +226,7 @@ class AIFInterpreter(ActionInterpreter):
             error = "Service for session creation not specified"
 
         if error:
-            return 1, self._messaging.create_response(message, Status(StatusOrigin.NODE, StatusValue.ERROR), error, session=message.session)
+            return 1, self._messaging.create_response(message, Status(StatusOrigin.NODE, StatusValue.ERROR), error, session=message.session, authorization=message.authorization)
 
         # Check if exploit is correctly provided
         error = ""
@@ -260,7 +277,7 @@ class AIFInterpreter(ActionInterpreter):
             return 1, self._messaging.create_response(message, Status(StatusOrigin.SERVICE, StatusValue.ERROR), error,
                                                       session=message.session)
 
-        if not message.authorization or message.dst_service not in self._policy.get_services(message.authorization):
+        if not message.authorization or (message.dst_service not in self._policy.get_services(message.authorization) and self._policy.get_services(message.authorization) != ["*"]):
             error = "No proper authorization for service {} available".format(message.dst_service)
             return 1, self._messaging.create_response(message, Status(StatusOrigin.SERVICE, StatusValue.FAILURE), error,
                                                       session=message.session)
@@ -322,12 +339,14 @@ class AIFInterpreter(ActionInterpreter):
         # Go through the private data
         # Made them accessible only if the attacker has a valid authorization for given service and the authorization
         # lists them as an owner of the data
-        if (message.authorization and
-            message.dst_service in self._policy.get_services(message.authorization)):
+        if message.authorization:
+            authorized_services = self._policy.get_services(message.authorization)
+            if (message.authorization and
+                ("*" in authorized_services or message.dst_service in authorized_services)):
 
-            for datum in self._configuration.service.private_data(service):
-                if message.authorization.identity == '*' or message.authorization.identity == datum.owner:
-                    result.append(datum)
+                for datum in self._configuration.service.private_data(service):
+                    if message.authorization.identity == '*' or message.authorization.identity == datum.owner:
+                        result.append(datum)
 
         return 1, self._messaging.create_response(message, Status(StatusOrigin.SERVICE, StatusValue.SUCCESS), result, session=message.session)
 
@@ -405,7 +424,7 @@ class AIFInterpreter(ActionInterpreter):
 
         attacker_id = attacker_name + "_" + str(Counter().get(attacker_name))
         # TODO Attacker service is currently expected to require elevated access. This has to be reasonable configurable
-        attacker_service = self._configuration.service.create_active_service(attacker_name, attacker_id, node, AccessLevel.ELEVATED)
+        attacker_service = self._configuration.service.create_active_service(attacker_name, "attacker", attacker_id, node, AccessLevel.ELEVATED)
 
         if not attacker_service:
             return 1, self._messaging.create_response(message, Status(StatusOrigin.NODE, StatusValue.ERROR),
@@ -420,6 +439,41 @@ class AIFInterpreter(ActionInterpreter):
         self._configuration.node.add_service(node, attacker_service)
 
         return 1, self._messaging.create_response(message, Status(StatusOrigin.NODE, StatusValue.SUCCESS), node, session=message.session)
+
+    def process_targeted_exploits_exploit_remote_services(self, message: Request, node: Node) -> Tuple[int, Response]:
+        # Remote services exploitation works by abusing existing tunnels to get access to remote machines
+
+        # Sanity checks
+        error = ""
+        if not message.dst_service:
+            error = "Service for session creation not specified"
+        elif not message.session or message.session.end not in [x.ip for x in node.interfaces]:
+            if node.services[message.dst_service].passive_service.local:
+                error = "Trying to access local service without a session to the node"
+            else:
+                error = "Could not do a remote service exploit without a correct session"
+        elif not message.action.exploit:
+            error = "No exploit provided for remote service exploitation"
+
+        if error:
+            return 1, self._messaging.create_response(message, Status(StatusOrigin.NODE, StatusValue.ERROR), error,
+                                                      session=message.session, authorization=message.authorization)
+
+        result, error = self._exploit_store.evaluate_exploit(message.action.exploit, message, node)
+
+        if not result:
+            return 1, self._messaging.create_response(message, Status(StatusOrigin.SERVICE, StatusValue.FAILURE), error,
+                                                      session=message.session, authorization=message.authorization)
+
+        result_sessions = []
+        for s in self._configuration.service.sessions(node.services[message.dst_service].passive_service):
+            # Do not allow cycles
+            if message.session.end != s.end:
+                new_session = self._configuration.network.append_session(message.session, s)
+                result_sessions.append(new_session)
+
+        return 1, self._messaging.create_response(message, Status(StatusOrigin.SERVICE, StatusValue.SUCCESS), result_sessions,
+                                                  session=message.session, authorization=message.authorization)
 
 
 def create_aif_interpreter(configuration: EnvironmentConfiguration, resources: EnvironmentResources,

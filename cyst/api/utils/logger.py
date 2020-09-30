@@ -152,6 +152,8 @@ class Log:
         self.log(what, severity, category, False)
 
     def log(self, what: Any, severity: int = logging.INFO, category: Category = Category.no_flags, direct_call: bool = True) -> None:
+        if severity < self.severity:
+            return
         if category & self.excluded_categories and not category & self.included_categories:
             return
         caller = self.get_caller_info(direct_call)
@@ -176,6 +178,7 @@ class Log:
         self.settings = {}
         self.mode = LogFilteringMode.EXCLUDE_SELECTED
         self.severities = {}
+        self.severity = Log.INFO
         self.name = name
 
         # renaming the python logger to get rid of python loggers' inheritance
@@ -244,7 +247,7 @@ class Log:
             if (self.name[i] == "."):
                 logger_names.append(self.name[:i])
 
-        severity = logging.INFO
+        self.severity = logging.INFO
         output_file = ""
         log_format = "%(levelname)s %(message)s"
 
@@ -262,7 +265,7 @@ class Log:
                         if "mode" in logger_config.keys():
                             self.set_filtering_mode(LogFilteringMode.parse(logger_config["mode"]))
                         if "severity" in logger_config.keys():
-                            severity = Log.parse_severity(logger_config["severity"])
+                            self.severity = Log.parse_severity(logger_config["severity"])
                         if "output_file" in logger_config.keys():
                             output_file = str(Path(__file__ + "/../../../../log/" + logger_config["output_file"]).resolve())
                         if "format" in logger_config.keys():
@@ -291,7 +294,7 @@ class Log:
             handler = logging.StreamHandler()
         else:
             handler = logging.FileHandler(output_file)
-        handler.setLevel(severity)
-        self.logger.setLevel(severity)
+        handler.setLevel(self.severity)
+        self.logger.setLevel(self.severity)
         handler.setFormatter(formatter)
         self.logger.addHandler(handler)

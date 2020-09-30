@@ -47,12 +47,13 @@ class ActiveService(ABC):
 
 class ActiveServiceDescription(NamedTuple):
     from cyst.api.environment.messaging import EnvironmentMessaging
+    from cyst.api.environment.resources import EnvironmentResources
 
     name: str
     description: str
     # TODO services are currently called with Dict[str, Any] for configuration. In the future, they should provide some
     #      information about their configuration
-    creation_fn: Callable[[EnvironmentMessaging, Optional[Dict[str, Any]]], ActiveService]
+    creation_fn: Callable[[EnvironmentMessaging, EnvironmentResources, Optional[Dict[str, Any]]], ActiveService]
 
 
 class PassiveService(Service, ABC):

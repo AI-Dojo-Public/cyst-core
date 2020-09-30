@@ -87,9 +87,10 @@ class NodeImpl(Node):
         s = ServiceImpl.cast_from(service)
         self._services[s.id] = s
         s.set_node(self._id)
+        # TODO: create a mechanism for reasonable running of active services
         # Initiate active services
-        if not s.passive:
-            s.active_service.run()
+        # if not s.passive:
+        #    s.active_service.run()
 
     def __str__(self) -> str:
         return "Node: [Shell: {}, Services: {}, Interfaces: {}]".format(self.shell, self.services, self.interfaces)

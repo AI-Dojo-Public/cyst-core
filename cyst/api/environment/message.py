@@ -1,7 +1,7 @@
 from abc import ABC, abstractmethod
-from enum import Enum
+from enum import Enum, auto
 from netaddr import IPAddress
-from typing import Any, Optional, Union
+from typing import Any, Optional, Union, NamedTuple
 
 from cyst.api.network.session import Session
 from cyst.api.logic.access import Authorization
@@ -27,24 +27,53 @@ class StatusValue(Enum):
     ERROR = 2
 
 
-class Status:
-    def __init__(self, origin=None, value=None):
-        self._origin = origin
-        self._value = value
+# Status detail provides another introspection mechanism to active services into the nature of failures and errors
+# Status detail follows unified naming convention WHAT_WHY, where WHY is one of the following:
+# - NOT_PROVIDED: WHAT was not passed as a parameter, even though it is required
+# - NOT_EXISTING: WHAT does not exist within the context of current simulation run (e.g., service name, user name, etc.)
+# - NOT_APPLICABLE: WHAT cannot be used (e.g., wrong authorization, wrong exploit parameters, etc.)
+# - NOT_SUPPORTED: WHAT exists as a valid concept, but the target does not support it (e.g., attempting to open a session to a service that does not support it)
+class StatusDetail(Enum):
+    UNKNOWN = 0
+    # NODE.FAILURE
+    PRIVILEGES_NOT_APPLICABLE = auto()
+
+    # NODE.ERROR
+    SERVICE_NOT_PROVIDED = auto()
+    SERVICE_NOT_EXISTING = auto()
+    SESSION_NOT_PROVIDED = auto()
+    SESSION_NOT_APPLICABLE = auto()
+
+    # SERVICE.FAILURE
+    SESSION_CREATION_NOT_SUPPORTED = auto()
+    EXPLOIT_NOT_PROVIDED = auto()
+    EXPLOIT_NOT_APPLICABLE = auto()
+    EXPLOIT_CATEGORY_NOT_APPLICABLE = auto()
+    EXPLOIT_LOCALITY_NOT_APPLICABLE = auto()
+    EXPLOIT_PARAMETER_NOT_PROVIDED = auto()
+    EXPLOIT_PARAMETER_NOT_APPLICABLE = auto()
+    AUTHORIZATION_NOT_PROVIDED = auto()
+    AUTHORIZATION_NOT_APPLICABLE = auto()
+
+    # SERVICE.ERROR
+
+    # SYSTEM.FAILURE
+
+    # SYSTEM.ERROR
+    ACTION_NOT_EXISTING = auto()
+
+
+class Status(NamedTuple):
+    origin: StatusOrigin
+    value: StatusValue
+    detail: StatusDetail = StatusDetail.UNKNOWN
 
     def __str__(self) -> str:
-        return "({}, {})".format(self._origin.name, self._value.name)
-
-    def __eq__(self, other: 'Status') -> bool:
-        return self._origin == other.origin and self._value == other.value
-
-    @property
-    def origin(self) -> StatusOrigin:
-        return self._origin
-
-    @property
-    def value(self) -> StatusValue:
-        return self._value
+        if self.detail != StatusDetail.UNKNOWN:
+            result = "({}, {}, {})".format(self.origin.name, self.value.name, self.detail.name)
+        else:
+            result = "({}, {})".format(self.origin.name, self.value.name, self.detail.name)
+        return result
 
 
 class Message(ABC):

@@ -137,7 +137,7 @@ class TestAIFIntegration(unittest.TestCase):
 
         # Create an attacker
         attacker_node = create_node("attacker_node")
-        attacker_service = create_active_service("scripted_attacker", "attacker", attacker_node)
+        attacker_service = create_active_service("scripted_attacker", "attacker", "scripted_attacker", attacker_node)
         add_service(attacker_node, attacker_service)
         cls._attacker = ScriptedAttacker.cast_from(attacker_service)
 

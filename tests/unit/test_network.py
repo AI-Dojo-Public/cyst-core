@@ -7,6 +7,7 @@ from cyst.api.environment.environment import Environment
 from cyst.api.environment.message import StatusOrigin, StatusValue, Status
 from cyst.api.environment.configuration import ServiceParameter
 from cyst.api.network.elements import Route
+from cyst.api.network.firewall import FirewallRule, FirewallPolicy
 
 from cyst.services.scripted_attacker.main import ScriptedAttacker
 
@@ -209,7 +210,7 @@ class TestSessions(unittest.TestCase):
 
         # Create a simple scripted attacker
         attacker_node = create_node("attacker_node")
-        attacker_service = create_active_service("scripted_attacker", "attacker", attacker_node)
+        attacker_service = create_active_service("scripted_attacker", "attacker", "scripted_attacker", attacker_node)
         add_service(attacker_node, attacker_service)
         attacker = ScriptedAttacker.cast_from(attacker_service)
 
@@ -246,7 +247,10 @@ class TestSessions(unittest.TestCase):
         # Connect routers
         add_connection(router1, router2, router1_port, router2_port)
         add_route(router1, Route(IPNetwork("192.168.1.1/255.255.255.0"), router1_port))
+        # TODO rename to explicit routing policy
+        env.configuration.node.add_routing_rule(router1, FirewallRule(IPNetwork("192.168.1.0/24"), IPNetwork("192.168.0.1/24"), "*", FirewallPolicy.ALLOW))
         add_route(router2, Route(IPNetwork("192.168.0.1/255.255.255.0"), router2_port))
+        env.configuration.node.add_routing_rule(router2, FirewallRule(IPNetwork("192.168.0.0/24"), IPNetwork("192.168.1.1/24"), "*", FirewallPolicy.ALLOW))
 
         # Route to test dropping of unaccepted packets
         add_route(router1, Route(IPNetwork("192.168.2.1/255.255.255.0"), router1_port))
@@ -259,7 +263,7 @@ class TestSessions(unittest.TestCase):
         add_connection(router2, target1, target_port_index=1)
         add_connection(router2, target2, target_port_index=0)
         add_connection(router2, target2, target_port_index=1)
-        add_connection(router2, target3)
+        add_connection(router2, target3, target_port_index=0)
 
         # Get correct actions
         actions = {}
@@ -384,7 +388,7 @@ class TestRouting(unittest.TestCase):
 
         # attacker sending the message
         attacker_node = create_node("attacker_node")
-        attacker_service = create_active_service("scripted_attacker", "attacker", attacker_node)
+        attacker_service = create_active_service("scripted_attacker", "attacker", "scripted_attacker", attacker_node)
         add_service(attacker_node, attacker_service)
         attacker = ScriptedAttacker.cast_from(attacker_service)
 
@@ -445,7 +449,7 @@ class TestRouting(unittest.TestCase):
 
         # attacker
         attacker_node = create_node("attacker_node")
-        attacker_service = create_active_service("scripted_attacker", "attacker", attacker_node)
+        attacker_service = create_active_service("scripted_attacker", "attacker", "scripted_attacker", attacker_node)
         add_service(attacker_node, attacker_service)
         attacker = ScriptedAttacker.cast_from(attacker_service)
 

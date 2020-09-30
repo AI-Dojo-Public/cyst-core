@@ -1,17 +1,21 @@
 from abc import ABC, abstractmethod
-from typing import Any, List, Optional, Union, Dict
+from typing import Any, List, Optional, Union, Dict, TypeVar
 from netaddr import IPAddress
 from flags import Flags
 
 from cyst.api.environment.messaging import EnvironmentMessaging
 from cyst.api.environment.message import Message
-from cyst.api.host.service import Service, PassiveService
+from cyst.api.host.service import Service, PassiveService, ActiveService
 from cyst.api.logic.access import Authorization, AccessLevel
 from cyst.api.logic.data import Data
 from cyst.api.logic.exploit import VulnerableService, ExploitCategory, ExploitLocality, ExploitParameter, ExploitParameterType, Exploit
 from cyst.api.network.elements import Connection, Interface, Route
+from cyst.api.network.firewall import FirewallRule, FirewallPolicy
 from cyst.api.network.session import Session
 from cyst.api.network.node import Node
+
+
+ActiveServiceInterfaceType = TypeVar('ActiveServiceInterfaceType')
 
 
 class NodeConfiguration(ABC):
@@ -36,7 +40,7 @@ class NodeConfiguration(ABC):
         pass
 
     @abstractmethod
-    def add_service(self, node: Node, service: Service) -> None:
+    def add_service(self, node: Node, *service: Service) -> None:
         pass
 
     @abstractmethod
@@ -44,7 +48,18 @@ class NodeConfiguration(ABC):
         pass
 
     @abstractmethod
-    def add_route(self, node: Node, route: Route) -> None:
+    def add_route(self, node: Node, *route: Route) -> None:
+        pass
+
+    # TODO: This is only temporary - first, it is leaking implementation detail to outside and second, it is
+    #       completely stupid, as router should be a designated active service and should provide configuration
+    #       interface
+    @abstractmethod
+    def add_routing_rule(self, node: Node, rule: FirewallRule) -> None:
+        pass
+
+    @abstractmethod
+    def set_routing_policy(self, node: Node, policy: FirewallPolicy) -> None:
         pass
 
     @abstractmethod
@@ -59,9 +74,13 @@ class ServiceParameter(Flags):
 
 class ServiceConfiguration(ABC):
     @abstractmethod
-    def create_active_service(self, id: str, owner: str, node: Node,
+    def create_active_service(self, id: str, owner: str, name: str, node: Node,
                               service_access_level: AccessLevel = AccessLevel.LIMITED,
                               configuration: Optional[Dict[str, Any]] = None) -> Optional[Service]:
+        pass
+
+    @abstractmethod
+    def get_service_interface(self, service: ActiveService, control_interface_type: ActiveServiceInterfaceType) -> ActiveServiceInterfaceType:
         pass
 
     @abstractmethod
@@ -93,6 +112,10 @@ class ServiceConfiguration(ABC):
     def private_authorizations(self, service: PassiveService) -> List[Authorization]:
         pass
 
+    @abstractmethod
+    def sessions(self, service: PassiveService) -> List[Session]:
+        pass
+
 
 class NetworkConfiguration(ABC):
     @abstractmethod
@@ -106,7 +129,11 @@ class NetworkConfiguration(ABC):
 
     @abstractmethod
     def create_session(self, owner: str, waypoints: List[Union[str, Node]], parent: Optional[Session] = None,
-                       defer: bool = False, service: Optional[str] = None) -> Optional[Session]:
+                       defer: bool = False, service: Optional[str] = None, reverse: bool = False) -> Optional[Session]:
+        pass
+
+    @abstractmethod
+    def append_session(self, original_session: Session, appended_session: Session) -> Session:
         pass
 
     @abstractmethod
