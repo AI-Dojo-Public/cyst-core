@@ -1,5 +1,5 @@
 from abc import ABC, abstractmethod
-from typing import Any, List, Optional, Union, Dict, TypeVar
+from typing import Any, List, Optional, Union, Dict, TypeVar, Type
 from netaddr import IPAddress
 from flags import Flags
 
@@ -80,7 +80,7 @@ class ServiceConfiguration(ABC):
         pass
 
     @abstractmethod
-    def get_service_interface(self, service: ActiveService, control_interface_type: ActiveServiceInterfaceType) -> ActiveServiceInterfaceType:
+    def get_service_interface(self, service: ActiveService, control_interface_type: Type[ActiveServiceInterfaceType]) -> ActiveServiceInterfaceType:
         pass
 
     @abstractmethod

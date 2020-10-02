@@ -2,7 +2,7 @@ import importlib
 
 from heapq import heappush, heappop
 from itertools import product
-from typing import Tuple, List, Union, Optional, Any, Dict
+from typing import Tuple, List, Union, Optional, Any, Dict, Type
 
 from netaddr import IPAddress
 
@@ -354,7 +354,7 @@ class _Environment(Environment, EnvironmentControl, EnvironmentMessaging, Enviro
                               configuration: Optional[Dict[str, Any]] = None) -> Optional[Service]:
         return self._service_store.create_active_service(id, owner, name, node, service_access_level, configuration)
 
-    def get_service_interface(self, service: ActiveService, interface_type: ActiveServiceInterfaceType) -> ActiveServiceInterfaceType:
+    def get_service_interface(self, service: ActiveService, interface_type: Type[ActiveServiceInterfaceType]) -> ActiveServiceInterfaceType:
         if isinstance(service, interface_type):
             return service
         else:
