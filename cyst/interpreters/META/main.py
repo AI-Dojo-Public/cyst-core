@@ -22,6 +22,7 @@ class METAInterpreter(ActionInterpreter):
 
         self._action_store.add(ActionDescription("meta:inspect:node",
                                                  "Discovery of hosts in a network. Equivalent to ping scanning.",
+                                                 [],
                                                  [(ActionToken.SESSION, ActionToken.NONE)]))
 
     def evaluate(self, message: Request, node: Node) -> Tuple[int, Response]:

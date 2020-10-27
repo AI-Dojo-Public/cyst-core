@@ -2,33 +2,38 @@ import importlib
 
 from heapq import heappush, heappop
 from itertools import product
+from time import struct_time, localtime
 from typing import Tuple, List, Union, Optional, Any, Dict, Type
 
 from netaddr import IPAddress
 
 from cyst.api.environment.environment import Environment
+from cyst.api.environment.clock import Clock
 from cyst.api.environment.control import EnvironmentState, EnvironmentControl
-from cyst.api.environment.configuration import EnvironmentConfiguration, NodeConfiguration, ServiceConfiguration, NetworkConfiguration, ServiceParameter, ExploitConfiguration, ActiveServiceInterfaceType
+from cyst.api.environment.configuration import EnvironmentConfiguration, NodeConfiguration, ServiceConfiguration, NetworkConfiguration, ServiceParameter, ExploitConfiguration, ActiveServiceInterfaceType, ActionConfiguration
 from cyst.api.environment.messaging import EnvironmentMessaging
+from cyst.api.environment.metadata_provider import MetadataProvider, MetadataProviderDescription
 from cyst.api.environment.policy import EnvironmentPolicy
 from cyst.api.environment.resources import EnvironmentResources
-from cyst.api.environment.message import Message, MessageType, Request, StatusValue, StatusOrigin, Status, Response
+from cyst.api.environment.message import Message, MessageType, Request, StatusValue, StatusOrigin, Status, Response, Timeout
 from cyst.api.environment.interpreter import ActionInterpreterDescription
 from cyst.api.environment.stores import ActionStore, ExploitStore
 from cyst.api.network.elements import Interface, Route
 from cyst.api.network.node import Node
 from cyst.api.logic.access import Authorization, AccessLevel
-from cyst.api.logic.action import Action
+from cyst.api.logic.action import Action, ActionParameterDomain
 from cyst.api.logic.data import Data
 from cyst.api.logic.exploit import VulnerableService, ExploitParameter, ExploitParameterType, ExploitLocality, ExploitCategory, Exploit
+from cyst.api.logic.metadata import Metadata
 from cyst.api.network.session import Session
 from cyst.api.network.firewall import FirewallRule, FirewallPolicy
 from cyst.api.host.service import ActiveServiceDescription, Service, PassiveService, ActiveService
 
-from cyst.core.environment.message import MessageImpl, RequestImpl, ResponseImpl
+from cyst.core.environment.message import MessageImpl, RequestImpl, ResponseImpl, TimeoutImpl
 from cyst.core.environment.proxy import EnvironmentProxy
 from cyst.core.environment.stores import ActionStoreImpl, ServiceStoreImpl, ExploitStoreImpl
 from cyst.core.host.service import ServiceImpl, PassiveServiceImpl
+from cyst.core.logic.action import ActionParameterDomainImpl
 from cyst.core.logic.access import Policy
 from cyst.core.logic.data import DataImpl
 from cyst.core.logic.exploit import VulnerableServiceImpl, ExploitImpl, ExploitParameterImpl
@@ -45,7 +50,8 @@ from cyst.core.utils.file import root_dir
 # Environment is unlike other core implementation given an underscore-prefixed name to let python complain about
 # it being private if instantiated otherwise than via the create_environment()
 class _Environment(Environment, EnvironmentControl, EnvironmentMessaging, EnvironmentResources, EnvironmentConfiguration,
-                   NodeConfiguration, NetworkConfiguration, ServiceConfiguration, ExploitConfiguration):
+                   NodeConfiguration, NetworkConfiguration, ServiceConfiguration, ExploitConfiguration, ActionConfiguration,
+                   Clock):
 
     def __init__(self, pause_on_request: List[str] = None, pause_on_response: List[str] = None) -> None:
         if pause_on_request is None:
@@ -55,6 +61,7 @@ class _Environment(Environment, EnvironmentControl, EnvironmentMessaging, Enviro
 
         self._network = Network()
         self._time = 0
+        self._start_time = localtime()
         self._tasks = []
         self._pause = False
         self._terminate = False
@@ -68,6 +75,8 @@ class _Environment(Environment, EnvironmentControl, EnvironmentMessaging, Enviro
         self._exploit_store = ExploitStoreImpl()
 
         self._interpreters = {}
+        # TODO currently, there can be only on metadata provider for one namespace
+        self._metadata_providers: Dict[str, MetadataProvider] = {}
 
         self._policy = Policy()
 
@@ -75,6 +84,7 @@ class _Environment(Environment, EnvironmentControl, EnvironmentMessaging, Enviro
 
         self._register_services()
         self._register_actions()
+        self._register_metadata_providers()
 
     # ------------------------------------------------------------------------------------------------------------------
     # Environment. Currently everything points back to self
@@ -151,6 +161,27 @@ class _Environment(Environment, EnvironmentControl, EnvironmentMessaging, Enviro
 
                 # First sending is specific, because the current value is set to origin
                 message.set_next_hop(message.origin, iface.endpoint)
+
+        # metadata are appended only for requests ATM. This is to test waters, as there are many different design
+        # holes and things which need clarification
+        if isinstance(message, Request):
+            action = message.action
+
+            if action.namespace in self._metadata_providers:
+                provider = self._metadata_providers[action.namespace]
+                if provider:
+                    metadata = provider.get_metadata(action)
+                else:
+                    metadata = Metadata()
+
+                metadata.dst_ip = message.dst_ip
+                metadata.dst_service = message.dst_service
+                metadata.src_ip = message.src_ip
+            else:
+                metadata = Metadata()
+
+            message.set_metadata(metadata)
+
         try:
             heappush(self._tasks, (self._time + delay, message))
         except Exception as e:
@@ -172,6 +203,7 @@ class _Environment(Environment, EnvironmentControl, EnvironmentMessaging, Enviro
     def reset(self):
         self._network.reset()
         self._time = 0
+        self._start_time = localtime()
         self._tasks.clear()
         self._pause = False
         self._terminate = False
@@ -287,6 +319,10 @@ class _Environment(Environment, EnvironmentControl, EnvironmentMessaging, Enviro
     def exploit(self) -> ExploitConfiguration:
         return self
 
+    @property
+    def action(self) -> ActionConfiguration:
+        return self
+
     # ------------------------------------------------------------------------------------------------------------------
     # NodeConfiguration
     def create_node(self, id: str, ip: Union[str, IPAddress] = "", mask: str = "", shell: Service = None) -> Node:
@@ -318,6 +354,11 @@ class _Environment(Environment, EnvironmentControl, EnvironmentMessaging, Enviro
 
         for srv in service:
             node.add_service(ServiceImpl.cast_from(srv))
+
+    def add_traffic_processor(self, node: Node, processor: ActiveService) -> None:
+        node = NodeImpl.cast_from(node)
+
+        node.add_traffic_processor(processor)
 
     def set_shell(self, node: Node, service: Service) -> None:
         NodeImpl.cast_from(node).set_shell(service)
@@ -460,6 +501,34 @@ class _Environment(Environment, EnvironmentControl, EnvironmentMessaging, Enviro
 
     def clear_exploits(self) -> None:
         self._exploit_store.clear()
+
+    # ------------------------------------------------------------------------------------------------------------------
+    # Action configuration
+    def create_action_parameter_domain_any(self) -> ActionParameterDomain:
+        return ActionParameterDomainImpl()
+
+    def create_action_parameter_domain_range(self, default: int, range_min: int, range_max: int, range_step: int = 1) -> ActionParameterDomain:
+        return ActionParameterDomainImpl.bind_range(default, range_min, range_max, range_step)
+
+    def create_action_parameter_domain_options(self, default: Any, options: List[Any]) -> ActionParameterDomain:
+        return ActionParameterDomainImpl.bind_options(default, options)
+
+    # ------------------------------------------------------------------------------------------------------------------
+    # Clock functions
+    @property
+    def clock(self) -> Clock:
+        return self
+
+    def simulation_time(self) -> int:
+        return self._time
+
+    def hybrid_time(self) -> struct_time:
+        # TODO this should be local time + self._time miliseconds
+        return self._start_time
+
+    def timeout(self, service: ActiveService, delay: int, content: Any) -> None:
+        m = TimeoutImpl(service, self._time, delay, content)
+        heappush(self._tasks, (self._time + delay, m))
 
     # ------------------------------------------------------------------------------------------------------------------
     # Internal functions
@@ -658,6 +727,14 @@ class _Environment(Environment, EnvironmentControl, EnvironmentMessaging, Enviro
         # Message has to be processed locally
         print("Processing {} on a node {}. {}".format(message_type, current_node.id, message))
 
+        # Before a message reaches to services within, it is evaluated by all traffic processors
+        # While they are returning true, everything is ok. Once they return false, the message processing stops
+        # Traffic processors are free to send any reply as they see fit
+        for processor in current_node.traffic_processors:
+            result, delay = processor.process_message(message)
+            if not result:
+                return
+
         # Service is requested
         response = None
         if message.dst_service:
@@ -690,7 +767,7 @@ class _Environment(Environment, EnvironmentControl, EnvironmentMessaging, Enviro
                 # An active service does not necessarily produce Responses, so we should just move time
                 # somehow and be done with it.
                 # TODO How to move time?
-                current_node.services[message.dst_service].active_service.process_message(message)
+                result, delay = current_node.services[message.dst_service].active_service.process_message(message)
 
                 if message_type == "response" and current_node.id + "." + message.dst_service in self._pause_on_response:
                     self._pause = True
@@ -719,12 +796,17 @@ class _Environment(Environment, EnvironmentControl, EnvironmentMessaging, Enviro
             # TODO singular timestep handling
             self._time = next_time
 
-            current_tasks = []
+            current_tasks: List[MessageImpl] = []
             while self._tasks and self._tasks[0][0] == self._time:
                 current_tasks.append(heappop(self._tasks)[1])
 
             for task in current_tasks:
-                self._send_message(task)
+                if task.type == MessageType.TIMEOUT:
+                    # Yay!
+                    timeout = TimeoutImpl.cast_from(task.cast_to(Timeout))
+                    timeout.service.process_message(task)
+                else:
+                    self._send_message(task)
 
         # Pause causes the system to stop processing and to keep task queue intact
         if self._pause:
@@ -798,6 +880,36 @@ class _Environment(Environment, EnvironmentControl, EnvironmentMessaging, Enviro
                 except AttributeError as err:
                     # Given service does not provide a service description
                     print("Action interpreter {} does not provide its description in the 'main.py' module. Reason: {}".format(x.parts[-1], err))
+                    pass
+
+    def _register_metadata_providers(self) -> None:
+        # Check subdirectories in the cyst/metadata_providers/ directory
+        path = root_dir() / 'cyst' / 'metadata_providers'
+        if not path.exists():
+            raise RuntimeError(
+                "Cannot find 'cyst/metadata_providers/' path. This indicate corruption of the simulator. Please check...")
+
+        for x in path.iterdir():
+            if x.is_dir():
+                # Attempt to import main of the interpreters and get the action interpreter descriptions
+                try:
+                    module_name = 'cyst.metadata_providers.' + x.parts[-1] + '.main'
+                    module = importlib.import_module(module_name)
+                    provider_description: MetadataProviderDescription = getattr(module, "metadata_provider_description")
+
+                    if provider_description.namespace in self._metadata_providers:
+                        print("Metadata provider with namespace {} already registered, skipping the one in 'cyst/metadata_providers/{}' directory".format(provider_description.namespace, x.parts[-1]))
+                    else:
+                        provider = provider_description.creation_fn(self.action_store, self)
+                        self._metadata_providers[provider_description.namespace] = provider
+                        provider.register_action_parameters()
+                except ModuleNotFoundError:
+                    # Given service does not provide a main
+                    print("Metadata provider {} does not provide the 'main.py' module".format(x.parts[-1]))
+                    pass
+                except AttributeError as err:
+                    # Given service does not provide a service description
+                    print("Metadata provider {} does not provide its description in the 'main.py' module. Reason: {}".format(x.parts[-1], err))
                     pass
 
     def create_service(self, name: str, id: str, node: Node, args: Optional[Dict[str, Any]]) -> ServiceImpl:

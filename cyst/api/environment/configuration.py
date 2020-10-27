@@ -7,6 +7,7 @@ from cyst.api.environment.messaging import EnvironmentMessaging
 from cyst.api.environment.message import Message
 from cyst.api.host.service import Service, PassiveService, ActiveService
 from cyst.api.logic.access import Authorization, AccessLevel
+from cyst.api.logic.action import ActionParameterDomain
 from cyst.api.logic.data import Data
 from cyst.api.logic.exploit import VulnerableService, ExploitCategory, ExploitLocality, ExploitParameter, ExploitParameterType, Exploit
 from cyst.api.network.elements import Connection, Interface, Route
@@ -45,6 +46,10 @@ class NodeConfiguration(ABC):
 
     @abstractmethod
     def set_shell(self, node: Node, service: Service) -> None:
+        pass
+
+    @abstractmethod
+    def add_traffic_processor(self, node: Node, processor: ActiveService) -> None:
         pass
 
     @abstractmethod
@@ -165,6 +170,20 @@ class ExploitConfiguration(ABC):
         pass
 
 
+class ActionConfiguration(ABC):
+    @abstractmethod
+    def create_action_parameter_domain_any(self) -> ActionParameterDomain:
+        pass
+
+    @abstractmethod
+    def create_action_parameter_domain_range(self, default: int, min: int, max: int, step: int = 1) -> ActionParameterDomain:
+        pass
+
+    @abstractmethod
+    def create_action_parameter_domain_options(self, default: Any, options: List[Any]) -> ActionParameterDomain:
+        pass
+
+
 class EnvironmentConfiguration(ABC):
 
     @property
@@ -185,4 +204,9 @@ class EnvironmentConfiguration(ABC):
     @property
     @abstractmethod
     def exploit(self) -> ExploitConfiguration:
+        pass
+
+    @property
+    @abstractmethod
+    def action(self) -> ActionConfiguration:
         pass

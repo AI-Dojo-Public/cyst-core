@@ -14,6 +14,10 @@ class ActionStore(ABC):
         pass
 
     @abstractmethod
+    def get_ref(self, id: str = "") -> Optional[Action]:
+        pass
+
+    @abstractmethod
     def get_prefixed(self, prefix: str = "") -> List[Action]:
         pass
 

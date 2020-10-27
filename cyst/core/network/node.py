@@ -20,6 +20,7 @@ class NodeImpl(Node):
         if ip:
             self._interfaces.append(InterfaceImpl(ip, mask))
         self._shell = shell
+        self._traffic_processors: List[ActiveService] = []
 
     @property
     def id(self) -> str:
@@ -91,6 +92,13 @@ class NodeImpl(Node):
         # Initiate active services
         # if not s.passive:
         #    s.active_service.run()
+
+    def add_traffic_processor(self, value: ActiveService) -> None:
+        self._traffic_processors.append(value)
+
+    @property
+    def traffic_processors(self) -> List[ActiveService]:
+        return self._traffic_processors
 
     def __str__(self) -> str:
         return "Node: [Shell: {}, Services: {}, Interfaces: {}]".format(self.shell, self.services, self.interfaces)

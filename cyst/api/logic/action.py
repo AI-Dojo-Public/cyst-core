@@ -1,19 +1,76 @@
 from abc import ABC, abstractmethod
+from collections import Sequence
+from dataclasses import dataclass, field
 from enum import Enum
 from flags import Flags
-from typing import NamedTuple, List, Tuple, Optional
+from typing import NamedTuple, List, Tuple, Optional, Any, Dict, Union
 
 from cyst.api.logic.exploit import Exploit
 
 
+class ActionParameterDomainType(Enum):
+    ANY = 0,
+    RANGE = 1,
+    OPTIONS = 2
+
+
+class ActionParameterDomain(Sequence):
+    @property
+    @abstractmethod
+    def type(self) -> ActionParameterDomainType:
+        pass
+
+    @property
+    @abstractmethod
+    def range_min(self) -> int:
+        pass
+
+    @property
+    @abstractmethod
+    def range_max(self) -> int:
+        pass
+
+    @property
+    @abstractmethod
+    def range_step(self) -> int:
+        pass
+
+    @property
+    @abstractmethod
+    def options(self) -> List[Any]:
+        pass
+
+    @abstractmethod
+    def validate(self, value: Any) -> bool:
+        pass
+
+    @property
+    @abstractmethod
+    def default(self) -> Any:
+        pass
+
+    @abstractmethod
+    def __getitem__(self, item: int) -> Any:
+        pass
+
+    @abstractmethod
+    def __len__(self) -> int:
+        pass
+
+
 class ActionParameterType(Enum):
     NONE = 0,
-    ID = 1
+    IDENTITY = 1,
+    IDENTIFIER = 2,
+    DURATION = 3
 
 
-class ActionParameter(NamedTuple):
-    action_type: ActionParameterType
-    value: str
+@dataclass
+class ActionParameter:
+    type: ActionParameterType
+    name: str
+    domain: ActionParameterDomain
+    value: Optional[Union[str, Any]] = None
 
 
 class ActionToken(Flags):
@@ -27,6 +84,7 @@ class ActionToken(Flags):
 class ActionDescription(NamedTuple):
     id: str
     description: str
+    parameters: List[ActionParameter]
     tokens: List[Tuple[ActionToken, ActionToken]]
 
 
@@ -57,7 +115,7 @@ class Action(ABC):
 
     @property
     @abstractmethod
-    def parameters(self) -> List[ActionParameter]:
+    def parameters(self) -> Dict[str, ActionParameter]:
         pass
 
     @abstractmethod

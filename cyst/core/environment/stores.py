@@ -1,3 +1,4 @@
+from copy import deepcopy
 from typing import List, Optional, Dict, Union, Tuple, Any
 
 from cyst.api.environment.environment import EnvironmentMessaging
@@ -52,6 +53,11 @@ class ActionStoreImpl(ActionStore):
 
     def get(self, id: str = "") -> Optional[Action]:
         if id in self._actions:
+            return deepcopy(self._actions[id])
+        return None
+
+    def get_ref(self, id: str = "") -> Optional[Action]:
+        if id in self._actions:
             return self._actions[id]
         return None
 
@@ -59,7 +65,7 @@ class ActionStoreImpl(ActionStore):
         result = []
         for id, value in self._actions.items():
             if id.startswith(prefix):
-                result.append(value)
+                result.append(deepcopy(value))
         return result
 
     def add(self, action: ActionDescription) -> None:
