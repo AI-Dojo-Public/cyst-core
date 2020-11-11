@@ -1,9 +1,12 @@
 from abc import ABC, abstractmethod
+from dataclasses import dataclass
 from semver import VersionInfo
-from typing import Set, Tuple, NamedTuple, Callable, Dict, Any, Optional
+from typing import Set, Tuple, NamedTuple, Callable, Dict, Any, Optional, List, Union
 
-from cyst.api.logic.access import AccessLevel
+from cyst.api.logic.access import AccessLevel, AuthorizationConfig
+from cyst.api.logic.data import DataConfig
 from cyst.api.utils.tag import Tag
+from cyst.api.utils.configuration import ConfigItem
 
 
 class Service(ABC):
@@ -34,6 +37,15 @@ class Service(ABC):
         pass
 
 
+@dataclass
+class ActiveServiceConfig(ConfigItem):
+    type: str
+    name: str
+    owner: str
+    access_level: AccessLevel
+    configuration: Optional[Dict[str, Any]] = None
+
+
 class ActiveService(ABC):
 
     @abstractmethod
@@ -54,6 +66,19 @@ class ActiveServiceDescription(NamedTuple):
     # TODO services are currently called with Dict[str, Any] for configuration. In the future, they should provide some
     #      information about their configuration
     creation_fn: Callable[[EnvironmentMessaging, EnvironmentResources, Optional[Dict[str, Any]]], ActiveService]
+
+
+@dataclass
+class PassiveServiceCfg(ConfigItem):
+    type: str
+    owner: str
+    version: str
+    local: bool
+    access_level: AccessLevel
+    public_data: Optional[List[Union[DataConfig, str]]] = None
+    private_data: Optional[List[Union[DataConfig, str]]] = None
+    public_authorizations: Optional[List[Union[AuthorizationConfig, str]]] = None
+    private_authorizations: Optional[List[Union[AuthorizationConfig, str]]] = None
 
 
 class PassiveService(Service, ABC):

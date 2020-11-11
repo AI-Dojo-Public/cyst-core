@@ -24,6 +24,7 @@ from cyst.api.logic.exploit import VulnerableService, ExploitParameter, ExploitP
 from cyst.api.network.session import Session
 from cyst.api.network.firewall import FirewallRule, FirewallPolicy
 from cyst.api.host.service import ActiveServiceDescription, Service, PassiveService, ActiveService
+from cyst.api.utils.configuration import ConfigItem
 
 from cyst.core.environment.message import MessageImpl, RequestImpl, ResponseImpl
 from cyst.core.environment.proxy import EnvironmentProxy
@@ -97,6 +98,9 @@ class _Environment(Environment, EnvironmentControl, EnvironmentMessaging, Enviro
     @property
     def policy(self) -> EnvironmentPolicy:
         return self._policy
+
+    def configure(self, *config_item: ConfigItem) -> bool:
+        pass
 
     # ------------------------------------------------------------------------------------------------------------------
     # EnvironmentMessaging

@@ -5,6 +5,7 @@ from cyst.api.environment.control import EnvironmentControl
 from cyst.api.environment.messaging import EnvironmentMessaging
 from cyst.api.environment.resources import EnvironmentResources
 from cyst.api.environment.policy import EnvironmentPolicy
+from cyst.api.utils.configuration import ConfigItem
 
 
 class Environment(ABC):
@@ -38,3 +39,7 @@ class Environment(ABC):
     def create(cls) -> 'Environment':
         import cyst.core.environment.environment
         return cyst.core.environment.environment.create_environment()
+
+    @abstractmethod
+    def configure(self, *config_item: ConfigItem) -> bool:
+        pass
