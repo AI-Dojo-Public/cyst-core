@@ -63,3 +63,8 @@ class Action(ABC):
     @abstractmethod
     def add_parameters(self, *params: ActionParameter):
         pass
+
+    @property
+    @abstractmethod
+    def tokens(self) -> List[Tuple[ActionToken, ActionToken]]:
+        pass
