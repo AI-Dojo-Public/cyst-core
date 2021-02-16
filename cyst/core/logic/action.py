@@ -1,6 +1,6 @@
-from typing import List, Optional
+from typing import List, Optional, Tuple
 
-from cyst.api.logic.action import Action, ActionDescription, ActionParameter
+from cyst.api.logic.action import Action, ActionDescription, ActionParameter, ActionToken
 from cyst.api.logic.exploit import Exploit
 
 
@@ -42,6 +42,10 @@ class ActionImpl(Action):
     def add_parameters(self, *params: ActionParameter) -> None:
         for p in params:
             self._parameters.append(p)
+
+    @property
+    def tokens(self) -> List[Tuple[ActionToken, ActionToken]]:
+        return self._tokens
 
     @staticmethod
     def cast_from(o: Action) -> 'ActionImpl':
