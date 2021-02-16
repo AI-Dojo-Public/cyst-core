@@ -1,6 +1,6 @@
 import itertools
 from math import log2
-from tools.scenario_creat.action_mapper.constraints import Tables, TokensAccounting, ActionToken, combine
+from tools.scenario_creat.action_mapper.constraints import Tables, TokensAccounting, ActionToken, combine, ActionAndServiceTranslator
 from pyeda.inter import *
 from typing import List, Tuple, Set, Optional, Iterable, Dict
 from deprecated import deprecated
@@ -64,7 +64,7 @@ class Solver(object):
     """
     A class capable of mapping actions into attack graphs.
     """
-    def __init__(self, tables: Tables, token_accounting: TokensAccounting) -> None:
+    def __init__(self, tables: Tables, token_accounting: TokensAccounting, translator: ActionAndServiceTranslator) -> None:
         """
 
         :param tables: Object representing relations(nodes, action-service, ...).
@@ -72,6 +72,7 @@ class Solver(object):
         """
         self._tables = tables
         self._accounting = token_accounting
+        self._translator = translator
         self._node_service_matrix = exprvars('nsa', (0, tables.nodes), (0, tables.services),
                                              (0, tables.actions), (0, tables.tokens))
         self._subformulas = {}  # to save computed formulas
@@ -161,7 +162,8 @@ class Solver(object):
                             tokens[n].append(ActionToken(2**t))
         for node in range(1, self.tables.nodes):
             print("node: {} - service: {} - action: {} - tokens: {}".format(
-                node, outmatrix[node][0], outmatrix[node][1], tokens[node]
+                node,  "{}({})".format(self._translator.get_service(outmatrix[node][0]), outmatrix[node][0]),
+                "{}({})".format(self._translator.get_action(outmatrix[node][1]).NAME, outmatrix[node][1]), tokens[node]
             ))
 
 
@@ -172,9 +174,12 @@ class Solver(object):
         for n in range(0, self.tables.nodes):
             for s in range(0, self.tables.services):
                 for a in range(0, self.tables.actions):
+                    tokens = []
                     for t in range(0, self.tables.tokens):
                         if self.nsa[n, s, a, t] == expr(1) or result.get(self.nsa[n, s, a, t], 0) == 1:
-                            output[n] = (s, a)
+                            tokens.append(ActionToken(2**t))
+                    if len(tokens) != 0:
+                        output[n] = (s, a, tokens)
         return output
 
 

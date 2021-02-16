@@ -1,4 +1,4 @@
-from tools.scenario_creat.action_mapper.constraints import TokensAccounting, Tables, ActionToken
+from tools.scenario_creat.action_mapper.constraints import TokensAccounting, Tables, ActionToken, ExploitType
 from tools.scenario_creat.scenario.base import Scenario
 import networkx as nx
 
@@ -40,8 +40,11 @@ class Path(Scenario):
         self.accounting.add(0, ActionToken.DATA, ActionToken.DATA)
         self.accounting.add(1, ActionToken.NONE, ActionToken.NONE)
         self.accounting.add(2, ActionToken.NONE, ActionToken.SESSION)
-        self.accounting.add(3, ActionToken.SESSION, ActionToken.AUTH)
-        self.accounting.add(4, ActionToken.AUTH, ActionToken.DATA)
+        self.accounting.add(3, ActionToken.SESSION, ActionToken.AUTH_LIMITED)
+        self.accounting.add(4, ActionToken.AUTH_LIMITED, ActionToken.DATA)
+
+    def _add_translator(self):
+        pass
 
     def solve_one(self):
         super()._solve_one(service=4, action=4, tokens=[ActionToken.DATA])
@@ -93,8 +96,11 @@ class Diamond(Scenario):
         self.accounting.add(1, ActionToken.NONE, ActionToken.NONE)
         self.accounting.add(2, ActionToken.NONE, ActionToken.SESSION)
         self.accounting.add(3, ActionToken.NONE, ActionToken.EXPLOIT)
-        self.accounting.add(4, ActionToken.SESSION | ActionToken.EXPLOIT, ActionToken.AUTH)
-        self.accounting.add(5, ActionToken.AUTH, ActionToken.DATA)
+        self.accounting.add(4, ActionToken.SESSION | ActionToken.EXPLOIT, ActionToken.AUTH_LIMITED)
+        self.accounting.add(5, ActionToken.AUTH_LIMITED, ActionToken.DATA)
+
+    def _add_translator(self):
+        pass
 
     def solve_one(self):
         super()._solve_one(service=5, action=5, tokens=[ActionToken.DATA])
@@ -148,10 +154,13 @@ class CrossDiamond(Scenario):
         self.accounting.add(0, ActionToken.START, ActionToken.START)
         self.accounting.add(1, ActionToken.NONE, ActionToken.EXPLOIT)
         self.accounting.add(2, ActionToken.NONE, ActionToken.SESSION)
-        self.accounting.add(3, ActionToken.EXPLOIT | ActionToken.SESSION, ActionToken.AUTH)
+        self.accounting.add(3, ActionToken.EXPLOIT | ActionToken.SESSION, ActionToken.AUTH_LIMITED)
         self.accounting.add(4, ActionToken.SESSION, ActionToken.SESSION)
-        self.accounting.add(5, ActionToken.AUTH | ActionToken.SESSION, ActionToken.DATA)
+        self.accounting.add(5, ActionToken.AUTH_LIMITED | ActionToken.SESSION, ActionToken.DATA)
         self.accounting.add(6, ActionToken.DATA, ActionToken.END)
+
+    def _add_translator(self):
+        pass
 
     def solve_one(self):
         super()._solve_one(service=6, action=6, tokens=[ActionToken.END])
@@ -203,10 +212,13 @@ class DoubleCrossDiamond(Scenario):
         self.accounting.add(0, ActionToken.START, ActionToken.START)
         self.accounting.add(1, ActionToken.NONE, ActionToken.EXPLOIT)
         self.accounting.add(2, ActionToken.NONE, ActionToken.SESSION)
-        self.accounting.add(3, ActionToken.EXPLOIT | ActionToken.SESSION, ActionToken.AUTH)
+        self.accounting.add(3, ActionToken.EXPLOIT | ActionToken.SESSION, ActionToken.AUTH_LIMITED)
         self.accounting.add(4, ActionToken.SESSION | ActionToken.EXPLOIT, ActionToken.DATA)
-        self.accounting.add(5, ActionToken.AUTH | ActionToken.DATA, ActionToken.NONE)
+        self.accounting.add(5, ActionToken.AUTH_LIMITED | ActionToken.DATA, ActionToken.NONE)
         self.accounting.add(6, ActionToken.DATA, ActionToken.END)
+
+    def _add_translator(self):
+        pass
 
     def solve_one(self):
         super()._solve_one(service=5, action=5, tokens=[ActionToken.NONE])
@@ -265,9 +277,9 @@ class AlternativePaths(Scenario):
         self.accounting.add(2, ActionToken.SESSION, ActionToken.SESSION | ActionToken.EXPLOIT)
         self.accounting.add(3, ActionToken.NONE, ActionToken.SESSION)
         self.accounting.add(4, ActionToken.NONE, ActionToken.EXPLOIT)
-        self.accounting.add(5, ActionToken.SESSION | ActionToken.EXPLOIT, ActionToken.AUTH)
+        self.accounting.add(5, ActionToken.SESSION | ActionToken.EXPLOIT, ActionToken.AUTH_LIMITED)
         self.accounting.add(6, ActionToken.SESSION | ActionToken.EXPLOIT, ActionToken.DATA)
-        self.accounting.add(6, ActionToken.AUTH, ActionToken.DATA)
+        self.accounting.add(6, ActionToken.AUTH_LIMITED, ActionToken.DATA)
         self.accounting.add(7, ActionToken.DATA, ActionToken.END)
 
     def solve_one(self):
@@ -328,10 +340,13 @@ class AlternativePaths2(Scenario):
         self.accounting.add(2, ActionToken.SESSION, ActionToken.SESSION | ActionToken.EXPLOIT)
         self.accounting.add(3, ActionToken.NONE, ActionToken.SESSION)
         self.accounting.add(4, ActionToken.NONE, ActionToken.EXPLOIT)
-        self.accounting.add(5, ActionToken.SESSION | ActionToken.EXPLOIT, ActionToken.AUTH)
+        self.accounting.add(5, ActionToken.SESSION | ActionToken.EXPLOIT, ActionToken.AUTH_LIMITED)
         self.accounting.add(6, ActionToken.SESSION | ActionToken.EXPLOIT, ActionToken.DATA)
-        self.accounting.add(6, ActionToken.AUTH, ActionToken.DATA)
+        self.accounting.add(6, ActionToken.AUTH_LIMITED, ActionToken.DATA)
         self.accounting.add(7, ActionToken.DATA, ActionToken.END)
+
+    def _add_translator(self):
+        pass
 
     def solve_one(self):
         super()._solve_one(service=7, action=7, tokens=[ActionToken.END])
@@ -392,8 +407,11 @@ class Speartip(Scenario):
         self.accounting.add(4, ActionToken.SESSION, ActionToken.SESSION)
         self.accounting.add(4, ActionToken.SESSION, ActionToken.EXPLOIT)
         self.accounting.add(4, ActionToken.SESSION, ActionToken.SESSION | ActionToken.EXPLOIT)
-        self.accounting.add(5, ActionToken.SESSION | ActionToken.EXPLOIT, ActionToken.AUTH)
-        self.accounting.add(6, ActionToken.AUTH, ActionToken.DATA)
+        self.accounting.add(5, ActionToken.SESSION | ActionToken.EXPLOIT, ActionToken.AUTH_LIMITED)
+        self.accounting.add(6, ActionToken.AUTH_LIMITED, ActionToken.DATA)
+
+    def _add_translator(self):
+        pass
 
     def solve_one(self):
         super()._solve_one(service=6, action=6, tokens=[ActionToken.DATA])
@@ -442,14 +460,17 @@ class Trident(Scenario):
         self.accounting.add(0, ActionToken.START, ActionToken.START)
         self.accounting.add(1, ActionToken.NONE, ActionToken.SESSION)
         self.accounting.add(2, ActionToken.SESSION, ActionToken.EXPLOIT)
-        self.accounting.add(3, ActionToken.SESSION, ActionToken.AUTH)
-        self.accounting.add(4, ActionToken.SESSION, ActionToken.AUTH)
+        self.accounting.add(3, ActionToken.SESSION, ActionToken.AUTH_LIMITED)
+        self.accounting.add(4, ActionToken.SESSION, ActionToken.AUTH_LIMITED)
+
+    def _add_translator(self):
+        pass
 
     def solve_one(self):
-        super()._solve_one(service=4, action=4, tokens=[ActionToken.AUTH])
+        super()._solve_one(service=4, action=4, tokens=[ActionToken.AUTH_LIMITED])
 
     def solve_all(self):
-        super()._solve_all(service=4, action=4, tokens=[ActionToken.AUTH])
+        super()._solve_all(service=4, action=4, tokens=[ActionToken.AUTH_LIMITED])
 
 
 # -------------------------------------------------------------------------------------------------------- #
@@ -496,15 +517,18 @@ class LongTrident(Scenario):
         self.accounting.add(0, ActionToken.START, ActionToken.START)
         self.accounting.add(1, ActionToken.NONE, ActionToken.SESSION)
         self.accounting.add(2, ActionToken.SESSION, ActionToken.EXPLOIT)
-        self.accounting.add(3, ActionToken.SESSION, ActionToken.AUTH)
-        self.accounting.add(4, ActionToken.SESSION, ActionToken.AUTH)
+        self.accounting.add(3, ActionToken.SESSION, ActionToken.AUTH_LIMITED)
+        self.accounting.add(4, ActionToken.SESSION, ActionToken.AUTH_LIMITED)
         self.accounting.add(5, ActionToken.EXPLOIT, ActionToken.DATA)
 
+    def _add_translator(self):
+        pass
+
     def solve_one(self):
-        super()._solve_one(service=4, action=4, tokens=[ActionToken.AUTH])
+        super()._solve_one(service=4, action=4, tokens=[ActionToken.AUTH_LIMITED])
 
     def solve_all(self):
-        super()._solve_all(service=4, action=4, tokens=[ActionToken.AUTH])
+        super()._solve_all(service=4, action=4, tokens=[ActionToken.AUTH_LIMITED])
 
 
 class BronzeButler(Scenario):
@@ -545,22 +569,6 @@ class BronzeButler(Scenario):
 
         bb_AT = [ActionToken.SESSION]
 
-        self.action_translator = {}
-        self.action_translator[0] = "information discovery"
-        self.action_translator[1] = "c2c"
-        self.action_translator[2] = "exploit remote"
-        self.action_translator[3] = "root privilege escalation"
-        self.action_translator[4] = "data extraction"
-
-        self.service_translator = {}
-        self.service_translator[0] = "postfix"
-        self.service_translator[1] = "bash"
-        self.service_translator[2] = "powershell"
-        self.service_translator[3] = "rdp"
-        self.service_translator[4] = "skysea"
-        self.service_translator[5] = "mssql"
-        self.service_translator[6] = "iis"
-        self.service_translator[7] = "windows server 2019"
 
         bb_AS = [[0 for i in range(0, bb_services)] for j in range(0, bb_actions) ]
         #bb_AS[0][1] = 1
@@ -579,11 +587,34 @@ class BronzeButler(Scenario):
 
     def _add_actions(self):
         self.accounting = TokensAccounting()
-        self.accounting.add(0, ActionToken.SESSION, ActionToken.SESSION|ActionToken.AUTH)
-        self.accounting.add(1, ActionToken.SESSION|ActionToken.AUTH, ActionToken.SESSION|ActionToken.AUTH)
-        self.accounting.add(2, ActionToken.SESSION, ActionToken.SESSION)
-        self.accounting.add(3, ActionToken.SESSION|ActionToken.AUTH, ActionToken.SESSION|ActionToken.AUTH)
-        self.accounting.add(4, ActionToken.SESSION|ActionToken.AUTH, ActionToken.DATA)
+        self.accounting.add(0, ActionToken.SESSION, ActionToken.SESSION | ActionToken.AUTH_LIMITED)  # info discovery
+        self.accounting.add(0, ActionToken.SESSION, ActionToken.SESSION | ActionToken.AUTH_ELEVATED)  # info discovery
+        self.accounting.add(1, ActionToken.SESSION | ActionToken.AUTH_LIMITED,
+                            ActionToken.SESSION | ActionToken.AUTH_LIMITED)  # c2c
+        self.accounting.add(1, ActionToken.SESSION | ActionToken.AUTH_ELEVATED,
+                            ActionToken.SESSION | ActionToken.AUTH_ELEVATED)  # c2c
+        self.accounting.add(2, ActionToken.SESSION, ActionToken.SESSION)  # exploit remote
+        self.accounting.add(3, ActionToken.SESSION | ActionToken.AUTH_LIMITED,
+                            ActionToken.SESSION | ActionToken.AUTH_ELEVATED)  # privilege escalation
+        self.accounting.add(3, ActionToken.SESSION | ActionToken.AUTH_ELEVATED,
+                            ActionToken.SESSION | ActionToken.AUTH_ELEVATED)  # privilege escalation
+        self.accounting.add(4, ActionToken.SESSION | ActionToken.AUTH_ELEVATED, ActionToken.DATA)  # data extraction
+
+    def _add_translator(self):
+        self.translator.add_action(0, "information discovery", ExploitType.NONE, True, True)
+        self.translator.add_action(1, "c2c", ExploitType.NONE, False, False)
+        self.translator.add_action(2, "exploit remote service", ExploitType.REMOTE, False, True)
+        self.translator.add_action(3, "privilege escalation", ExploitType.LOCAL, True, True)
+        self.translator.add_action(4, "data exfiltration", ExploitType.NONE, False, False)
+
+        self.translator.add_service(0, "postfix")
+        self.translator.add_service(1, "bash")
+        self.translator.add_service(2, "powershell")
+        self.translator.add_service(3, "rdp")
+        self.translator.add_service(4, "skysea")
+        self.translator.add_service(5, "mssql")
+        self.translator.add_service(6, "iis")
+        self.translator.add_service(7, "windows server 2019")
 
     def solve_one(self):
         super()._solve_one(node=1, service=5,action=4, tokens=[ActionToken.DATA])
@@ -611,22 +642,6 @@ class BrBuCto(Scenario):
 
         bb_AT = [ActionToken.SESSION]
 
-        self.action_translator = {}
-        self.action_translator[0] = "information discovery"
-        self.action_translator[1] = "c2c"
-        self.action_translator[2] = "exploit remote"
-        self.action_translator[3] = "root privilege escalation"
-        self.action_translator[4] = "data extraction"
-
-        self.service_translator = {}
-        self.service_translator[0] = "postfix"
-        self.service_translator[1] = "bash"
-        self.service_translator[2] = "powershell"
-        self.service_translator[3] = "rdp"
-        self.service_translator[4] = "skysea"
-        self.service_translator[5] = "mssql"
-        self.service_translator[6] = "iis"
-        self.service_translator[7] = "windows server 2019"
 
         bb_AS = [[0 for i in range(0, bb_services)] for j in range(0, bb_actions) ]
         #bb_AS[0][1] = 1
@@ -645,11 +660,34 @@ class BrBuCto(Scenario):
 
     def _add_actions(self):
         self.accounting = TokensAccounting()
-        self.accounting.add(0, ActionToken.SESSION, ActionToken.SESSION | ActionToken.AUTH)
-        self.accounting.add(1, ActionToken.SESSION | ActionToken.AUTH, ActionToken.SESSION | ActionToken.AUTH)
-        self.accounting.add(2, ActionToken.SESSION, ActionToken.SESSION)
-        self.accounting.add(3, ActionToken.SESSION | ActionToken.AUTH, ActionToken.SESSION | ActionToken.AUTH)
-        self.accounting.add(4, ActionToken.SESSION | ActionToken.AUTH, ActionToken.DATA)
+        self.accounting.add(0, ActionToken.SESSION, ActionToken.SESSION | ActionToken.AUTH_LIMITED)  # info discovery
+        self.accounting.add(0, ActionToken.SESSION, ActionToken.SESSION | ActionToken.AUTH_ELEVATED)  # info discovery
+        self.accounting.add(1, ActionToken.SESSION | ActionToken.AUTH_LIMITED,
+                            ActionToken.SESSION | ActionToken.AUTH_LIMITED)  # c2c
+        self.accounting.add(1, ActionToken.SESSION | ActionToken.AUTH_ELEVATED,
+                            ActionToken.SESSION | ActionToken.AUTH_ELEVATED)  # c2c
+        self.accounting.add(2, ActionToken.SESSION, ActionToken.SESSION)  # exploit remote
+        self.accounting.add(3, ActionToken.SESSION | ActionToken.AUTH_LIMITED,
+                            ActionToken.SESSION | ActionToken.AUTH_ELEVATED)  # privilege escalation
+        self.accounting.add(3, ActionToken.SESSION | ActionToken.AUTH_ELEVATED,
+                            ActionToken.SESSION | ActionToken.AUTH_ELEVATED)  # privilege escalation
+        self.accounting.add(4, ActionToken.SESSION | ActionToken.AUTH_ELEVATED, ActionToken.DATA)  # data extraction
+
+    def _add_translator(self):
+        self.translator.add_action(0, "information discovery", ExploitType.NONE, True, True)
+        self.translator.add_action(1, "c2c", ExploitType.NONE, False, False)
+        self.translator.add_action(2, "exploit remote service", ExploitType.REMOTE, False, True)
+        self.translator.add_action(3, "privilege escalation", ExploitType.LOCAL, True, True)
+        self.translator.add_action(4, "data exfiltration", ExploitType.NONE, False, False)
+
+        self.translator.add_service(0, "postfix")
+        self.translator.add_service(1, "bash")
+        self.translator.add_service(2, "powershell")
+        self.translator.add_service(3, "rdp")
+        self.translator.add_service(4, "skysea")
+        self.translator.add_service(5, "mssql")
+        self.translator.add_service(6, "iis")
+        self.translator.add_service(7, "windows server 2019")
 
     def solve_one(self):
         super()._solve_one(node=1, service=5,action=4, tokens=[ActionToken.DATA])
@@ -687,22 +725,6 @@ class BrBuVPN(Scenario):
 
         bb_AT = [ActionToken.SESSION]
 
-        self.action_translator = {}
-        self.action_translator[0] = "information discovery"
-        self.action_translator[1] = "c2c"
-        self.action_translator[2] = "exploit remote"
-        self.action_translator[3] = "root privilege escalation"
-        self.action_translator[4] = "data extraction"
-
-        self.service_translator = {}
-        self.service_translator[0] = "postfix"
-        self.service_translator[1] = "bash"
-        self.service_translator[2] = "powershell"
-        self.service_translator[3] = "rdp"
-        self.service_translator[4] = "skysea"
-        self.service_translator[5] = "mssql"
-        self.service_translator[6] = "iis"
-        self.service_translator[7] = "windows server 2019"
 
         bb_AS = [[0 for i in range(0, bb_services)] for j in range(0, bb_actions)]
         # bb_AS[0][1] = 1
@@ -722,11 +744,33 @@ class BrBuVPN(Scenario):
 
     def _add_actions(self):
         self.accounting = TokensAccounting()
-        self.accounting.add(0, ActionToken.SESSION, ActionToken.SESSION | ActionToken.AUTH)
-        self.accounting.add(1, ActionToken.SESSION | ActionToken.AUTH, ActionToken.SESSION | ActionToken.AUTH)
-        self.accounting.add(2, ActionToken.SESSION, ActionToken.SESSION)
-        self.accounting.add(3, ActionToken.SESSION | ActionToken.AUTH, ActionToken.SESSION | ActionToken.AUTH)
-        self.accounting.add(4, ActionToken.SESSION | ActionToken.AUTH, ActionToken.DATA)
+        self.accounting.add(0, ActionToken.SESSION, ActionToken.SESSION | ActionToken.AUTH_LIMITED) # info discovery
+        self.accounting.add(0, ActionToken.SESSION, ActionToken.SESSION | ActionToken.AUTH_ELEVATED) # info discovery
+        self.accounting.add(1, ActionToken.SESSION | ActionToken.AUTH_LIMITED, ActionToken.SESSION | ActionToken.AUTH_LIMITED) # c2c
+        self.accounting.add(1, ActionToken.SESSION | ActionToken.AUTH_ELEVATED,
+                            ActionToken.SESSION | ActionToken.AUTH_ELEVATED)  # c2c
+        self.accounting.add(2, ActionToken.SESSION, ActionToken.SESSION) # exploit remote
+        self.accounting.add(3, ActionToken.SESSION | ActionToken.AUTH_LIMITED, ActionToken.SESSION | ActionToken.AUTH_ELEVATED) # privilege escalation
+        self.accounting.add(3, ActionToken.SESSION | ActionToken.AUTH_ELEVATED,
+                            ActionToken.SESSION | ActionToken.AUTH_ELEVATED)  # privilege escalation
+        self.accounting.add(4, ActionToken.SESSION | ActionToken.AUTH_ELEVATED, ActionToken.DATA) # data extraction
+
+    def _add_translator(self):
+        self.translator.add_action(0, "information discovery", ExploitType.NONE, True, True)
+        self.translator.add_action(1, "c2c", ExploitType.NONE, False, False)
+        self.translator.add_action(2, "exploit remote service", ExploitType.REMOTE, False, True)
+        self.translator.add_action(3, "privilege escalation", ExploitType.LOCAL, True, True)
+        self.translator.add_action(4, "data exfiltration", ExploitType.NONE, False, False)
+
+        self.translator.add_service(0, "postfix")
+        self.translator.add_service(1, "bash")
+        self.translator.add_service(2, "powershell")
+        self.translator.add_service(3, "rdp")
+        self.translator.add_service(4, "skysea")
+        self.translator.add_service(5, "mssql")
+        self.translator.add_service(6, "iis")
+        self.translator.add_service(7, "windows server 2019")
+
 
     def solve_one(self):
         super()._solve_one(node=1, service=5,action=4, tokens=[ActionToken.DATA])
