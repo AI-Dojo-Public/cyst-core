@@ -1,11 +1,13 @@
 from abc import ABC, abstractmethod
+from typing import List
 
+from cyst.api.configuration.configuration import ConfigItem
 from cyst.api.environment.configuration import EnvironmentConfiguration
 from cyst.api.environment.control import EnvironmentControl
 from cyst.api.environment.messaging import EnvironmentMessaging
 from cyst.api.environment.resources import EnvironmentResources
 from cyst.api.environment.policy import EnvironmentPolicy
-from cyst.api.utils.configuration import ConfigItem
+from cyst.api.host.service import ActiveService
 
 
 class Environment(ABC):
@@ -35,11 +37,11 @@ class Environment(ABC):
     def policy(self) -> EnvironmentPolicy:
         pass
 
+    @abstractmethod
+    def configure(self, *config_item: ConfigItem) -> 'Environment':
+        pass
+
     @classmethod
     def create(cls) -> 'Environment':
         import cyst.core.environment.environment
         return cyst.core.environment.environment.create_environment()
-
-    @abstractmethod
-    def configure(self, *config_item: ConfigItem) -> bool:
-        pass

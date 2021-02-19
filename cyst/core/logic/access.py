@@ -16,11 +16,13 @@ from cyst.core.host.service import ServiceImpl
 
 
 class AuthorizationImpl(Authorization):
-    def __init__(self, identity: str = "", nodes: List[str] = None, services: List[str] = None, access_level: AccessLevel = AccessLevel.NONE, token: uuid = None):
+    def __init__(self, identity: str = "", nodes: List[str] = None, services: List[str] = None,
+                 access_level: AccessLevel = AccessLevel.NONE, id: Optional[str] = None, token: Optional[str] = None):
         if services is None or not services:
             services = ["*"]
         if nodes is None or not nodes:
             nodes = ["*"]
+        self._id = id
         self._identity = identity
         self._nodes = nodes
         self._services = services
@@ -32,13 +34,21 @@ class AuthorizationImpl(Authorization):
             return False
 
         other = AuthorizationImpl.cast_from(other)
-        return (
+        return self.id == other.id or (
                 self.identity == other.identity and
                 self.nodes == other.nodes and
                 self.services == other.services and
                 self.access_level == other.access_level and
                 self.token == other.token
         )
+
+    @property
+    def id(self) -> str:
+        return self._id
+
+    @id.setter
+    def id(self, value: str) -> None:
+        self._d = value
 
     @property
     def identity(self) -> str:
@@ -81,7 +91,7 @@ class AuthorizationImpl(Authorization):
         self._token = value
 
     def __str__(self) -> str:
-        return "[Identity: {}, Nodes: {}, Services: {}, Access Level: {}, Token: {}]".format(self.identity, self.nodes, self.services, self.access_level.name, self.token)
+        return "[Id: {}, Identity: {}, Nodes: {}, Services: {}, Access Level: {}, Token: {}]".format(self.id, self.identity, self.nodes, self.services, self.access_level.name, self.token)
 
     def __repr__(self) -> str:
         return self.__str__()
@@ -110,7 +120,7 @@ class Policy(EnvironmentPolicy):
 
         try:
             self._conn = sqlite3.connect(':memory:')
-            self._conn.execute("CREATE TABLE authorizations(id varchar, node varchar, service varchar, access integer, token varchar)")
+            self._conn.execute("CREATE TABLE authorizations(id varchar, identity varchar, node varchar, service varchar, access integer, token varchar)")
         except Error as e:
             print("Could not create an authenticator database. Reason: " + str(e))
             raise
@@ -123,12 +133,20 @@ class Policy(EnvironmentPolicy):
         self._authorizations.clear()
 
     def create_authorization(self, identity: str, nodes: List[Union[str, Node]],
-                             services: List[Union[str, Service]], access_level: AccessLevel) -> Authorization:
+                             services: List[Union[str, Service]], access_level: AccessLevel, id: Optional[str] = None,
+                             token: Optional[str] = None) -> Authorization:
         node_ids = [NodeImpl.cast_from(x).id if isinstance(x, Node) else x for x in nodes]
         service_ids = [ServiceImpl.cast_from(x).id if isinstance(x, Service) else x for x in services]
-        auth = AuthorizationImpl(identity, node_ids, service_ids, access_level, uuid.uuid4())
+
+        auth_id = id
+        if not auth_id:
+            auth_id = str(uuid.uuid4())
+        if not token:
+            token = str(uuid.uuid4())
+        auth = AuthorizationImpl(identity, node_ids, service_ids, access_level, auth_id, token)
         return auth
 
+    # TODO stub authorizations are currently broken af
     def create_stub_authorization(self, identity: Optional[str] = None, nodes: Optional[List[Union[str, Node]]] = None,
                                   services: Optional[List[Union[str, Service]]] = None, access_level: Optional[AccessLevel] = AccessLevel.NONE) -> Authorization:
         if nodes:
@@ -154,9 +172,10 @@ class Policy(EnvironmentPolicy):
             # make a cartesian product of all authorizations
             data = list(product([authorization.identity], authorization.nodes, authorization.services, [authorization.access_level.value]))
 
+            auth_id = authorization.id
             # and store them in a database
             for d in data:
-                auth_id = d[0]
+                auth_identity = d[0]
                 auth_node = d[1]
                 if isinstance(auth_node, NodeImpl):
                     auth_node = auth_node.id
@@ -165,7 +184,7 @@ class Policy(EnvironmentPolicy):
                     auth_service = auth_service.id
                 auth_access = d[3]
                 # TODO somewhere here is lurking an option to bypass authorization process by creating stub Authorizations. This needs to be fixed
-                self._conn.execute("INSERT INTO authorizations(id, node, service, access, token) VALUES(?,?,?,?,?)", (auth_id, auth_node, auth_service, auth_access, str(authorization.token) if authorization.token else '*'))
+                self._conn.execute("INSERT INTO authorizations(id, identity, node, service, access, token) VALUES(?,?,?,?,?,?)", (auth_id, auth_identity, auth_node, auth_service, auth_access, str(authorization.token) if authorization.token else '*'))
 
     def decide(self, node: Union[str, Node], service: str, access_level: AccessLevel, authorization: Authorization) -> Tuple[bool, str]:
         authorization = AuthorizationImpl.cast_from(authorization)
@@ -182,11 +201,7 @@ class Policy(EnvironmentPolicy):
            ):
             return False, "Authorization not valid for given parameters"
 
-        sql = '''SELECT * FROM authorizations'''
-        cursor = self._conn.execute(sql)
-        results = cursor.fetchall()
-
-        sql = '''SELECT COUNT(*) FROM authorizations WHERE (id=? or id=?) AND (node = ? OR node = ?) AND (service = ? OR service = ?) AND access >= ? AND (token=? OR token=?)'''
+        sql = '''SELECT COUNT(*) FROM authorizations WHERE (identity=? or identity=?) AND (node = ? OR node = ?) AND (service = ? OR service = ?) AND access >= ? AND (token=? OR token=?)'''
         cursor = self._conn.execute(sql, (authorization.identity, '*', node_id, '*', service, '*', int(access_level), str(authorization.token), '*'))
         count = cursor.fetchone()[0]
 
@@ -210,18 +225,27 @@ class Policy(EnvironmentPolicy):
 
         return PolicyStats(authorization_entry_count)
 
+    # TODO what is the purpose of this, dangit?!
     def get_authorizations(self, node: Union[str, Node], service: str, access_level: AccessLevel = AccessLevel.NONE) -> List[Authorization]:
         if isinstance(node, Node):
             node_id = NodeImpl.cast_from(node).id
         else:
             node_id = node
 
-        sql = '''SELECT id FROM authorizations WHERE node=? AND service=?'''
-        if access_level != AccessLevel.NONE:
-            sql += " AND access = ?"
-            cursor = self._conn.execute(sql, (node_id, service, int(access_level)))
+        sql = '''SELECT id FROM authorizations WHERE node=?'''
+        if service != '*':
+            sql += ''' AND service = ?'''
+            if access_level != AccessLevel.NONE:
+                sql += " AND access = ?"
+                cursor = self._conn.execute(sql, (node_id, service, int(access_level)))
+            else:
+                cursor = self._conn.execute(sql, (node_id, service))
         else:
-            cursor = self._conn.execute(sql, (node_id, service))
+            if access_level != AccessLevel.NONE:
+                sql += " AND access = ?"
+                cursor = self._conn.execute(sql, (node_id, int(access_level)))
+            else:
+                cursor = self._conn.execute(sql, (node_id,))
 
         ids = set()
         for id in cursor.fetchall():

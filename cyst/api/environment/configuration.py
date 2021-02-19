@@ -16,6 +16,18 @@ from cyst.api.network.node import Node
 
 
 ActiveServiceInterfaceType = TypeVar('ActiveServiceInterfaceType')
+ConfigurationObjectType = TypeVar('ConfigurationObjectType')
+ObjectType = TypeVar('ObjectType')
+
+
+class GeneralConfiguration(ABC):
+    @abstractmethod
+    def get_configuration_by_id(self, id: str, configuration_type: Type[ConfigurationObjectType]) -> ConfigurationObjectType:
+        pass
+
+    @abstractmethod
+    def get_object_by_id(self, id: str, object_type: Type[ObjectType]) -> ObjectType:
+        pass
 
 
 class NodeConfiguration(ABC):
@@ -51,7 +63,7 @@ class NodeConfiguration(ABC):
     def add_route(self, node: Node, *route: Route) -> None:
         pass
 
-    # TODO: This is only temporary - first, it is leaking implementation detail to outside and second, it is
+    # TODO: This is only temporary - first, it is leaking   implementation detail to outside and second, it is
     #       completely stupid, as router should be a designated active service and should provide configuration
     #       interface
     @abstractmethod
@@ -166,6 +178,11 @@ class ExploitConfiguration(ABC):
 
 
 class EnvironmentConfiguration(ABC):
+
+    @property
+    @abstractmethod
+    def general(self) -> GeneralConfiguration:
+        pass
 
     @property
     @abstractmethod

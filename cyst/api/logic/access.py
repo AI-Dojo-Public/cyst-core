@@ -1,28 +1,22 @@
 import uuid
 
 from abc import ABC, abstractmethod
-from dataclasses import dataclass, field
 from enum import IntEnum
-from typing import Optional, List
-
-from cyst.api.utils.configuration import ConfigItem, get_str_uuid
+from typing import Optional
 
 
-class AccessLevel(IntEnum):
-    NONE = 0,
-    LIMITED = 1,
-    ELEVATED = 2
+class TokenSecurity(IntEnum):
+    OPEN = 0,
+    SEALED = 1,
+    HIDDEN = 2
 
 
-# TODO: As of now, the Authorization represents a federated authorization, but it will be split soon-ish to local
-#       and federated.
-@dataclass
-class AuthorizationConfig(ConfigItem):
-    identity: str
-    nodes: List[str]
-    services: List[str]
-    access_level: AccessLevel
-    token: str = field(default_factory=get_str_uuid)
+class AuthenticationToken(ABC):
+
+    @property
+    @abstractmethod
+    def security(self) -> TokenSecurity:
+        pass
 
 
 class Authorization(ABC):
@@ -35,4 +29,9 @@ class Authorization(ABC):
     @property
     @abstractmethod
     def token(self) -> Optional[uuid.UUID]:
+        pass
+
+    @property
+    @abstractmethod
+    def expiration(self) -> int:
         pass

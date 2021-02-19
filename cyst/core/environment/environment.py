@@ -8,7 +8,7 @@ from netaddr import IPAddress
 
 from cyst.api.environment.environment import Environment
 from cyst.api.environment.control import EnvironmentState, EnvironmentControl
-from cyst.api.environment.configuration import EnvironmentConfiguration, NodeConfiguration, ServiceConfiguration, NetworkConfiguration, ServiceParameter, ExploitConfiguration, ActiveServiceInterfaceType
+from cyst.api.environment.configuration import EnvironmentConfiguration, GeneralConfiguration, NodeConfiguration, ServiceConfiguration, NetworkConfiguration, ServiceParameter, ExploitConfiguration, ActiveServiceInterfaceType
 from cyst.api.environment.messaging import EnvironmentMessaging
 from cyst.api.environment.policy import EnvironmentPolicy
 from cyst.api.environment.resources import EnvironmentResources
@@ -24,8 +24,9 @@ from cyst.api.logic.exploit import VulnerableService, ExploitParameter, ExploitP
 from cyst.api.network.session import Session
 from cyst.api.network.firewall import FirewallRule, FirewallPolicy
 from cyst.api.host.service import ActiveServiceDescription, Service, PassiveService, ActiveService
-from cyst.api.utils.configuration import ConfigItem
+from cyst.api.configuration.configuration import ConfigItem
 
+from cyst.core.environment.configuration import Configuration
 from cyst.core.environment.message import MessageImpl, RequestImpl, ResponseImpl
 from cyst.core.environment.proxy import EnvironmentProxy
 from cyst.core.environment.stores import ActionStoreImpl, ServiceStoreImpl, ExploitStoreImpl
@@ -33,7 +34,7 @@ from cyst.core.host.service import ServiceImpl, PassiveServiceImpl
 from cyst.core.logic.access import Policy
 from cyst.core.logic.data import DataImpl
 from cyst.core.logic.exploit import VulnerableServiceImpl, ExploitImpl, ExploitParameterImpl
-from cyst.core.network.elements import Endpoint, Connection, InterfaceImpl, Hop, PortImpl
+from cyst.core.network.elements import Endpoint, Connection, InterfaceImpl, Hop
 from cyst.core.network.firewall import service_description as firewall_service_description
 from cyst.core.network.network import Network
 from cyst.core.network.node import NodeImpl
@@ -77,6 +78,8 @@ class _Environment(Environment, EnvironmentControl, EnvironmentMessaging, Enviro
         self._register_services()
         self._register_actions()
 
+        self._configuration = Configuration(self)
+
     # ------------------------------------------------------------------------------------------------------------------
     # Environment. Currently everything points back to self
     @property
@@ -99,8 +102,8 @@ class _Environment(Environment, EnvironmentControl, EnvironmentMessaging, Enviro
     def policy(self) -> EnvironmentPolicy:
         return self._policy
 
-    def configure(self, *config_item: ConfigItem) -> bool:
-        pass
+    def configure(self, *config_item: ConfigItem) -> Environment:
+        return self._configuration.configure(*config_item)
 
     # ------------------------------------------------------------------------------------------------------------------
     # EnvironmentMessaging
@@ -275,6 +278,10 @@ class _Environment(Environment, EnvironmentControl, EnvironmentMessaging, Enviro
     # EnvironmentConfiguration
     # ------------------------------------------------------------------------------------------------------------------
     # Just point on itself
+    @property
+    def general(self) -> GeneralConfiguration:
+        return self._configuration
+
     @property
     def node(self) -> NodeConfiguration:
         return self

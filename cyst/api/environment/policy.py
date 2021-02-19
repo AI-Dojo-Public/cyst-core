@@ -10,7 +10,7 @@ from cyst.api.network.node import Node
 class EnvironmentPolicy(ABC):
 
     @abstractmethod
-    def create_authorization(self, identity: str, nodes: List[Union[str, Node]], services: List[Union[str, Service]], access_level: AccessLevel) -> Authorization:
+    def create_authorization(self, identity: str, nodes: List[Union[str, Node]], services: List[Union[str, Service]], access_level: AccessLevel, id: Optional[str] = None, token: Optional[str] = None) -> Authorization:
         pass
 
     @abstractmethod

@@ -71,10 +71,16 @@ class Scenario(ABC):
 
     def _solve_one(self, node=1, service=1, action=1, tokens=None):
         self.result = self.solver.solve_one(node, service, action, tokens)
-        self.solver.show(self.result)
+        self.solver.mappings(self.result)
         clusterer = Clusterer(self.graph, self.solver.mappings(self.result), 0.9)
         print(clusterer.cluster())
 
+    def yield_mappings(self, node=1, service=1, action=1, tokens=None):
+        self.results = self.solver.solve_all(node, service, action, tokens)
+        for i, sol in enumerate(self.results):
+            mapping = self.solver.mappings(sol)
+            clusterer = Clusterer(self.graph, mapping, 0.9)
+            yield clusterer.cluster(), mapping
 
     def _solve_all(self, node=1, service=1, action=1, tokens=None):
         self.results = self.solver.solve_all(node, service, action, tokens)
@@ -87,4 +93,4 @@ class Scenario(ABC):
             inp = str(input("Push n to show next."))
             if inp == "n":
                 continue
-            return;
+            return
