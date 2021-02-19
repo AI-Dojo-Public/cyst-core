@@ -7,18 +7,27 @@ from typing import List, Dict, Set, Optional
 from enum import IntFlag
 from deprecated import deprecated
 
+class ExploitType(IntFlag):
+    NONE = 1,
+    LOCAL = 2,
+    REMOTE = 3
+    # more to come
+
 
 class ActionToken(IntFlag):
     NONE = 1,
     SESSION = 2,
-    EXPLOIT = 4,
-    AUTH = 8,
-    DATA = 16,
-    START = 32,
-    END = 64
+    EXPLOIT = 4, # only for testing, exploits wont be tokens
+    AUTH_LIMITED = 8,
+    AUTH_ELEVATED = 16,
+    DATA = 32,
+    START = 64,
+    END = 128 # only for testing
 
 
 TokenFlow = namedtuple("TokenFlow", ["IN", "OUT"], defaults=[ActionToken.NONE, ActionToken.NONE])
+ActionInfo = namedtuple("ActionInfo", ["NAME", "EXPLOIT", "AUTH_CREAT", "SESSION_CREAT"],
+                        defaults=["dummy", ExploitType.NONE, False, False])
 
 
 def decompose(token: ActionToken) -> List[ActionToken]:
@@ -35,8 +44,10 @@ def decompose(token: ActionToken) -> List[ActionToken]:
         result.append(ActionToken.SESSION)
     if token & ActionToken.EXPLOIT:
         result.append(ActionToken.EXPLOIT)
-    if token & ActionToken.AUTH:
-        result.append(ActionToken.AUTH)
+    if token & ActionToken.AUTH_LIMITED:
+        result.append(ActionToken.AUTH_LIMITED)
+    if token & ActionToken.AUTH_ELEVATED:
+        result.append(ActionToken.AUTH_ELEVATED)
     if token & ActionToken.DATA:
         result.append(ActionToken.DATA)
     if token & ActionToken.START:
@@ -311,3 +322,21 @@ class TokensAccounting(object):
             else:
                 target.append(e)
         return categorized
+
+
+class ActionAndServiceTranslator:
+    def __init__(self):
+        self._actionmap = {}
+        self._servicemap = {}
+
+    def add_action(self, id: int, name: str, exploit_type: ExploitType, auth_creat: bool, session_creat: bool):
+        self._actionmap[id] = ActionInfo(name, exploit_type, auth_creat, session_creat)
+
+    def add_service(self, id: int, name: str):
+        self._servicemap[id] = name
+
+    def get_action(self, id: int) -> Optional[ActionInfo]:
+        return self._actionmap.get(id, None)
+
+    def get_service(self, id: int) -> Optional[str]:
+        return self._servicemap.get(id, None)

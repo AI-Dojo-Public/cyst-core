@@ -1,6 +1,7 @@
 from tools.scenario_creat.graph_create.graph_builder import GraphBuilder
 from tools.scenario_creat.graph_create.graph_clusterer import GraphClusterer
 import networkx as nx
+import matplotlib
 import matplotlib.pyplot as plt
 from datetime import datetime
 
@@ -46,4 +47,5 @@ def main():
 
 
 if __name__ == '__main__':
+    print(matplotlib.get_backend())
     main()

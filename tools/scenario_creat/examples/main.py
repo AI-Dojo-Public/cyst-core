@@ -3,7 +3,7 @@ from tools.scenario_creat.examples.scenarios import Path, Diamond, CrossDiamond,
 
 def main():
     scenario = BronzeButler()
-    #scenario.show_graph()
+    scenario.show_graph()
     scenario.solve_all()
 
 

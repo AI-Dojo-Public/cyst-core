@@ -1,4 +1,4 @@
-from tools.scenario_creat.action_mapper.constraints import TokensAccounting, ActionToken
+from tools.scenario_creat.action_mapper.constraints import TokensAccounting, ActionToken, ActionAndServiceTranslator
 from tools.scenario_creat.action_mapper.solver import Solver
 from tools.scenario_creat.clustering.clusterer import Clusterer
 import matplotlib.pyplot as plt
@@ -9,11 +9,13 @@ class Scenario(ABC):
     def __init__(self):
         self.graph = nx.DiGraph()
         self.tables = None
+        self.translator = ActionAndServiceTranslator()
         self.accounting = TokensAccounting()
         self._add_nodes()
         self._add_tables()
         self._add_actions()
-        self.solver = Solver(self.tables, self.accounting)
+        self._add_translator()
+        self.solver = Solver(self.tables, self.accounting, self.translator)
 
     ### BUILDING ###
     @abstractmethod
@@ -57,6 +59,10 @@ class Scenario(ABC):
         """
         pass
 
+    @abstractmethod
+    def _add_translator(self):
+        pass
+
     def show_graph(self):
         self._show_graph()
 
@@ -71,26 +77,25 @@ class Scenario(ABC):
 
     def _solve_one(self, node=1, service=1, action=1, tokens=None):
         self.result = self.solver.solve_one(node, service, action, tokens)
-        self.solver.mappings(self.result)
-        clusterer = Clusterer(self.graph, self.solver.mappings(self.result), 0.9)
+        self.solver.show(self.result)
+        clusterer = Clusterer(self.graph, self.solver.mappings(self.result), 0.9, self.translator)
         print(clusterer.cluster())
 
-    def yield_mappings(self, node=1, service=1, action=1, tokens=None):
-        self.results = self.solver.solve_all(node, service, action, tokens)
-        for i, sol in enumerate(self.results):
-            mapping = self.solver.mappings(sol)
-            clusterer = Clusterer(self.graph, mapping, 0.9)
-            yield clusterer.cluster(), mapping
 
     def _solve_all(self, node=1, service=1, action=1, tokens=None):
         self.results = self.solver.solve_all(node, service, action, tokens)
         for i, sol in enumerate(self.results):
             print(i+1)
             self.solver.show(sol)
-            clusterer = Clusterer(self.graph, self.solver.mappings(sol), 0.9)
+            clusterer = Clusterer(self.graph, self.solver.mappings(sol), 0.9, self.translator)
             print(clusterer.cluster())
-            inp = "n"
-            inp = str(input("Push n to show next."))
-            if inp == "n":
-                continue
-            return
+
+            #inp = "n"
+            #inp = str(input("Push n to show next."))
+            #if inp == "n":
+
+    def yield_mappings(self,  node=1, service=1, action=1, tokens=None):
+        self.results = self.solver.solve_all(node, service, action, tokens)
+        for i, sol in enumerate(self.results):
+            yield self.solver.mappings(sol)
+

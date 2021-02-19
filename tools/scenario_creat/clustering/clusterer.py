@@ -1,23 +1,27 @@
 import random
 from typing import List, Dict, Tuple
+from tools.scenario_creat.clustering.clusters import Clusters
+from tools.scenario_creat.action_mapper.constraints import ActionAndServiceTranslator, ActionInfo
 
 import networkx as nx
 
 def flip(prob: float) -> bool:
     delim = int(prob * 100)
     gen = random.randint(1, 100)
-    return True if gen <= delim else False
+    return  gen <= delim
 
 class Clusterer(object):
-    def __init__(self, graph: nx.DiGraph, mappings: Dict[int, Tuple[int,int]], prob: float) -> None:
+    def __init__(self, graph: nx.DiGraph, mappings: Dict[int, Tuple[int,int]], prob: float,
+                 translator: ActionAndServiceTranslator) -> None:
         self._graph = graph
         self._mappings = mappings
         self._clusters = 0
         self._epsilon = 0.9
         self._base_prob = prob
-        self._translator = {}
+        self._node_translator = {}
+        self._as_translator = translator
         for num, node in enumerate(self._graph.nodes):
-            self._translator[node] = num
+            self._node_translator[node] = num
 
     @property
     def graph(self) -> nx.DiGraph:
@@ -28,7 +32,7 @@ class Clusterer(object):
         return self._clusters
 
     ### API ###
-    def cluster(self) -> List[List[int]]:
+    def cluster(self) -> Clusters:
         self._cluster()
 
         res = {}
@@ -37,7 +41,7 @@ class Clusterer(object):
         for num, node in enumerate(self.graph.nodes(data=True)):
             res[node[1]["cluster"]].append(num)
 
-        return list(res.values())
+        return Clusters(list(filter(lambda x: len(x) > 0,  res.values())), len(self._graph.nodes))
 
     ### IMPLEMENTRATION ###
     def _cluster(self) -> None:
@@ -70,12 +74,12 @@ class Clusterer(object):
 
         self.graph.nodes[node]["cluster"] = cluster_id
         population[0] += 1
-        services.append(self._mappings[self._translator[node]][0])
+        services.append(self._mappings[self._node_translator[node]][0])
 
         reachable = list(self.graph[node].keys())
         for e in reachable:
             coin = flip(self._base_prob * (self._epsilon**population[0]))
-            if self._mappings[self._translator[e]][0] in services or not coin:
+            if self._mappings[self._node_translator[e]][0] in services or not coin:
                 self._make_cluster(e)
             else:
                 self._advance(e, services, cluster_id, population)
