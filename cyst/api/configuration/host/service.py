@@ -3,7 +3,7 @@ from typing import Optional, Dict, Any, List, Union, Tuple
 from uuid import uuid4
 
 from cyst.api.configuration.configuration import ConfigItem
-from cyst.api.configuration.logic.access import AuthorizationConfig
+from cyst.api.configuration.logic.access import AuthorizationConfig, AccessSchemeConfig, AuthenticationProviderConfig
 from cyst.api.configuration.logic.data import DataConfig
 # TODO: This should be probably moved somewhere else
 from cyst.api.environment.configuration import ServiceParameter
@@ -28,6 +28,8 @@ class PassiveServiceConfig(ConfigItem):
     version: str
     local: bool
     access_level: AccessLevel
+    authentication_providers: List[Union[AuthenticationProviderConfig, str]] = field(default_factory=lambda: [])
+    access_schemes: List[AccessSchemeConfig] = field(default_factory=lambda: [])
     public_data: List[Union[DataConfig, str]] = field(default_factory=lambda: [])
     private_data: List[Union[DataConfig, str]] = field(default_factory=lambda: [])
     public_authorizations: List[Union[AuthorizationConfig, str]] = field(default_factory=lambda: [])

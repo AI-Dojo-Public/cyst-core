@@ -6,7 +6,7 @@ from flags import Flags
 from cyst.api.environment.messaging import EnvironmentMessaging
 from cyst.api.environment.message import Message
 from cyst.api.host.service import Service, PassiveService, ActiveService
-from cyst.api.logic.access import Authorization, AccessLevel
+from cyst.api.logic.access import Authorization, AccessLevel, AuthenticationTokenType, AuthenticationTokenSecurity, AuthenticationToken, AuthenticationProviderType, AuthenticationProvider
 from cyst.api.logic.data import Data
 from cyst.api.logic.exploit import VulnerableService, ExploitCategory, ExploitLocality, ExploitParameter, ExploitParameterType, Exploit
 from cyst.api.network.elements import Connection, Interface, Route
@@ -177,6 +177,28 @@ class ExploitConfiguration(ABC):
         pass
 
 
+class AccessConfiguration(ABC):
+
+    @abstractmethod
+    def create_authentication_provider(self, provider_type: AuthenticationProviderType,
+                                       token_type: AuthenticationTokenType, security: AuthenticationTokenSecurity,
+                                       timeout: int) -> AuthenticationProvider:
+        pass
+
+    @abstractmethod
+    def create_authentication_token(self, type: AuthenticationTokenType, security: AuthenticationTokenSecurity,
+                                    identity: str) -> AuthenticationToken:
+        pass
+
+    @abstractmethod
+    def register_authentication_token(self, provider: AuthenticationProvider, token: AuthenticationToken) -> bool:
+        pass
+
+    @abstractmethod
+    def create_and_register_authentication_token(self, provider: AuthenticationProvider, identity: str) -> Optional[AuthenticationToken]:
+        pass
+
+
 class EnvironmentConfiguration(ABC):
 
     @property
@@ -202,4 +224,9 @@ class EnvironmentConfiguration(ABC):
     @property
     @abstractmethod
     def exploit(self) -> ExploitConfiguration:
+        pass
+
+    @property
+    @abstractmethod
+    def access(self) -> AccessConfiguration:
         pass

@@ -6,13 +6,17 @@ from itertools import product
 from typing import List, Tuple, Union, Optional
 from sqlite3 import Error
 
+from cyst.api.configuration.logic.access import AccessLevel
 from cyst.api.host.service import Service
-from cyst.api.logic.access import AccessLevel, Authorization
+from cyst.api.logic.access import Authorization, AuthenticationToken, AuthenticationTokenSecurity, \
+    AuthenticationTokenType, AuthenticationProvider, AuthenticationTarget, AuthenticationProviderType
 from cyst.api.environment.policy import EnvironmentPolicy
+from cyst.api.logic.data import Data
 from cyst.api.network.node import Node
 
 from cyst.core.network.node import NodeImpl
 from cyst.core.host.service import ServiceImpl
+from cyst.core.logic.data import DataImpl
 
 
 class AuthorizationImpl(Authorization):
@@ -252,3 +256,57 @@ class Policy(EnvironmentPolicy):
             ids.add(id[0])
 
         return list(map(lambda x: AuthorizationImpl(x), ids))
+
+
+# ----------------------------------------------------------------------------------------------------------------------
+# New version
+# ----------------------------------------------------------------------------------------------------------------------
+
+class AuthenticationTokenImpl(AuthenticationToken):
+
+    def __init__(self, type: AuthenticationTokenType, security: AuthenticationTokenSecurity, identity: str):
+        self._type = type
+        self._security = security
+        self._identity = identity
+
+        # create data according to the security
+        # TODO: Until the concept of sealed data is introduced in the code, all is assumed to be OPEN
+        value = uuid.uuid4()
+        self._content = DataImpl(value, "")
+
+    @property
+    def type(self) -> AuthenticationTokenType:
+        return self._type
+
+    @property
+    def security(self) -> AuthenticationTokenSecurity:
+        return self._security
+
+    @property
+    def identity(self) -> str:
+        return self._identity
+
+    def copy(self) -> Optional['AuthenticationToken']:
+        pass
+
+    @property
+    def content(self) -> Optional[Data]:
+        return self._content
+
+
+class AuthenticationProviderImpl(AuthenticationProvider):
+
+    def __init__(self, provider_type: AuthenticationProviderType, token_type: AuthenticationTokenType,
+                 security: AuthenticationTokenSecurity, timeout: int):
+        self._provider_type = provider_type
+        self._token_type = token_type
+        self._security = security
+        self._timeout = timeout
+
+    @property
+    def type(self) -> AuthenticationProviderType:
+        return self._provider_type
+
+    @property
+    def target(self) -> AuthenticationTarget:
+        pass

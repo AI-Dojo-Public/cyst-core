@@ -1,19 +1,21 @@
 from abc import ABC, abstractmethod
 from enum import Enum
 from flags import Flags
-from typing import NamedTuple, List, Tuple, Optional
+from typing import NamedTuple, List, Tuple, Optional, Union
 
+from cyst.api.logic.access import AuthenticationToken
 from cyst.api.logic.exploit import Exploit
 
 
 class ActionParameterType(Enum):
     NONE = 0,
-    ID = 1
+    ID = 1,
+    TOKEN = 2
 
 
 class ActionParameter(NamedTuple):
     action_type: ActionParameterType
-    value: str
+    value: Union[str, AuthenticationToken]
 
 
 class ActionToken(Flags):

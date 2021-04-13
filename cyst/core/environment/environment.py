@@ -8,7 +8,7 @@ from netaddr import IPAddress
 
 from cyst.api.environment.environment import Environment
 from cyst.api.environment.control import EnvironmentState, EnvironmentControl
-from cyst.api.environment.configuration import EnvironmentConfiguration, GeneralConfiguration, NodeConfiguration, ServiceConfiguration, NetworkConfiguration, ServiceParameter, ExploitConfiguration, ActiveServiceInterfaceType
+from cyst.api.environment.configuration import EnvironmentConfiguration, GeneralConfiguration, NodeConfiguration, ServiceConfiguration, NetworkConfiguration, ServiceParameter, ExploitConfiguration, ActiveServiceInterfaceType, AccessConfiguration
 from cyst.api.environment.messaging import EnvironmentMessaging
 from cyst.api.environment.policy import EnvironmentPolicy
 from cyst.api.environment.resources import EnvironmentResources
@@ -17,7 +17,7 @@ from cyst.api.environment.interpreter import ActionInterpreterDescription
 from cyst.api.environment.stores import ActionStore, ExploitStore
 from cyst.api.network.elements import Interface, Route
 from cyst.api.network.node import Node
-from cyst.api.logic.access import Authorization, AccessLevel
+from cyst.api.logic.access import Authorization, AccessLevel, AuthenticationToken, AuthenticationProvider, AuthenticationTokenSecurity, AuthenticationTokenType, AuthenticationProviderType
 from cyst.api.logic.action import Action
 from cyst.api.logic.data import Data
 from cyst.api.logic.exploit import VulnerableService, ExploitParameter, ExploitParameterType, ExploitLocality, ExploitCategory, Exploit
@@ -31,7 +31,7 @@ from cyst.core.environment.message import MessageImpl, RequestImpl, ResponseImpl
 from cyst.core.environment.proxy import EnvironmentProxy
 from cyst.core.environment.stores import ActionStoreImpl, ServiceStoreImpl, ExploitStoreImpl
 from cyst.core.host.service import ServiceImpl, PassiveServiceImpl
-from cyst.core.logic.access import Policy
+from cyst.core.logic.access import Policy, AuthenticationTokenImpl
 from cyst.core.logic.data import DataImpl
 from cyst.core.logic.exploit import VulnerableServiceImpl, ExploitImpl, ExploitParameterImpl
 from cyst.core.network.elements import Endpoint, Connection, InterfaceImpl, Hop
@@ -298,6 +298,10 @@ class _Environment(Environment, EnvironmentControl, EnvironmentMessaging, Enviro
     def exploit(self) -> ExploitConfiguration:
         return self
 
+    @property
+    def access(self) -> AccessConfiguration:
+        return self
+
     # ------------------------------------------------------------------------------------------------------------------
     # NodeConfiguration
     def create_node(self, id: str, ip: Union[str, IPAddress] = "", mask: str = "", shell: Service = None) -> Node:
@@ -471,6 +475,24 @@ class _Environment(Environment, EnvironmentControl, EnvironmentMessaging, Enviro
 
     def clear_exploits(self) -> None:
         self._exploit_store.clear()
+
+    # Access configuration
+    def create_authentication_provider(self, provider_type: AuthenticationProviderType,
+                                       token_type: AuthenticationTokenType, security: AuthenticationTokenSecurity,
+                                       timeout: int) -> AuthenticationProvider:
+        pass
+
+    def create_authentication_token(self, type: AuthenticationTokenType, security: AuthenticationTokenSecurity,
+                                    identity: str) -> AuthenticationToken:
+        return AuthenticationTokenImpl(type, security, identity)
+
+    def register_authentication_token(self, provider: AuthenticationProvider, token: AuthenticationToken) -> bool:
+        if isinstance(provider, AuthenticationProviderImpl):
+            pass
+
+
+    def create_and_register_authentication_token(self, provider: AuthenticationProvider, identity: str) -> Optional[AuthenticationToken]:
+        pass
 
     # ------------------------------------------------------------------------------------------------------------------
     # Internal functions

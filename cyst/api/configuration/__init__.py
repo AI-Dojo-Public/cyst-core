@@ -1,5 +1,5 @@
 from cyst.api.configuration.host.service import ActiveServiceConfig, PassiveServiceConfig, ServiceParameter
-from cyst.api.configuration.logic.access import AccessLevel, AuthorizationConfig
+from cyst.api.configuration.logic.access import AccessLevel, AuthorizationConfig, AccessSchemeConfig, AuthenticationProviderConfig, AuthorizationDomainConfig, AuthorizationDomainType, FederatedAuthorizationConfig
 from cyst.api.configuration.logic.data import DataConfig
 from cyst.api.configuration.logic.exploit import ExploitLocality, ExploitCategory, ExploitParameterType, \
      VulnerableServiceConfig, ExploitParameterConfig, ExploitConfig
@@ -12,4 +12,6 @@ from cyst.api.configuration.network.firewall import FirewallRule, FirewallChainT
 __all__ = ["ActiveServiceConfig", "PassiveServiceConfig", "AccessLevel", "AuthorizationConfig", "DataConfig", "ExploitLocality",
            "ExploitCategory", "ExploitParameterType", "VulnerableServiceConfig", "ExploitParameterConfig", "ExploitConfig",
            "NetworkConfig", "NodeConfig", "IPAddress", "IPNetwork", "ConnectionConfig", "PortConfig", "InterfaceConfig", "RouterConfig",
-           "FirewallRule", "FirewallChainType", "FirewallChainConfig", "FirewallPolicy", "FirewallConfig", "ServiceParameter"]
+           "FirewallRule", "FirewallChainType", "FirewallChainConfig", "FirewallPolicy", "FirewallConfig", "ServiceParameter",
+           "AccessSchemeConfig", "AuthenticationProviderConfig", "AuthorizationDomainConfig", "AuthorizationDomainType",
+           "FederatedAuthorizationConfig"]

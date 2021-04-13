@@ -1,44 +1,64 @@
+from copy import copy
 from dataclasses import dataclass, field
 from enum import IntEnum
-from typing import List, Union, Optional
+from typing import List, Optional, Union, Tuple
 from uuid import uuid4
 
 from cyst.api.configuration.configuration import ConfigItem
-from cyst.api.configuration.host.service import PassiveServiceConfig
-from cyst.api.configuration.network.node import NodeConfig
+from cyst.api.configuration.logic.data import DataConfig
+from cyst.api.logic.access import AccessLevel, AuthenticationTokenSecurity, AuthenticationTokenType, AuthenticationToken, \
+                                  AuthenticationProviderType, AuthenticationProvider, Authorization, AuthenticationTarget, \
+                                  AccessScheme
 
 
-class AccessLevel(IntEnum):
-    NONE = 0,
-    LIMITED = 1,
-    ELEVATED = 2
-
-
-@dataclass
-class AuthenticationFactorConfig(ConfigItem):
-    federation_domain: Optional[str]
-    bound_service: Optional[Union[str, PassiveServiceConfig]]
-    bound_device: Optional[Union[str, NodeConfig]]
-    # The following two are mostly placeholders until user interaction is implemented
-    isolated: bool = field(default=False)
-    physical_access: bool = field(default=False)
-
-
-# TODO: As of now, the Authorization represents a federated authorization, but it will be split soon-ish to local
-#       and federated.
 @dataclass
 class AuthorizationConfig(ConfigItem):
     identity: str
-    nodes: List[str]
-    services: List[str]
     access_level: AccessLevel
-    expiration: int
-    token: str = field(default_factory=lambda: str(uuid4()))
     id: str = field(default_factory=lambda: str(uuid4()))
 
 
 @dataclass
-class AuthenticationSchemeConfig(ConfigItem):
+class FederatedAuthorizationConfig(ConfigItem):
+    identity: str
+    access_level: AccessLevel
+    nodes: List[str]
+    services: List[str]
+    id: str = field(default_factory=lambda: str(uuid4()))
 
-    authentication_chain: List[Union[str, AuthenticationFactorConfig]]
-    authorizations: List[Union[str, AuthorizationConfig]]
+
+class AuthorizationDomainType(IntEnum):
+    LOCAL = 0,
+    FEDERATED = 1
+
+
+@dataclass
+class AuthorizationDomainConfig(ConfigItem):
+    type: AuthorizationDomainType
+    authorizations: List[Union[AuthorizationConfig, FederatedAuthorizationConfig]]
+    id: str = field(default_factory=lambda: str(uuid4()))
+
+
+@dataclass
+class AuthenticationProviderConfig(ConfigItem):
+    provider_type: AuthenticationProviderType
+    token_type: AuthenticationTokenType
+    token_security: AuthenticationTokenSecurity
+    id: str = field(default_factory=lambda: str(uuid4()))
+    timeout: int = 0
+
+    # Copy stays the same, but changes the id
+    def __call__(self, id: Optional[str] = None) -> 'AuthenticationProviderConfig':
+        new_one = copy(self)
+        if id:
+            new_one.id = id
+        else:
+            new_one.id = str(uuid4())
+        return new_one
+
+
+@dataclass
+class AccessSchemeConfig(ConfigItem):
+    authentication_providers: List[str]
+    authorization_domain: Union[AuthorizationDomainConfig, str]
+    id: str = field(default_factory=lambda: str(uuid4()))

@@ -1,9 +1,9 @@
-from typing import List, Union, Optional, Dict, Any, Type
+from typing import List, Union, Optional, Dict, Any, Type, Tuple
 
 from cyst.api.environment.configuration import GeneralConfiguration, ObjectType, ConfigurationObjectType
 from cyst.api.configuration.configuration import ConfigItem
 from cyst.api.configuration.host.service import ActiveServiceConfig, PassiveServiceConfig
-from cyst.api.configuration.logic.access import AuthorizationConfig
+from cyst.api.configuration.logic.access import AuthorizationConfig, AuthenticationProviderConfig, AccessSchemeConfig, AuthorizationDomainConfig, FederatedAuthorizationConfig
 from cyst.api.configuration.logic.data import DataConfig
 from cyst.api.configuration.logic.exploit import VulnerableServiceConfig, ExploitParameterConfig, ExploitConfig
 from cyst.api.configuration.network.elements import PortConfig, InterfaceConfig, ConnectionConfig
@@ -32,6 +32,9 @@ class Configurator:
         self._authorizations: List[AuthorizationConfig] = []
         self._data: List[DataConfig] = []
         self._exploits: List[ExploitConfig] = []
+        self._authentication_providers: List[AuthenticationProviderConfig] = []
+        self._access_schemes: List[AccessSchemeConfig] = []
+        self._authorization_domains: List[AuthorizationDomainConfig] = []
 
     def reset(self):
         self._refs.clear()
@@ -45,6 +48,9 @@ class Configurator:
         self._authorizations.clear()
         self._data.clear()
         self._exploits.clear()
+        self._authentication_providers.clear()
+        self._access_schemes.clear()
+        self._authorization_domains.clear()
 
     # ------------------------------------------------------------------------------------------------------------------
     # All these _process_XXX functions resolve nested members to their id. In the end of the preprocessing, there should
@@ -164,11 +170,27 @@ class Configurator:
                 private_auth_ids.append(auth)
             else:
                 private_auth_ids.append(self._process_cfg_item(auth))
-                
+
         cfg.public_data = public_data_ids
         cfg.private_data = private_data_ids
         cfg.public_authorizations = public_auth_ids
-        cfg.private_authorizations =private_auth_ids
+        cfg.private_authorizations = private_auth_ids
+
+        auth_provider_ids = []
+        for provider in cfg.authentication_providers:
+            if isinstance(provider, str):
+                auth_provider_ids.append(provider)
+            else:
+                auth_provider_ids.append(self._process_cfg_item(provider))
+        cfg.authentication_providers = auth_provider_ids
+
+        access_scheme_ids = []
+        for scheme in cfg.access_schemes:
+            if isinstance(scheme, str):
+                access_scheme_ids.append(scheme)
+            else:
+                access_scheme_ids.append(self._process_cfg_item(scheme))
+        cfg.access_schemes = access_scheme_ids
         
         return cfg.id
 
@@ -185,6 +207,42 @@ class Configurator:
     def _process_ExploitConfig(self, cfg: ExploitConfig) -> str:
         self._refs[cfg.id] = cfg
         self._exploits.append(cfg)
+        return cfg.id
+
+    def _process_AuthenticationProviderConfig(self, cfg: AuthenticationProviderConfig) -> str:
+        self._refs[cfg.id] = cfg
+        self._authentication_providers.append(cfg)
+        return cfg.id
+
+    def _process_AccessSchemeConfig(self, cfg: AccessSchemeConfig) -> str:
+
+        auth_provider_ids = []
+        for provider in cfg.authentication_providers:
+            if isinstance(provider, str):
+                auth_provider_ids.append(provider)
+            else:
+                auth_provider_ids.append(self._process_cfg_item(provider))
+        cfg.authentication_providers = auth_provider_ids
+
+        if not isinstance(cfg.authorization_domain, str):
+            cfg.authorization_domain = self._process_cfg_item(cfg.authorization_domain)
+
+        self._refs[cfg.id] = cfg
+        self._access_schemes.append(cfg)
+        return cfg.id
+
+    def _process_AuthorizationDomainConfig(self, cfg: AuthorizationDomainConfig) -> str:
+
+        authorization_ids = []
+        for auth in cfg.authorizations:
+            if isinstance(auth, str):
+                authorization_ids.append(auth)
+            else:
+                authorization_ids.append(self._process_cfg_item(auth))
+        cfg.authorizations = authorization_ids
+
+        self._refs[cfg.id] = cfg
+        self._authorization_domains.append(cfg)
         return cfg.id
 
     def _process_default(self, cfg):
@@ -237,10 +295,38 @@ class Configurator:
         # 5) Connections
 
         # 1) Authorizations, Data and Exploits
-        for auth in self._authorizations:
-            a = self._env.policy.create_authorization(auth.identity, auth.nodes, auth.services, auth.access_level, auth.id)
-            self._env.policy.add_authorization(a)
-            self._obj_refs[auth.id] = a
+        # for auth in self._authorizations:
+        #    a = self._env.policy.create_authorization(auth.identity, auth.nodes, auth.services, auth.access_level, auth.id)
+        #    self._env.policy.add_authorization(a)
+        #    self._obj_refs[auth.id] = a
+
+        # Building authentication and authorization infrastructure
+        # Prepare authentication tokens based on the authorizations in access schemes
+        for scheme in self._access_schemes:
+
+            authorization_domain = self._refs[scheme.authorization_domain]
+
+            # Go through all providers and if they do not exist instantiate them
+            for provider_id in scheme.authentication_providers:
+                provider_conf: AuthenticationProviderConfig = self._refs[provider_id]
+                provider = None
+
+                if provider_id not in self._obj_refs:
+                    provider = self._env.configuration.access.create_authentication_provider(provider_conf.provider_type,
+                                                                                             provider_conf.token_type,
+                                                                                             provider_conf.token_security,
+                                                                                             provider_conf.timeout)
+                    self._obj_refs[provider_id] = provider
+                else:
+                    provider = self._obj_refs[provider_id]
+
+                for auth_id in authorization_domain.authorizations:
+                    auth = self._refs[auth_id]
+                    if isinstance(auth, AuthorizationConfig) or isinstance(auth, FederatedAuthorizationConfig):
+                        identity = auth.identity
+                        self._env.configuration.access.create_and_register_authentication_token(provider, identity)
+                    else:
+                        raise RuntimeError("Wrong object type provided instead of (Federated)AuthorizationConfig")
 
         for data in self._data:
             d = self._env.configuration.service.create_data(data.id, data.owner, data.description)
