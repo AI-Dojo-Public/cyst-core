@@ -6,6 +6,8 @@ from itertools import product
 from typing import List, Tuple, Union, Optional
 from sqlite3 import Error
 
+from netaddr import IPAddress
+
 from cyst.api.configuration.logic.access import AccessLevel
 from cyst.api.host.service import Service
 from cyst.api.logic.access import Authorization, AuthenticationToken, AuthenticationTokenSecurity, \
@@ -294,14 +296,46 @@ class AuthenticationTokenImpl(AuthenticationToken):
         return self._content
 
 
+class AuthenticationTargetImpl(AuthenticationTarget):
+    def __init__(self, tokens: List[AuthenticationTokenType], service: Optional[str] = None, ip: Optional[IPAddress]=None):
+        self._address = ip
+        self._service = service
+        self._tokens = tokens
+
+    @property
+    def address(self) -> Optional[IPAddress]:
+        return self._address
+
+    @property
+    def service(self) -> str:
+        return self._service
+
+    @property
+    def tokens(self) -> List[AuthenticationTokenType]:
+        return self._tokens
+
+    @address.setter
+    def address(self, ip: IPAddress):
+        self._address = ip
+
+    @service.setter
+    def service(self, serv: str):
+        self._service = serv
+
+
 class AuthenticationProviderImpl(AuthenticationProvider):
 
     def __init__(self, provider_type: AuthenticationProviderType, token_type: AuthenticationTokenType,
                  security: AuthenticationTokenSecurity, timeout: int):
+
         self._provider_type = provider_type
         self._token_type = token_type
         self._security = security
         self._timeout = timeout
+
+        self._tokens = set()
+        self._target  = self._create_target()
+
 
     @property
     def type(self) -> AuthenticationProviderType:
@@ -309,4 +343,29 @@ class AuthenticationProviderImpl(AuthenticationProvider):
 
     @property
     def target(self) -> AuthenticationTarget:
-        pass
+        return self._target
+
+    @property
+    def token_type(self):
+        return self._token_type
+
+    @property
+    def security(self):
+        return self._security
+
+    def add_token(self, token: AuthenticationToken):
+        self._tokens.add(token)
+
+    def _create_target(self):
+        # TODO: inherit from provider? or should we do something else?
+        return  AuthenticationTargetImpl([self._token_type])
+
+    def set_service(self, id: str):
+
+        if self._target.service is None:
+            self._target.service = id
+        else:
+            raise RuntimeError # TODO check what should be done here, exception might bee too harsh
+
+    def set_address(self, ip: IPAddress):
+        pass # TODO, where does the ip come from??

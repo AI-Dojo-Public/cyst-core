@@ -6,12 +6,12 @@ from cyst.api.logic.access import AuthenticationProviderType, AuthenticationToke
 
 
 local_password_auth = AuthenticationProviderConfig \
-        (
-            provider_type=AuthenticationProviderType.LOCAL,
-            token_type=AuthenticationTokenType.PASSWORD,
-            token_security=AuthenticationTokenSecurity.SEALED,
-            timeout=30
-        )
+    (
+        provider_type=AuthenticationProviderType.LOCAL,
+        token_type=AuthenticationTokenType.PASSWORD,
+        token_security=AuthenticationTokenSecurity.SEALED,
+        timeout=30
+    )
 
 remote_email_auth = AuthenticationProviderConfig \
     (
@@ -82,7 +82,7 @@ my_custom_service = PassiveServiceConfig(
     ]
 )
 
-my_sso_domain = AuthorizationDomainConfig(
+my_sso_domain = AuthorizationDomainConfig( # TODO this is not passed to the confguration and it fails on keyError due to it
     type=AuthorizationDomainType.FEDERATED,
     authorizations=[
         FederatedAuthorizationConfig(

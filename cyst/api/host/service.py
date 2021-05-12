@@ -2,7 +2,7 @@ from abc import ABC, abstractmethod
 from semver import VersionInfo
 from typing import Set, Tuple, NamedTuple, Callable, Dict, Any, Optional
 
-from cyst.api.logic.access import AccessLevel
+from cyst.api.logic.access import AccessLevel, AuthenticationProvider
 from cyst.api.utils.tag import Tag
 
 
@@ -81,4 +81,8 @@ class PassiveService(Service, ABC):
     @property
     @abstractmethod
     def local(self) -> bool:
+        pass
+
+    @abstractmethod
+    def add_provider(self, provider: AuthenticationProvider):
         pass

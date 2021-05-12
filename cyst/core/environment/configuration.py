@@ -365,6 +365,10 @@ class Configurator:
             for p in service.parameters:
                 self._env.configuration.service.set_service_parameter(s.passive_service, p[0], p[1])
 
+            for prov in service.authentication_providers:
+                self._env.configuration.service.provides_auth(s,
+                                self._obj_refs[ prov.id if isinstance(prov, AuthenticationProviderConfig) else prov])
+
             passive_service_obj[service.id] = s
             self._obj_refs[service.id] = s
 

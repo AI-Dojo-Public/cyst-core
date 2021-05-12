@@ -128,6 +128,10 @@ class ServiceConfiguration(ABC):
     def sessions(self, service: PassiveService) -> List[Session]:
         pass
 
+    @abstractmethod
+    def provides_auth(self, service: PassiveService, auth_provider: AuthenticationProvider):
+        pass
+
 
 class NetworkConfiguration(ABC):
     @abstractmethod

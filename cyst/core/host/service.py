@@ -2,7 +2,7 @@ from semver import VersionInfo
 from typing import List, Set, Union
 
 from cyst.api.host.service import Service, ActiveService, PassiveService
-from cyst.api.logic.access import AccessLevel, Authorization
+from cyst.api.logic.access import AccessLevel, Authorization, AuthenticationProvider
 from cyst.api.logic.data import Data
 from cyst.api.network.session import Session
 
@@ -85,6 +85,7 @@ class PassiveServiceImpl(ServiceImpl, PassiveService):
         self._enable_session = False
         self._session_access_level = AccessLevel.NONE
         self._local = local
+        self._provided_auths = []
 
     # ------------------------------------------------------------------------------------------------------------------
     # PassiveService
@@ -118,6 +119,11 @@ class PassiveServiceImpl(ServiceImpl, PassiveService):
     def add_tags(self, *tags):
         for tag in tags:
             self._tags.add(tag)
+
+    def add_provider(self, provider: AuthenticationProvider):
+        self._provided_auths.append(provider)
+        if isinstance(provider, cyst.core.logic.access.AuthenticationProviderImpl):
+            provider.set_service(self._id)
 
     @property
     def private_data(self) -> List[Data]:

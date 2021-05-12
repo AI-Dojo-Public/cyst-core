@@ -31,7 +31,7 @@ from cyst.core.environment.message import MessageImpl, RequestImpl, ResponseImpl
 from cyst.core.environment.proxy import EnvironmentProxy
 from cyst.core.environment.stores import ActionStoreImpl, ServiceStoreImpl, ExploitStoreImpl
 from cyst.core.host.service import ServiceImpl, PassiveServiceImpl
-from cyst.core.logic.access import Policy, AuthenticationTokenImpl
+from cyst.core.logic.access import Policy, AuthenticationTokenImpl, AuthenticationProviderImpl
 from cyst.core.logic.data import DataImpl
 from cyst.core.logic.exploit import VulnerableServiceImpl, ExploitImpl, ExploitParameterImpl
 from cyst.core.network.elements import Endpoint, Connection, InterfaceImpl, Hop
@@ -47,7 +47,7 @@ from cyst.core.utils.file import root_dir
 # Environment is unlike other core implementation given an underscore-prefixed name to let python complain about
 # it being private if instantiated otherwise than via the create_environment()
 class _Environment(Environment, EnvironmentControl, EnvironmentMessaging, EnvironmentResources, EnvironmentConfiguration,
-                   NodeConfiguration, NetworkConfiguration, ServiceConfiguration, ExploitConfiguration):
+                   NodeConfiguration, NetworkConfiguration, ServiceConfiguration, ExploitConfiguration, AccessConfiguration):
 
     def __init__(self, pause_on_request: List[str] = None, pause_on_response: List[str] = None) -> None:
         if pause_on_request is None:
@@ -404,6 +404,9 @@ class _Environment(Environment, EnvironmentControl, EnvironmentMessaging, Enviro
     def sessions(self, service: PassiveService) -> List[Session]:
         return PassiveServiceImpl.cast_from(service).sessions
 
+    def provides_auth(self, service: PassiveService, auth_provider: AuthenticationProvider):
+        return PassiveServiceImpl.cast_from(service).add_provider(auth_provider)
+
     # ------------------------------------------------------------------------------------------------------------------
     # NetworkConfiguration
     def add_node(self, node: Node) -> None:
@@ -480,7 +483,7 @@ class _Environment(Environment, EnvironmentControl, EnvironmentMessaging, Enviro
     def create_authentication_provider(self, provider_type: AuthenticationProviderType,
                                        token_type: AuthenticationTokenType, security: AuthenticationTokenSecurity,
                                        timeout: int) -> AuthenticationProvider:
-        pass
+        return AuthenticationProviderImpl(provider_type, token_type, security, timeout)
 
     def create_authentication_token(self, type: AuthenticationTokenType, security: AuthenticationTokenSecurity,
                                     identity: str) -> AuthenticationToken:
@@ -488,11 +491,19 @@ class _Environment(Environment, EnvironmentControl, EnvironmentMessaging, Enviro
 
     def register_authentication_token(self, provider: AuthenticationProvider, token: AuthenticationToken) -> bool:
         if isinstance(provider, AuthenticationProviderImpl):
-            pass
+            provider.add_token(token)
+            return True
+
+        return False
 
 
     def create_and_register_authentication_token(self, provider: AuthenticationProvider, identity: str) -> Optional[AuthenticationToken]:
-        pass
+        if isinstance(provider, AuthenticationProviderImpl):
+            token = self.create_authentication_token(provider.token_type, provider.security, identity)
+            self.register_authentication_token(provider, token)
+            return token
+
+        return None
 
     # ------------------------------------------------------------------------------------------------------------------
     # Internal functions
