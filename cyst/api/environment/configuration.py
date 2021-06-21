@@ -6,7 +6,8 @@ from flags import Flags
 from cyst.api.environment.messaging import EnvironmentMessaging
 from cyst.api.environment.message import Message
 from cyst.api.host.service import Service, PassiveService, ActiveService
-from cyst.api.logic.access import Authorization, AccessLevel, AuthenticationTokenType, AuthenticationTokenSecurity, AuthenticationToken, AuthenticationProviderType, AuthenticationProvider
+from cyst.api.logic.access import Authorization, AccessLevel, AuthenticationTokenType, AuthenticationTokenSecurity,\
+    AuthenticationToken, AuthenticationProviderType, AuthenticationProvider, AccessScheme, AuthenticationTarget
 from cyst.api.logic.data import Data
 from cyst.api.logic.exploit import VulnerableService, ExploitCategory, ExploitLocality, ExploitParameter, ExploitParameterType, Exploit
 from cyst.api.network.elements import Connection, Interface, Route
@@ -132,6 +133,10 @@ class ServiceConfiguration(ABC):
     def provides_auth(self, service: PassiveService, auth_provider: AuthenticationProvider):
         pass
 
+    @abstractmethod
+    def has_scheme(self, service: PassiveService, scheme: AccessScheme):
+        pass
+
 
 class NetworkConfiguration(ABC):
     @abstractmethod
@@ -200,6 +205,26 @@ class AccessConfiguration(ABC):
 
     @abstractmethod
     def create_and_register_authentication_token(self, provider: AuthenticationProvider, identity: str) -> Optional[AuthenticationToken]:
+        pass
+
+    @abstractmethod
+    def create_authorization(self, identity: str, access_level: AccessLevel, id: str):
+        pass
+
+    @abstractmethod
+    def create_access_scheme(self, id: str) -> AccessScheme:
+        pass
+
+    @abstractmethod
+    def add_provider_to_scheme(self, provider : AuthenticationProvider, scheme: AccessScheme):
+        pass
+
+    @abstractmethod
+    def add_authorization_to_scheme(self, auth: Authorization, scheme: AccessScheme):
+        pass
+
+    @abstractmethod
+    def evaluate_token_for_service(self, service: Service, token: AuthenticationToken) -> Optional[Union[Authorization, AuthenticationTarget]]:
         pass
 
 

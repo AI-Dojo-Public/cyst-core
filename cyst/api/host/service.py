@@ -82,7 +82,3 @@ class PassiveService(Service, ABC):
     @abstractmethod
     def local(self) -> bool:
         pass
-
-    @abstractmethod
-    def add_provider(self, provider: AuthenticationProvider):
-        pass

@@ -11,7 +11,7 @@ from netaddr import IPAddress
 from cyst.api.configuration.logic.access import AccessLevel
 from cyst.api.host.service import Service
 from cyst.api.logic.access import Authorization, AuthenticationToken, AuthenticationTokenSecurity, \
-    AuthenticationTokenType, AuthenticationProvider, AuthenticationTarget, AuthenticationProviderType
+    AuthenticationTokenType, AuthenticationProvider, AuthenticationTarget, AuthenticationProviderType, AccessScheme
 from cyst.api.environment.policy import EnvironmentPolicy
 from cyst.api.logic.data import Data
 from cyst.api.network.node import Node
@@ -34,6 +34,7 @@ class AuthorizationImpl(Authorization):
         self._services = services
         self._access_level = access_level
         self._token = token
+        self._expiration = -1 # TODO
 
     def __eq__(self, other: 'Authorization') -> bool:
         if not other:
@@ -108,6 +109,10 @@ class AuthorizationImpl(Authorization):
             return o
         else:
             raise ValueError("Malformed underlying object passed with the Authorization interface")
+
+    @property
+    def expiration(self) -> int:
+        return self._expiration
 
 
 class PolicyStats:
@@ -289,7 +294,7 @@ class AuthenticationTokenImpl(AuthenticationToken):
         return self._identity
 
     def copy(self) -> Optional['AuthenticationToken']:
-        pass
+        pass # TODO different uuid needed????
 
     @property
     def content(self) -> Optional[Data]:
@@ -323,6 +328,35 @@ class AuthenticationTargetImpl(AuthenticationTarget):
         self._service = serv
 
 
+class AccessSchemeImpl(AccessScheme):
+    def __init__(self):
+        self._providers = []
+        self._authorizations = []
+        self._identities = []
+
+    def add_provider(self, provider: AuthenticationProvider):
+        self._providers.append((provider, len(self._providers)))
+
+    def add_identity(self, identity: str):
+        self._identities.append(identity)
+
+    def add_authorization(self, auth: Authorization):
+        self._authorizations.append(auth)
+
+    @property
+    def factors(self) -> List[Tuple[AuthenticationProvider, int]]:
+        return self._providers
+    # TODO : what is the number?? I will just use order ATM
+
+    @property
+    def identities(self) -> List[str]:
+        return self._identities
+
+    @property
+    def authorizations(self) -> List[Authorization]:
+        return self._authorizations
+
+
 class AuthenticationProviderImpl(AuthenticationProvider):
 
     def __init__(self, provider_type: AuthenticationProviderType, token_type: AuthenticationTokenType,
@@ -352,6 +386,12 @@ class AuthenticationProviderImpl(AuthenticationProvider):
     @property
     def security(self):
         return self._security
+
+    def token_is_registered(self, token: AuthenticationToken):
+        for t in self._tokens:
+            if t.identity == token.identity and t.content.id == token.content.id:
+                return True
+        return False
 
     def add_token(self, token: AuthenticationToken):
         self._tokens.add(token)

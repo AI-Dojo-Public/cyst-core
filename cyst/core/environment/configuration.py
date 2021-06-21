@@ -245,6 +245,13 @@ class Configurator:
         self._authorization_domains.append(cfg)
         return cfg.id
 
+    def _process_FederatedAuthorizationConfig(self, cfg: FederatedAuthorizationConfig):
+
+        # TODO : Ask how this is meant to be handled
+
+        self._refs[cfg.id] = cfg
+        return cfg.id
+
     def _process_default(self, cfg):
         raise ValueError("Unknown config type provided")
 
@@ -304,6 +311,9 @@ class Configurator:
         # Prepare authentication tokens based on the authorizations in access schemes
         for scheme in self._access_schemes:
 
+            scheme_instance = self._env.configuration.access.create_access_scheme(scheme.id)
+            self._obj_refs[scheme.id] = scheme_instance
+
             authorization_domain = self._refs[scheme.authorization_domain]
 
             # Go through all providers and if they do not exist instantiate them
@@ -320,11 +330,17 @@ class Configurator:
                 else:
                     provider = self._obj_refs[provider_id]
 
+                self._env.configuration.access.add_provider_to_scheme(provider, scheme_instance)
+
                 for auth_id in authorization_domain.authorizations:
                     auth = self._refs[auth_id]
                     if isinstance(auth, AuthorizationConfig) or isinstance(auth, FederatedAuthorizationConfig):
                         identity = auth.identity
                         self._env.configuration.access.create_and_register_authentication_token(provider, identity)
+
+                        authorization = self._env.configuration.access.create_authorization(auth.identity, auth.access_level, auth.id)
+                        self._obj_refs[auth.id] = authorization
+                        self._env.configuration.access.add_authorization_to_scheme(authorization, scheme_instance)
                     else:
                         raise RuntimeError("Wrong object type provided instead of (Federated)AuthorizationConfig")
 
@@ -368,6 +384,9 @@ class Configurator:
             for prov in service.authentication_providers:
                 self._env.configuration.service.provides_auth(s,
                                 self._obj_refs[ prov.id if isinstance(prov, AuthenticationProviderConfig) else prov])
+
+            for scheme in service.access_schemes:
+                self._env.configuration.service.has_scheme(s, self._obj_refs[scheme.id if isinstance(scheme, AccessSchemeConfig) else scheme ])
 
             passive_service_obj[service.id] = s
             self._obj_refs[service.id] = s

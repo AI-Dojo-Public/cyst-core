@@ -17,7 +17,7 @@ from cyst.api.environment.interpreter import ActionInterpreterDescription
 from cyst.api.environment.stores import ActionStore, ExploitStore
 from cyst.api.network.elements import Interface, Route
 from cyst.api.network.node import Node
-from cyst.api.logic.access import Authorization, AccessLevel, AuthenticationToken, AuthenticationProvider, AuthenticationTokenSecurity, AuthenticationTokenType, AuthenticationProviderType
+from cyst.api.logic.access import Authorization, AccessLevel, AuthenticationToken, AuthenticationProvider, AuthenticationTokenSecurity, AuthenticationTokenType, AuthenticationProviderType, AccessScheme, AuthenticationTarget
 from cyst.api.logic.action import Action
 from cyst.api.logic.data import Data
 from cyst.api.logic.exploit import VulnerableService, ExploitParameter, ExploitParameterType, ExploitLocality, ExploitCategory, Exploit
@@ -31,7 +31,7 @@ from cyst.core.environment.message import MessageImpl, RequestImpl, ResponseImpl
 from cyst.core.environment.proxy import EnvironmentProxy
 from cyst.core.environment.stores import ActionStoreImpl, ServiceStoreImpl, ExploitStoreImpl
 from cyst.core.host.service import ServiceImpl, PassiveServiceImpl
-from cyst.core.logic.access import Policy, AuthenticationTokenImpl, AuthenticationProviderImpl
+from cyst.core.logic.access import Policy, AuthenticationTokenImpl, AuthenticationProviderImpl, AuthorizationImpl, AccessSchemeImpl
 from cyst.core.logic.data import DataImpl
 from cyst.core.logic.exploit import VulnerableServiceImpl, ExploitImpl, ExploitParameterImpl
 from cyst.core.network.elements import Endpoint, Connection, InterfaceImpl, Hop
@@ -407,6 +407,9 @@ class _Environment(Environment, EnvironmentControl, EnvironmentMessaging, Enviro
     def provides_auth(self, service: PassiveService, auth_provider: AuthenticationProvider):
         return PassiveServiceImpl.cast_from(service).add_provider(auth_provider)
 
+    def has_scheme(self, service: PassiveService, scheme: AccessScheme):
+        return PassiveServiceImpl.cast_from(service).add_access_scheme(scheme)
+
     # ------------------------------------------------------------------------------------------------------------------
     # NetworkConfiguration
     def add_node(self, node: Node) -> None:
@@ -438,8 +441,8 @@ class _Environment(Environment, EnvironmentControl, EnvironmentMessaging, Enviro
     def create_session_from_message(self, message: Message) -> Session:
         message = MessageImpl.cast_from(message)
 
-        if message.authorization:
-            owner = message.authorization.identity
+        if message.auth:
+            owner = message.auth.identity
         else:
             owner = message.dst_service
         path = message.non_session_path
@@ -496,12 +499,56 @@ class _Environment(Environment, EnvironmentControl, EnvironmentMessaging, Enviro
 
         return False
 
-
     def create_and_register_authentication_token(self, provider: AuthenticationProvider, identity: str) -> Optional[AuthenticationToken]:
         if isinstance(provider, AuthenticationProviderImpl):
             token = self.create_authentication_token(provider.token_type, provider.security, identity)
             self.register_authentication_token(provider, token)
             return token
+
+        return None
+
+    def create_authorization(self, identity: str, access_level: AccessLevel, id: str) -> Authorization:
+        return AuthorizationImpl(
+            identity=identity,
+            access_level=access_level,
+            id=id
+        )
+
+    def create_access_scheme(self, id: str) -> AccessScheme:
+        scheme = AccessSchemeImpl()
+        scheme.add_identity(id)
+        return scheme
+
+    def add_provider_to_scheme(self, provider : AuthenticationProvider, scheme: AccessScheme):
+        if isinstance(scheme, AccessSchemeImpl):
+            scheme.add_provider(provider)
+            return True
+        return False
+
+    def add_authorization_to_scheme(self, auth: Authorization, scheme: AccessScheme):
+        if isinstance(scheme, AccessSchemeImpl):
+            scheme.add_authorization(auth)
+            scheme.add_identity(auth.identity)
+            return True
+        return False
+
+    def assess_token(self, scheme: AccessScheme, token: AuthenticationToken) -> Optional[Union[Authorization, AuthenticationTarget]]:
+
+        for i in range(0, len(scheme.factors)):
+            if scheme.factors[i][0].token_is_registered(token):
+                if i == len(scheme.factors) - 1:
+                    return next(filter(lambda auth: auth.identity == token.identity, scheme.authorizations), None)
+                else:
+                    return scheme.factors[i + 1][0].target
+        return None
+
+    def evaluate_token_for_service(self, service: Service, token: AuthenticationToken) -> Optional[Union[Authorization, AuthenticationTarget]]:
+
+        if isinstance(service, PassiveServiceImpl):
+            for scheme in service.access_schemes:
+                result = self.assess_token(scheme, token)
+                if result is not None:
+                    return result
 
         return None
 
@@ -714,7 +761,7 @@ class _Environment(Environment, EnvironmentControl, EnvironmentMessaging, Enviro
                     return
 
                 processing_time = 1
-                response = ResponseImpl(message, Status(StatusOrigin.NODE, StatusValue.ERROR), "Nonexistent service {} at node {}".format(message.dst_service, message.dst_ip), session=message.session, authorization=message.authorization)
+                response = ResponseImpl(message, Status(StatusOrigin.NODE, StatusValue.ERROR), "Nonexistent service {} at node {}".format(message.dst_service, message.dst_ip), session=message.session, auth=message.auth)
                 self.send_message(response, processing_time)
 
             # Service exists and it is passive

@@ -1,7 +1,7 @@
 from dataclasses import dataclass
 from typing import Tuple, Dict
 
-from cyst.api.logic.access import AuthenticationToken
+from cyst.api.logic.access import AuthenticationToken, AuthenticationTarget, Authorization
 from cyst.api.logic.action import ActionDescription, ActionToken, ActionParameterType
 from cyst.api.environment.messaging import EnvironmentMessaging
 from cyst.api.environment.resources import EnvironmentResources
@@ -10,7 +10,6 @@ from cyst.api.environment.policy import EnvironmentPolicy
 from cyst.api.environment.interpreter import ActionInterpreter, ActionInterpreterDescription
 from cyst.api.environment.message import Request, Response, Status, StatusOrigin, StatusValue, StatusDetail
 from cyst.api.network.node import Node
-
 
 @dataclass
 class AuthenticationTracker:
@@ -68,7 +67,7 @@ class METAInterpreter(ActionInterpreter):
             return 0, self._messaging.create_response(message, Status(StatusOrigin.NETWORK, StatusValue.FAILURE), error, session=message.session)
 
         return 1, self._messaging.create_response(message, Status(StatusOrigin.NODE, StatusValue.SUCCESS),
-                                                  node, session=message.session, authorization=message.authorization)
+                                                  node, session=message.session, authorization=message.auth)
 
     def process_authenticate(self, message: Request, node: Node) -> Tuple[int, Response]:
         # To authenticate, an actor has to go through all the phases in the authentication scheme.
@@ -83,14 +82,42 @@ class METAInterpreter(ActionInterpreter):
 
         # First of all, check if the message contains authentication token
         token_found = False
+        token = None
         for parameter in message.action.parameters:
             if parameter.action_type == ActionParameterType.TOKEN and isinstance(parameter.value, AuthenticationToken):
                 token_found = True
+                token = parameter.value
 
-        # TODO Pridat do konfigurace vytvareni auth tokenu
         if not token_found:
             return 0, self._messaging.create_response(message, Status(StatusOrigin.SERVICE, StatusValue.FAILURE, StatusDetail.AUTHENTICATION_NOT_PROVIDED),
-                                                      "No auth token provided", session=message.session, authorization=message.authorization)
+                                                      "No auth token provided", session=message.session, authorization=message.auth)
+
+        s = node.services.get(dst_service)
+        if s is None:
+            return 0, self._messaging.create_response(message, Status(StatusOrigin.SERVICE, StatusValue.FAILURE,
+                                                                      StatusDetail.AUTHENTICATION_NOT_PROVIDED),
+                                                      "Service does not exist on this node", session=message.session,
+                                                      authorization=message.auth)
+
+        result = self._configuration.access.evaluate_token_for_service(s, token)
+
+        if result is None:
+            return 0, self._messaging.create_response(message, Status(StatusOrigin.SERVICE, StatusValue.FAILURE,
+                                                                      StatusDetail.AUTHENTICATION_NOT_APPLICABLE),
+                                                      "token invalid for this service", session=message.session,
+                                                      authorization=message.auth)
+
+        if isinstance(result, AuthenticationTarget):
+            return 0, self._messaging.create_response(message, Status(StatusOrigin.SERVICE, StatusValue.FAILURE,
+                                                                      StatusDetail.AUTHENTICATION_NEXT),
+                                                      "Continue with next factor", session=message.session,
+                                                      authorization=result)
+
+        if isinstance(result, Authorization):
+            return 0, self._messaging.create_response(message, Status(StatusOrigin.SERVICE, StatusValue.SUCCESS),
+                                                      "Authorized", session=message.session,
+                                                      authorization=result)
+
 
 
 

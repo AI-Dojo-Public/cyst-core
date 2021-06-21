@@ -118,6 +118,10 @@ class AuthenticationProvider(ABC):
     def target(self) -> AuthenticationTarget:
         pass
 
+    @abstractmethod
+    def token_is_registered(self, token: AuthenticationToken):
+        pass
+
 
 class AccessScheme(ABC):
 

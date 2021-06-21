@@ -4,7 +4,7 @@ from netaddr import IPAddress
 from typing import Any, Optional, Union, NamedTuple
 
 from cyst.api.network.session import Session
-from cyst.api.logic.access import Authorization
+from cyst.api.logic.access import Authorization, AuthenticationToken, AuthenticationTarget
 from cyst.api.logic.action import Action
 
 
@@ -119,7 +119,7 @@ class Message(ABC):
 
     @property
     @abstractmethod
-    def authorization(self) -> Authorization:
+    def auth(self) -> Optional[Union[Authorization, AuthenticationToken, AuthenticationTarget]]:
         pass
 
     @property

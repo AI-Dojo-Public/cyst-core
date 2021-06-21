@@ -3,7 +3,7 @@ from netaddr import *
 
 from cyst.api.environment.message import MessageType, Message, Request, Response, Status
 from cyst.api.logic.action import Action
-from cyst.api.logic.access import Authorization
+from cyst.api.logic.access import Authorization, AuthenticationToken, AuthenticationTarget
 from cyst.api.network.session import Session
 
 from cyst.api.utils.counter import Counter
@@ -22,7 +22,7 @@ class Content:
 class MessageImpl(Message):
     def __init__(self, type: MessageType, origin: Endpoint = None, src_ip: IPAddress = None, dst_ip: IPAddress = None,
                  dst_service: str = "", session: Session = None,
-                 authorization: Authorization = None, force_id: int = -1, ttl: int = 64) -> None:
+                 auth: Optional[Union[Authorization, AuthenticationToken, AuthenticationTarget]] = None, force_id: int = -1, ttl: int = 64) -> None:
 
         super(MessageImpl, self).__init__()
 
@@ -40,7 +40,7 @@ class MessageImpl(Message):
         self._dst_service = dst_service
         self._current = origin
         self._session = session
-        self._authorization = authorization
+        self._auth = auth
 
         self._path = []
         self._non_session_path = []
@@ -150,16 +150,16 @@ class MessageImpl(Message):
         self._session = value
 
     @property
-    def authorization(self) -> Authorization:
-        return self._authorization
+    def auth(self) -> Optional[Union[Authorization, AuthenticationToken, AuthenticationTarget]]:
+        return self._auth
 
-    @authorization.setter
-    def authorization(self, value: Authorization) -> None:
-        self._authorization = value
+    @auth.setter
+    def auth(self, value: Union[Authorization, AuthenticationToken, AuthenticationTarget]) -> None:
+        self._auth = value
 
     def __str__(self) -> str:
         result = "Message: [ID: {}, Type: {}, Origin: {}, Source: {}, Target: {}, Session: {}, Authorization: {}]"\
-                 .format(self.id, self.type.name, self._origin, self.src_ip, self.dst_ip, self.session, self.authorization)
+                 .format(self.id, self.type.name, self._origin, self.src_ip, self.dst_ip, self.session, self.auth)
         return result
 
     def __lt__(self, other) -> bool:
@@ -206,13 +206,13 @@ class MessageImpl(Message):
 
 class RequestImpl(MessageImpl, Request):
     def __init__(self, dst_ip: Union[str, IPAddress], dst_service: str = "", action: Action = None,
-                 session: Session = None, authorization: Authorization = None):
+                 session: Session = None, auth: Optional[Union[Authorization, AuthenticationToken, AuthenticationTarget]] = None):
 
         if type(dst_ip) is str:
             dst_ip = IPAddress(dst_ip)
 
         super(RequestImpl, self).__init__(MessageType.REQUEST, None, None, dst_ip, dst_service,
-                                          session=session, authorization=authorization)
+                                          session=session, auth=auth)
 
         self._action = action
 
@@ -223,7 +223,7 @@ class RequestImpl(MessageImpl, Request):
     def __str__(self) -> str:
         result = "Request: [ID: {}, Type: {}, Origin: {}, Source: {}, Target: {}, Destination service: {}, Source service: {}, Action: {}, Session: {}, Authorization: {}]"\
                    .format(self.id, self.type.name, self._origin.ip, self.src_ip, self.dst_ip, self.dst_service, self.src_service, self.action.id,
-                           self.session, self.authorization)
+                           self.session, self.auth)
         return result
 
     @staticmethod
@@ -236,9 +236,11 @@ class RequestImpl(MessageImpl, Request):
 
 class ResponseImpl(MessageImpl, Response):
     def __init__(self, request: MessageImpl, status: Status = None,
-                 content: Any = None, session: Session = None, authorization: Authorization = None) -> None:
+                 content: Any = None, session: Session = None,
+                 auth: Optional[Union[Authorization, AuthenticationToken, AuthenticationTarget]] = None) -> None:
 
-        super(ResponseImpl, self).__init__(MessageType.RESPONSE, request.current, request.dst_ip, request.src_ip, session=session, authorization=authorization, force_id=request.id)
+        super(ResponseImpl, self).__init__(MessageType.RESPONSE, request.current, request.dst_ip, request.src_ip,
+                                           session=session, auth=auth, force_id=request.id)
 
         self._status = status
         self._content = content
@@ -260,7 +262,7 @@ class ResponseImpl(MessageImpl, Response):
 
     def __str__(self) -> str:
         result = "Response: [ID: {}, Type: {}, Origin: {}, Source: {}, Target: {}, Status: {}, Content: {}, Session: {}, Authorization: {}]"\
-                   .format(self.id, self.type.name, self._origin.ip, self.src_ip, self.dst_ip, self._status, self._content, self.session, self.authorization)
+                   .format(self.id, self.type.name, self._origin.ip, self.src_ip, self.dst_ip, self._status, self._content, self.session, self.auth)
         return result
 
     @property

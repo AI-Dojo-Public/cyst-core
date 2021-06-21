@@ -111,7 +111,7 @@ web_server = PassiveServiceConfig(
     access_schemes=[
         AccessSchemeConfig(
             authentication_providers=[proxy_sso.id],
-            authorization_domain="my_sso_domain"
+            authorization_domain= my_sso_domain
             )
     ]
 )
