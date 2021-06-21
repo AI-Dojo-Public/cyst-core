@@ -338,7 +338,10 @@ class Configurator:
                         identity = auth.identity
                         self._env.configuration.access.create_and_register_authentication_token(provider, identity)
 
-                        authorization = self._env.configuration.access.create_authorization(auth.identity, auth.access_level, auth.id)
+                        authorization = self._env.configuration.access.create_authorization(auth.identity, auth.access_level, auth.id) \
+                                        if not isinstance(auth, FederatedAuthorizationConfig) else \
+                                        self._env.configuration.access.create_authorization(auth.identity, auth.access_level, auth.id, auth.nodes, auth.services)
+
                         self._obj_refs[auth.id] = authorization
                         self._env.configuration.access.add_authorization_to_scheme(authorization, scheme_instance)
                     else:

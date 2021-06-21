@@ -507,11 +507,13 @@ class _Environment(Environment, EnvironmentControl, EnvironmentMessaging, Enviro
 
         return None
 
-    def create_authorization(self, identity: str, access_level: AccessLevel, id: str) -> Authorization:
+    def create_authorization(self, identity: str, access_level: AccessLevel, id: str, nodes: Optional[List[str]] = None, services: Optional[List[str]] = None) -> Authorization:
         return AuthorizationImpl(
             identity=identity,
             access_level=access_level,
-            id=id
+            id=id,
+            nodes=nodes,
+            services=services
         )
 
     def create_access_scheme(self, id: str) -> AccessScheme:
@@ -542,15 +544,21 @@ class _Environment(Environment, EnvironmentControl, EnvironmentMessaging, Enviro
                     return scheme.factors[i + 1][0].target
         return None
 
-    def evaluate_token_for_service(self, service: Service, token: AuthenticationToken) -> Optional[Union[Authorization, AuthenticationTarget]]:
+    def evaluate_token_for_service(self, service: Service, token: AuthenticationToken, node: Node) -> Optional[Union[Authorization, AuthenticationTarget]]:
 
         if isinstance(service, PassiveServiceImpl):
             for scheme in service.access_schemes:
                 result = self.assess_token(scheme, token)
-                if result is not None:
+                if not isinstance(result, Authorization): # None or AuthTarget
                     return result
+                return self.user_auth_create(token, result, service, node)
 
         return None
+
+    def user_auth_create(self, token: AuthenticationToken, authorization: Authorization, service: Service, node: Node):
+        pass
+        # check if auth returned is applicable to service/node - with local authorization node/service might be empty tho, check this -- if we can get node/service info when creating first in configurator
+        # create a new authorization with this service, node, identity, access level, and a new uuid
 
     # ------------------------------------------------------------------------------------------------------------------
     # Internal functions

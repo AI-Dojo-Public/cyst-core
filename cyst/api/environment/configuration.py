@@ -208,7 +208,7 @@ class AccessConfiguration(ABC):
         pass
 
     @abstractmethod
-    def create_authorization(self, identity: str, access_level: AccessLevel, id: str):
+    def create_authorization(self, identity: str, access_level: AccessLevel, id: str, nodes: Optional[List[str]] = None, services: Optional[List[str]] = None):
         pass
 
     @abstractmethod
@@ -224,7 +224,7 @@ class AccessConfiguration(ABC):
         pass
 
     @abstractmethod
-    def evaluate_token_for_service(self, service: Service, token: AuthenticationToken) -> Optional[Union[Authorization, AuthenticationTarget]]:
+    def evaluate_token_for_service(self, service: Service, token: AuthenticationToken, node: Node) -> Optional[Union[Authorization, AuthenticationTarget]]:
         pass
 
 

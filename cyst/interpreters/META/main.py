@@ -99,7 +99,7 @@ class METAInterpreter(ActionInterpreter):
                                                       "Service does not exist on this node", session=message.session,
                                                       authorization=message.auth)
 
-        result = self._configuration.access.evaluate_token_for_service(s, token)
+        result = self._configuration.access.evaluate_token_for_service(s, token, node)
 
         if result is None:
             return 0, self._messaging.create_response(message, Status(StatusOrigin.SERVICE, StatusValue.FAILURE,
