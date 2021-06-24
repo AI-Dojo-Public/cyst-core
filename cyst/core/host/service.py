@@ -88,6 +88,7 @@ class PassiveServiceImpl(ServiceImpl, PassiveService):
         self._local = local
         self._provided_auths = []
         self._access_schemes = []
+        self._active_authorizations = []
 
     # ------------------------------------------------------------------------------------------------------------------
     # PassiveService
@@ -129,6 +130,9 @@ class PassiveServiceImpl(ServiceImpl, PassiveService):
 
     def add_access_scheme(self, scheme: AccessScheme):
         self._access_schemes.append(scheme)
+
+    def add_active_authorization(self, auth: Authorization):
+        self._active_authorizations.append(auth)
 
     @property
     def private_data(self) -> List[Data]:

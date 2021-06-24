@@ -389,7 +389,9 @@ class AuthenticationProviderImpl(AuthenticationProvider):
 
     def token_is_registered(self, token: AuthenticationToken):
         for t in self._tokens:
-            if t.identity == token.identity and t.content.id == token.content.id:
+            if t.identity == token.identity and t.content.id == token.content.id\
+                    and t.content.owner == token.content.owner\
+                    and token.content.description == t.content.description:
                 return True
         return False
 

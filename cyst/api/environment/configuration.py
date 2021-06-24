@@ -134,7 +134,7 @@ class ServiceConfiguration(ABC):
         pass
 
     @abstractmethod
-    def has_scheme(self, service: PassiveService, scheme: AccessScheme):
+    def set_scheme(self, service: PassiveService, scheme: AccessScheme):
         pass
 
 

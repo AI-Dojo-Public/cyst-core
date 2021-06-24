@@ -3,6 +3,7 @@ import importlib
 from heapq import heappush, heappop
 from itertools import product
 from typing import Tuple, List, Union, Optional, Any, Dict, Type
+from uuid import uuid4
 
 from netaddr import IPAddress
 
@@ -407,7 +408,7 @@ class _Environment(Environment, EnvironmentControl, EnvironmentMessaging, Enviro
     def provides_auth(self, service: PassiveService, auth_provider: AuthenticationProvider):
         return PassiveServiceImpl.cast_from(service).add_provider(auth_provider)
 
-    def has_scheme(self, service: PassiveService, scheme: AccessScheme):
+    def set_scheme(self, service: PassiveService, scheme: AccessScheme):
         return PassiveServiceImpl.cast_from(service).add_access_scheme(scheme)
 
     # ------------------------------------------------------------------------------------------------------------------
@@ -534,31 +535,47 @@ class _Environment(Environment, EnvironmentControl, EnvironmentMessaging, Enviro
             return True
         return False
 
-    def assess_token(self, scheme: AccessScheme, token: AuthenticationToken) -> Optional[Union[Authorization, AuthenticationTarget]]:
+    def assess_token(self, scheme: AccessScheme, token: AuthenticationToken)\
+            -> Optional[Tuple[Union[Authorization, AuthenticationTarget], AuthenticationProvider]]:
 
         for i in range(0, len(scheme.factors)):
             if scheme.factors[i][0].token_is_registered(token):
                 if i == len(scheme.factors) - 1:
                     return next(filter(lambda auth: auth.identity == token.identity, scheme.authorizations), None)
                 else:
-                    return scheme.factors[i + 1][0].target
+                    return scheme.factors[i + 1][0].target, scheme.factors[i][0]
         return None
 
-    def evaluate_token_for_service(self, service: Service, token: AuthenticationToken, node: Node) -> Optional[Union[Authorization, AuthenticationTarget]]:
+    def evaluate_token_for_service(self, service: Service, token: AuthenticationToken, node: Node)\
+            -> Optional[Union[Authorization, AuthenticationTarget]]:
 
         if isinstance(service, PassiveServiceImpl):
             for scheme in service.access_schemes:
                 result = self.assess_token(scheme, token)
-                if not isinstance(result, Authorization): # None or AuthTarget
+                if not isinstance(result, Authorization):  # None or AuthTarget
                     return result
-                return self.user_auth_create(token, result, service, node)
+                return self.user_auth_create(result, service, node)
 
         return None
 
-    def user_auth_create(self, token: AuthenticationToken, authorization: Authorization, service: Service, node: Node):
-        pass
-        # check if auth returned is applicable to service/node - with local authorization node/service might be empty tho, check this -- if we can get node/service info when creating first in configurator
-        # create a new authorization with this service, node, identity, access level, and a new uuid
+    def user_auth_create(self, authorization: Authorization, service: Service, node: Node):
+        if isinstance(authorization, AuthorizationImpl):
+            if (authorization.nodes == ['*'] or node.id in authorization.nodes) and\
+               (authorization.services == ['*'] or service.name in authorization.services):
+
+                ret_auth = AuthorizationImpl(
+                    identity=authorization.identity,
+                    nodes=[node.id],
+                    services=[service.name],
+                    access_level=authorization.access_level,
+                    id=str(uuid4())
+                )
+
+                # TODO: some kind of registering, otherwise we could be forging I guess
+                if isinstance(service, PassiveServiceImpl):
+                    service.add_active_authorization(ret_auth) # check if this can go to public/private auths
+                return ret_auth
+        return None
 
     # ------------------------------------------------------------------------------------------------------------------
     # Internal functions

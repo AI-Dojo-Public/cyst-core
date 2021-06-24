@@ -386,10 +386,10 @@ class Configurator:
 
             for prov in service.authentication_providers:
                 self._env.configuration.service.provides_auth(s,
-                                self._obj_refs[ prov.id if isinstance(prov, AuthenticationProviderConfig) else prov])
+                                self._obj_refs[prov.id if isinstance(prov, AuthenticationProviderConfig) else prov])
 
             for scheme in service.access_schemes:
-                self._env.configuration.service.has_scheme(s, self._obj_refs[scheme.id if isinstance(scheme, AccessSchemeConfig) else scheme ])
+                self._env.configuration.service.set_scheme(s, self._obj_refs[scheme.id if isinstance(scheme, AccessSchemeConfig) else scheme])
 
             passive_service_obj[service.id] = s
             self._obj_refs[service.id] = s
