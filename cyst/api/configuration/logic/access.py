@@ -3,6 +3,7 @@ from dataclasses import dataclass, field
 from enum import IntEnum
 from typing import List, Optional, Union, Tuple
 from uuid import uuid4
+from netaddr import IPAddress
 
 from cyst.api.configuration.configuration import ConfigItem
 from cyst.api.configuration.logic.data import DataConfig
@@ -45,6 +46,7 @@ class AuthenticationProviderConfig(ConfigItem):
     token_type: AuthenticationTokenType
     token_security: AuthenticationTokenSecurity
     id: str = field(default_factory=lambda: str(uuid4()))
+    ip: IPAddress = field(default=None)
     timeout: int = 0
 
     # Copy stays the same, but changes the id

@@ -302,7 +302,8 @@ class AuthenticationTokenImpl(AuthenticationToken):
 
 
 class AuthenticationTargetImpl(AuthenticationTarget):
-    def __init__(self, tokens: List[AuthenticationTokenType], service: Optional[str] = None, ip: Optional[IPAddress]=None):
+    def __init__(self, tokens: List[AuthenticationTokenType], service: Optional[str] = None,
+                 ip: Optional[IPAddress] = None):
         self._address = ip
         self._service = service
         self._tokens = tokens
@@ -360,7 +361,7 @@ class AccessSchemeImpl(AccessScheme):
 class AuthenticationProviderImpl(AuthenticationProvider):
 
     def __init__(self, provider_type: AuthenticationProviderType, token_type: AuthenticationTokenType,
-                 security: AuthenticationTokenSecurity, timeout: int):
+                 security: AuthenticationTokenSecurity, ip: Optional[IPAddress], timeout: int):
 
         self._provider_type = provider_type
         self._token_type = token_type
@@ -368,7 +369,11 @@ class AuthenticationProviderImpl(AuthenticationProvider):
         self._timeout = timeout
 
         self._tokens = set()
-        self._target  = self._create_target()
+        self._target = self._create_target()
+
+        if provider_type != AuthenticationProviderType.LOCAL and ip is None:
+            raise RuntimeError("Non-local provider needs ip address")
+        self._set_address(ip)
 
 
     @property
@@ -407,7 +412,10 @@ class AuthenticationProviderImpl(AuthenticationProvider):
         if self._target.service is None:
             self._target.service = id
         else:
-            raise RuntimeError # TODO check what should be done here, exception might bee too harsh
+            raise RuntimeError  # TODO check what should be done here, exception might be too harsh
 
-    def set_address(self, ip: IPAddress):
-        pass # TODO, where does the ip come from??
+    def _set_address(self, ip: IPAddress):
+        if self._target.address is None:
+            self._target.address = ip
+        else:
+            raise RuntimeError

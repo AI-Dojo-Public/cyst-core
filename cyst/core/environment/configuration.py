@@ -325,6 +325,7 @@ class Configurator:
                     provider = self._env.configuration.access.create_authentication_provider(provider_conf.provider_type,
                                                                                              provider_conf.token_type,
                                                                                              provider_conf.token_security,
+                                                                                             provider_conf.ip,
                                                                                              provider_conf.timeout)
                     self._obj_refs[provider_id] = provider
                 else:
@@ -466,5 +467,5 @@ class Configuration(GeneralConfiguration):
         o = self._configurator.get_object_by_id(id)
         if not isinstance(o, object_type):
             raise AttributeError(
-                "Attempting to cast object with id: {} to an incompatible type: {}".format(id, str(object_type)))
+                "Attempting to cast object with id: {} to an incompatible type: {}. Type is {}".format(id, str(object_type), type(o)))
         return o

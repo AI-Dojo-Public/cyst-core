@@ -191,7 +191,7 @@ class AccessConfiguration(ABC):
     @abstractmethod
     def create_authentication_provider(self, provider_type: AuthenticationProviderType,
                                        token_type: AuthenticationTokenType, security: AuthenticationTokenSecurity,
-                                       timeout: int) -> AuthenticationProvider:
+                                       ip: Optional[IPAddress], timeout: int) -> AuthenticationProvider:
         pass
 
     @abstractmethod
@@ -224,7 +224,9 @@ class AccessConfiguration(ABC):
         pass
 
     @abstractmethod
-    def evaluate_token_for_service(self, service: Service, token: AuthenticationToken, node: Node) -> Optional[Union[Authorization, AuthenticationTarget]]:
+    def evaluate_token_for_service(self, service: Service, token: AuthenticationToken, node: Node,
+                                   fallback_ip: Optional[IPAddress])\
+            -> Optional[Union[Authorization, AuthenticationTarget]]:
         pass
 
 

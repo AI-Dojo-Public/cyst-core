@@ -99,12 +99,12 @@ class METAInterpreter(ActionInterpreter):
                                                       "Service does not exist on this node", session=message.session,
                                                       authorization=message.auth)
 
-        result = self._configuration.access.evaluate_token_for_service(s, token, node)
+        result = self._configuration.access.evaluate_token_for_service(s, token, node, message.dst_ip)
 
         if result is None:
             return 0, self._messaging.create_response(message, Status(StatusOrigin.SERVICE, StatusValue.FAILURE,
                                                                       StatusDetail.AUTHENTICATION_NOT_APPLICABLE),
-                                                      "token invalid for this service", session=message.session,
+                                                      "Token invalid for this service", session=message.session,
                                                       authorization=message.auth)
 
         if isinstance(result, AuthenticationTarget):
