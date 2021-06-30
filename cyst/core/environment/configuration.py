@@ -3,7 +3,8 @@ from typing import List, Union, Optional, Dict, Any, Type, Tuple
 from cyst.api.environment.configuration import GeneralConfiguration, ObjectType, ConfigurationObjectType
 from cyst.api.configuration.configuration import ConfigItem
 from cyst.api.configuration.host.service import ActiveServiceConfig, PassiveServiceConfig
-from cyst.api.configuration.logic.access import AuthorizationConfig, AuthenticationProviderConfig, AccessSchemeConfig, AuthorizationDomainConfig, FederatedAuthorizationConfig
+from cyst.api.configuration.logic.access import AuthorizationConfig, AuthenticationProviderConfig, AccessSchemeConfig, \
+    AuthorizationDomainConfig, FederatedAuthorizationConfig
 from cyst.api.configuration.logic.data import DataConfig
 from cyst.api.configuration.logic.exploit import VulnerableServiceConfig, ExploitParameterConfig, ExploitConfig
 from cyst.api.configuration.network.elements import PortConfig, InterfaceConfig, ConnectionConfig
@@ -141,18 +142,18 @@ class Configurator:
     def _process_PassiveServiceConfig(self, cfg: PassiveServiceConfig) -> str:
         self._refs[cfg.id] = cfg
         self._passive_services.append(cfg)
-        
+
         public_data_ids = []
         private_data_ids = []
         public_auth_ids = []
         private_auth_ids = []
-        
+
         for data in cfg.public_data:
             if isinstance(data, str):
                 public_data_ids.append(data)
             else:
                 public_data_ids.append(self._process_cfg_item(data))
-        
+
         for data in cfg.private_data:
             if isinstance(data, str):
                 private_data_ids.append(data)
@@ -191,7 +192,7 @@ class Configurator:
             else:
                 access_scheme_ids.append(self._process_cfg_item(scheme))
         cfg.access_schemes = access_scheme_ids
-        
+
         return cfg.id
 
     def _process_AuthorizationConfig(self, cfg: AuthorizationConfig) -> str:
@@ -277,9 +278,10 @@ class Configurator:
     # ------------------------------------------------------------------------------------------------------------------
     # Gather all configuration items
     # TODO: Return of Environment is an artifact of previous development. Need to change it to something more useful
-    def configure(self, env: Optional[Environment], *configs: Union[NetworkConfig, ConnectionConfig, RouterConfig, NodeConfig,
-                                                                    InterfaceConfig, ActiveServiceConfig, PassiveServiceConfig,
-                                                                    AuthorizationConfig, DataConfig]) -> Environment:
+    def configure(self, env: Optional[Environment],
+                  *configs: Union[NetworkConfig, ConnectionConfig, RouterConfig, NodeConfig,
+                                  InterfaceConfig, ActiveServiceConfig, PassiveServiceConfig,
+                                  AuthorizationConfig, DataConfig]) -> Environment:
         if not env:
             self._env = Environment.create()
         else:
@@ -311,7 +313,7 @@ class Configurator:
         # Prepare authentication tokens based on the authorizations in access schemes
         for scheme in self._access_schemes:
 
-            scheme_instance = self._env.configuration.access.create_access_scheme(scheme.id)
+            scheme_instance = self._env.configuration.access.create_access_scheme()
             self._obj_refs[scheme.id] = scheme_instance
 
             authorization_domain = self._refs[scheme.authorization_domain]
@@ -319,14 +321,14 @@ class Configurator:
             # Go through all providers and if they do not exist instantiate them
             for provider_id in scheme.authentication_providers:
                 provider_conf: AuthenticationProviderConfig = self._refs[provider_id]
-                provider = None
 
                 if provider_id not in self._obj_refs:
-                    provider = self._env.configuration.access.create_authentication_provider(provider_conf.provider_type,
-                                                                                             provider_conf.token_type,
-                                                                                             provider_conf.token_security,
-                                                                                             provider_conf.ip,
-                                                                                             provider_conf.timeout)
+                    provider = self._env.configuration.access.create_authentication_provider(
+                        provider_conf.provider_type,
+                        provider_conf.token_type,
+                        provider_conf.token_security,
+                        provider_conf.ip,
+                        provider_conf.timeout)
                     self._obj_refs[provider_id] = provider
                 else:
                     provider = self._obj_refs[provider_id]
@@ -339,9 +341,14 @@ class Configurator:
                         identity = auth.identity
                         self._env.configuration.access.create_and_register_authentication_token(provider, identity)
 
-                        authorization = self._env.configuration.access.create_authorization(auth.identity, auth.access_level, auth.id) \
-                                        if not isinstance(auth, FederatedAuthorizationConfig) else \
-                                        self._env.configuration.access.create_authorization(auth.identity, auth.access_level, auth.id, auth.nodes, auth.services)
+                        # WARN: this creates authorizations with services = ["*"], nodes = ["*"] if not Federated is
+                        # created, when the authorization process is
+                        # done, these are only used as templates so should not be a problem
+                        authorization = self._env.configuration.access.create_authorization(auth.identity,
+                                                                                            auth.access_level, auth.id)\
+                            if not isinstance(auth, FederatedAuthorizationConfig) else \
+                            self._env.configuration.access.create_authorization(auth.identity, auth.access_level,
+                                                                                auth.id, auth.nodes, auth.services)
 
                         self._obj_refs[auth.id] = authorization
                         self._env.configuration.access.add_authorization_to_scheme(authorization, scheme_instance)
@@ -361,17 +368,20 @@ class Configurator:
 
             services = []
             for s in exploit.services:
-                service = self._env.configuration.exploit.create_vulnerable_service(s.name, s.min_version, s.max_version)
+                service = self._env.configuration.exploit.create_vulnerable_service(s.name, s.min_version,
+                                                                                    s.max_version)
                 services.append(service)
 
-            e = self._env.configuration.exploit.create_exploit(exploit.id, services, exploit.locality, exploit.category, *params)
+            e = self._env.configuration.exploit.create_exploit(exploit.id, services, exploit.locality, exploit.category,
+                                                               *params)
 
             self._env.configuration.exploit.add_exploit(e)
 
         # 2) Passive Services
         passive_service_obj = {}
         for service in self._passive_services:
-            s = self._env.configuration.service.create_passive_service(service.type, service.owner, service.version, service.local, service.access_level)
+            s = self._env.configuration.service.create_passive_service(service.type, service.owner, service.version,
+                                                                       service.local, service.access_level)
 
             for d in service.public_data:
                 self._env.configuration.service.public_data(s.passive_service).append(self._obj_refs[d])
@@ -387,10 +397,12 @@ class Configurator:
 
             for prov in service.authentication_providers:
                 self._env.configuration.service.provides_auth(s,
-                                self._obj_refs[prov.id if isinstance(prov, AuthenticationProviderConfig) else prov])
+                                                              self._obj_refs[prov.id if isinstance(prov,
+                                                                            AuthenticationProviderConfig) else prov])
 
             for scheme in service.access_schemes:
-                self._env.configuration.service.set_scheme(s, self._obj_refs[scheme.id if isinstance(scheme, AccessSchemeConfig) else scheme])
+                self._env.configuration.service.set_scheme(s, self._obj_refs[
+                    scheme.id if isinstance(scheme, AccessSchemeConfig) else scheme])
 
             passive_service_obj[service.id] = s
             self._obj_refs[service.id] = s
@@ -413,7 +425,9 @@ class Configurator:
 
             for service in node.active_services:
                 service_cfg: ActiveServiceConfig = self._refs[service]
-                s = self._env.configuration.service.create_active_service(service_cfg.type, service_cfg.owner, service_cfg.name, n, service_cfg.access_level, service_cfg.configuration)
+                s = self._env.configuration.service.create_active_service(service_cfg.type, service_cfg.owner,
+                                                                          service_cfg.name, n, service_cfg.access_level,
+                                                                          service_cfg.configuration)
                 self._obj_refs[service_cfg.id] = s
                 self._env.configuration.node.add_service(n, s)
 
@@ -459,7 +473,9 @@ class Configuration(GeneralConfiguration):
 
         c = self._configurator.get_configuration_by_id(id)
         if not isinstance(c, configuration_type):
-            raise AttributeError("Attempting to cast configuration object with id: {} to an incompatible type: {}".format(id, str(configuration_type)))
+            raise AttributeError(
+                "Attempting to cast configuration object with id: {} to an incompatible type: {}".format(id,
+                                                                                                         str(configuration_type)))
         return c
 
     def get_object_by_id(self, id: str, object_type: Type[ObjectType]) -> ObjectType:
@@ -467,5 +483,7 @@ class Configuration(GeneralConfiguration):
         o = self._configurator.get_object_by_id(id)
         if not isinstance(o, object_type):
             raise AttributeError(
-                "Attempting to cast object with id: {} to an incompatible type: {}. Type is {}".format(id, str(object_type), type(o)))
+                "Attempting to cast object with id: {} to an incompatible type: {}. Type is {}".format(id,
+                                                                                                       str(object_type),
+                                                                                                       type(o)))
         return o

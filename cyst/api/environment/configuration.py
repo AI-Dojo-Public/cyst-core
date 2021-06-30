@@ -130,7 +130,7 @@ class ServiceConfiguration(ABC):
         pass
 
     @abstractmethod
-    def provides_auth(self, service: PassiveService, auth_provider: AuthenticationProvider):
+    def provides_auth(self, service: Service, auth_provider: AuthenticationProvider):
         pass
 
     @abstractmethod

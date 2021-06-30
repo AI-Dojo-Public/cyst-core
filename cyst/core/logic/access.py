@@ -34,7 +34,7 @@ class AuthorizationImpl(Authorization):
         self._services = services
         self._access_level = access_level
         self._token = token
-        self._expiration = -1 # TODO
+        self._expiration = -1  # TODO
 
     def __eq__(self, other: 'Authorization') -> bool:
         if not other:
@@ -55,7 +55,7 @@ class AuthorizationImpl(Authorization):
 
     @id.setter
     def id(self, value: str) -> None:
-        self._d = value
+        self._id = value
 
     @property
     def identity(self) -> str:
@@ -98,7 +98,12 @@ class AuthorizationImpl(Authorization):
         self._token = value
 
     def __str__(self) -> str:
-        return "[Id: {}, Identity: {}, Nodes: {}, Services: {}, Access Level: {}, Token: {}]".format(self.id, self.identity, self.nodes, self.services, self.access_level.name, self.token)
+        return "[Id: {}, Identity: {}, Nodes: {}, Services: {}, Access Level: {}, Token: {}]".format(self.id,
+                                                                                                     self.identity,
+                                                                                                     self.nodes,
+                                                                                                     self.services,
+                                                                                                     self.access_level.name,
+                                                                                                     self.token)
 
     def __repr__(self) -> str:
         return self.__str__()
@@ -271,8 +276,8 @@ class Policy(EnvironmentPolicy):
 
 class AuthenticationTokenImpl(AuthenticationToken):
 
-    def __init__(self, type: AuthenticationTokenType, security: AuthenticationTokenSecurity, identity: str):
-        self._type = type
+    def __init__(self, token_type: AuthenticationTokenType, security: AuthenticationTokenSecurity, identity: str):
+        self._type = token_type
         self._security = security
         self._identity = identity
 
@@ -293,7 +298,7 @@ class AuthenticationTokenImpl(AuthenticationToken):
     def identity(self) -> str:
         return self._identity
 
-    def copy(self) -> Optional['AuthenticationToken']:
+    def copy(self) -> Optional[AuthenticationToken]:
         pass # TODO different uuid needed????
 
     @property
@@ -375,7 +380,6 @@ class AuthenticationProviderImpl(AuthenticationProvider):
             raise RuntimeError("Non-local provider needs ip address")
         self._set_address(ip)
 
-
     @property
     def type(self) -> AuthenticationProviderType:
         return self._provider_type
@@ -405,12 +409,12 @@ class AuthenticationProviderImpl(AuthenticationProvider):
 
     def _create_target(self):
         # TODO: inherit from provider? or should we do something else?
-        return  AuthenticationTargetImpl([self._token_type])
+        return AuthenticationTargetImpl([self._token_type])
 
-    def set_service(self, id: str):
+    def set_service(self, srv_id: str):
 
         if self._target.service is None:
-            self._target.service = id
+            self._target.service = srv_id
         else:
             raise RuntimeError  # TODO check what should be done here, exception might be too harsh
 

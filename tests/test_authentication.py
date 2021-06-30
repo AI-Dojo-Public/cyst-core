@@ -10,18 +10,18 @@ from cyst.api.network.node import Node
 from cyst.api.logic.access import AuthenticationProvider, Authorization, AuthenticationTarget
 from cyst.core.logic.access import AuthenticationProviderImpl
 from cyst.core.logic.access import AuthenticationTokenImpl
-from cyst.core.environment.environment import _Environment
 
-local_password_auth = AuthenticationProviderConfig \
-        (
+
+local_password_auth = AuthenticationProviderConfig\
+    (
         provider_type=AuthenticationProviderType.LOCAL,
         token_type=AuthenticationTokenType.PASSWORD,
         token_security=AuthenticationTokenSecurity.SEALED,
         timeout=30
     )
 
-remote_email_auth = AuthenticationProviderConfig \
-        (
+remote_email_auth = AuthenticationProviderConfig\
+    (
         provider_type=AuthenticationProviderType.REMOTE,
         token_type=AuthenticationTokenType.PASSWORD,
         token_security=AuthenticationTokenSecurity.SEALED,
@@ -29,8 +29,8 @@ remote_email_auth = AuthenticationProviderConfig \
         timeout=60
     )
 
-proxy_sso = AuthenticationProviderConfig \
-        (
+proxy_sso = AuthenticationProviderConfig\
+    (
         provider_type=AuthenticationProviderType.PROXY,
         token_type=AuthenticationTokenType.PASSWORD,
         token_security=AuthenticationTokenSecurity.SEALED,
@@ -174,24 +174,22 @@ class AuthenticationProcessTestSSH(unittest.TestCase):
     def setUpClass(cls) -> None:
         cls.env = Environment.create().configure(email_server, sso_server, target, router1, attacker1, *connections)
 
-        if isinstance(cls.env, _Environment):
-            node = cls.env.configuration.general.get_object_by_id("target_node", Node)
-            service = next(filter(lambda x: x.name == "ssh", node.services.values()))
-            provider = cls.env.configuration.general.get_object_by_id("ssh_service_local_auth_id",
-                                                                      AuthenticationProvider)
-            token = None
-            if isinstance(provider, AuthenticationProviderImpl):
-                token = next(iter(provider._tokens))
+        node = cls.env.configuration.general.get_object_by_id("target_node", Node)
+        service = next(filter(lambda x: x.name == "ssh", node.services.values()))
+        provider = cls.env.configuration.general.get_object_by_id("ssh_service_local_auth_id",
+                                                                  AuthenticationProvider)
+        token = None
+        if isinstance(provider, AuthenticationProviderImpl):
+            token = next(iter(provider._tokens))
 
-            assert None not in [node, service, provider, token]
+        assert None not in [node, service, provider, token]
 
-            cls.node = node
-            cls.service = service
-            cls.token = token
+        cls.node = node
+        cls.service = service
+        cls.token = token
 
     def test_000_invalid_token(self):
-
-        result = self.env.evaluate_token_for_service(self.service,
+        result = self.env.evaluate_token_for_service(self.service,  # the method is not in the Environment API, so we need to know we are dealing with an _Environment, is that ok?
                                                      AuthenticationTokenImpl(
                                                          AuthenticationTokenType.PASSWORD,
                                                          AuthenticationTokenSecurity.OPEN,
@@ -213,26 +211,25 @@ class AuthenticationProcessTestSSH(unittest.TestCase):
         self.assertEqual(result.access_level, AccessLevel.LIMITED, "Mismatched access level")
 
 
-class AuthenticationProcessTestCustom(unittest.TestCase):
+class AuthenticationProcessTestCustomService(unittest.TestCase):
 
     @classmethod
     def setUpClass(cls) -> None:
         cls.env = Environment.create().configure(email_server, sso_server, target, router1, attacker1, *connections)
 
-        if isinstance(cls.env, _Environment):
-            node = cls.env.configuration.general.get_object_by_id("target_node", Node)
-            service = next(filter(lambda x: x.name == "my_custom_service", node.services.values()))
-            provider = cls.env.configuration.general.get_object_by_id("my_custom_service_auth_id",
-                                                                      AuthenticationProvider)
-            token = None
-            if isinstance(provider, AuthenticationProviderImpl):
-                token = next(iter(provider._tokens))
+        node = cls.env.configuration.general.get_object_by_id("target_node", Node)
+        service = next(filter(lambda x: x.name == "my_custom_service", node.services.values()))
+        provider = cls.env.configuration.general.get_object_by_id("my_custom_service_auth_id",
+                                                                  AuthenticationProvider)
+        token = None
+        if isinstance(provider, AuthenticationProviderImpl):
+            token = next(iter(provider._tokens))
 
-            assert None not in [node, service, provider, token]
+        assert None not in [node, service, provider, token]
 
-            cls.node = node
-            cls.service = service
-            cls.token = token
+        cls.node = node
+        cls.service = service
+        cls.token = token
 
     def test_000_valid_token_get_next_target(self):
         result = self.env.evaluate_token_for_service(self.service,
@@ -240,14 +237,16 @@ class AuthenticationProcessTestCustom(unittest.TestCase):
                                                      self.node,
                                                      IPAddress("0.0.0.0"))
 
-        target_service = next(filter(lambda s: s.name == "email_srv", self.env.configuration.general.get_object_by_id("email_server_node", Node).services.values()))
+        target_service = next(filter(lambda s: s.name == "email_srv",
+                                     self.env.configuration.general.get_object_by_id(
+                                         "email_server_node", Node).services.values())
+                              )
 
         self.assertIsInstance(result, AuthenticationTarget, "The object is not an AuthenticationTarget")
         self.assertEqual(result.service, target_service.id, "Target service mismatch")
-        self.assertEqual(result.address, remote_email_auth.ip)
+        self.assertEqual(result.address, remote_email_auth.ip, "Target ip mismatch")
 
     def test_001_invalid_token(self):
-
         result = self.env.evaluate_token_for_service(self.service,
                                                      AuthenticationTokenImpl(
                                                          AuthenticationTokenType.PASSWORD,

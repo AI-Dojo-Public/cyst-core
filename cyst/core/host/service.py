@@ -175,6 +175,3 @@ class PassiveServiceImpl(ServiceImpl, PassiveService):
         else:
             raise ValueError("Malformed underlying object passed with the PassiveService interface")
 
-    @property
-    def provided_auths(self):
-        return self._provided_auths

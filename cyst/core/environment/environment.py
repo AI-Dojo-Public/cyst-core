@@ -415,8 +415,9 @@ class _Environment(Environment, EnvironmentControl, EnvironmentMessaging, Enviro
     def sessions(self, service: PassiveService) -> List[Session]:
         return PassiveServiceImpl.cast_from(service).sessions
 
-    def provides_auth(self, service: PassiveService, auth_provider: AuthenticationProvider):
-        return PassiveServiceImpl.cast_from(service).add_provider(auth_provider)
+    def provides_auth(self, service: Service, auth_provider: AuthenticationProvider):
+        if isinstance(service, PassiveService):
+            return PassiveServiceImpl.cast_from(service).add_provider(auth_provider)
 
     def set_scheme(self, service: PassiveService, scheme: AccessScheme):
         return PassiveServiceImpl.cast_from(service).add_access_scheme(scheme)
@@ -531,9 +532,8 @@ class _Environment(Environment, EnvironmentControl, EnvironmentMessaging, Enviro
             services=services
         )
 
-    def create_access_scheme(self, id: str) -> AccessScheme:
+    def create_access_scheme(self) -> AccessScheme:
         scheme = AccessSchemeImpl()
-        scheme.add_identity(id)
         return scheme
 
     def add_provider_to_scheme(self, provider: AuthenticationProvider, scheme: AccessScheme):
