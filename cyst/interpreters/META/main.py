@@ -67,7 +67,7 @@ class METAInterpreter(ActionInterpreter):
             return 0, self._messaging.create_response(message, Status(StatusOrigin.NETWORK, StatusValue.FAILURE), error, session=message.session)
 
         return 1, self._messaging.create_response(message, Status(StatusOrigin.NODE, StatusValue.SUCCESS),
-                                                  node, session=message.session, authorization=message.auth)
+                                                  node, session=message.session, auth=message.auth)
 
     def process_authenticate(self, message: Request, node: Node) -> Tuple[int, Response]:
         # To authenticate, an actor has to go through all the phases in the authentication scheme.
@@ -90,33 +90,36 @@ class METAInterpreter(ActionInterpreter):
 
         if not token_found:
             return 0, self._messaging.create_response(message, Status(StatusOrigin.SERVICE, StatusValue.FAILURE, StatusDetail.AUTHENTICATION_NOT_PROVIDED),
-                                                      "No auth token provided", session=message.session, authorization=message.auth)
+                                                      "No auth token provided", session=message.session, auth=message.auth)
 
+        #  check if node has the target service
         s = node.services.get(dst_service)
         if s is None:
             return 0, self._messaging.create_response(message, Status(StatusOrigin.SERVICE, StatusValue.FAILURE,
                                                                       StatusDetail.AUTHENTICATION_NOT_PROVIDED),
                                                       "Service does not exist on this node", session=message.session,
-                                                      authorization=message.auth)
+                                                      auth=message.auth)
 
+
+        #  evaluate the token
         result = self._configuration.access.evaluate_token_for_service(s, token, node, message.dst_ip)
 
         if result is None:
             return 0, self._messaging.create_response(message, Status(StatusOrigin.SERVICE, StatusValue.FAILURE,
                                                                       StatusDetail.AUTHENTICATION_NOT_APPLICABLE),
                                                       "Token invalid for this service", session=message.session,
-                                                      authorization=message.auth)
+                                                      auth=message.auth)
 
         if isinstance(result, AuthenticationTarget):
             return 0, self._messaging.create_response(message, Status(StatusOrigin.SERVICE, StatusValue.FAILURE,
                                                                       StatusDetail.AUTHENTICATION_NEXT),
                                                       "Continue with next factor", session=message.session,
-                                                      authorization=result)
+                                                      auth=result)
 
         if isinstance(result, Authorization):
             return 0, self._messaging.create_response(message, Status(StatusOrigin.SERVICE, StatusValue.SUCCESS),
                                                       "Authorized", session=message.session,
-                                                      authorization=result)
+                                                      auth=result)
 
 
 

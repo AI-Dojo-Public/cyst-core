@@ -34,5 +34,5 @@ class EnvironmentProxy(EnvironmentMessaging):
         return self._env.create_request(dst_ip, dst_service, action, session, authorization)
 
     def create_response(self, request: Request, status: Status, content: Optional[Any] = None,
-                        session: Optional[Session] = None, authorization: Optional[Authorization] = None):
-        return self._env.create_response(request, status, content, session, authorization)
+                        session: Optional[Session] = None, auth: Optional[Authorization] = None):
+        return self._env.create_response(request, status, content, session, auth)

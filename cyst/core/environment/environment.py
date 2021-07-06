@@ -121,10 +121,10 @@ class _Environment(Environment, EnvironmentControl, EnvironmentMessaging, Enviro
         return request
 
     def create_response(self, request: Request, status: Status, content: Optional[Any] = None,
-                        session: Optional[Session] = None, authorization: Optional[Authorization] = None) -> Response:
+                        session: Optional[Session] = None, auth: Optional[Authorization] = None) -> Response:
         # Let's abuse the duck typing and "cast" Request to RequestImpl
         if isinstance(request, RequestImpl):
-            response = ResponseImpl(request, status, content, session, authorization)
+            response = ResponseImpl(request, status, content, session, auth)
             return response
         else:
             raise ValueError("Malformed request passed to create a response from")
