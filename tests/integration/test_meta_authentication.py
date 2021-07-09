@@ -397,3 +397,28 @@ class TestMetaAuth(unittest.TestCase):
         self.assertEqual((True, EnvironmentState.PAUSED), (result, state), "Task run failed.")
         self.assertIsInstance(message.auth, Authorization, "AuthenticationToken was not swapped for authorization")
         self.assertEqual(message.content, "Service ssh at node 192.168.0.4 does not enable session creation.", "bad description")
+
+    def test_007_auto_good_token_more_factors_remaining(self):
+
+        action = self._actions["aif:ensure_access:command_and_control"]
+        self.assertIsNotNone(action, "Action unavailable")
+
+        self._attacker.execute_action(
+            "192.168.0.4",
+            "my_custom_service",
+            action,
+            auth=self._custom_token
+        )
+
+        result, state = self._env.control.run()
+        message = self._attacker.get_last_response()
+
+        self.assertEqual((True, EnvironmentState.PAUSED), (result, state), "Task run failed.")
+
+        self.assertEqual(message.status, Status(StatusOrigin.SERVICE,
+                                                StatusValue.FAILURE,
+                                                StatusDetail.AUTHENTICATION_NEXT),
+                         "Bad state")
+        self.assertIsInstance(message.auth, AuthenticationTarget, "Bad object type")
+        self.assertEqual(message.auth.address, remote_email_auth.ip, "Bad target address")
+        self.assertEqual(message.content, "Continue with next factor", "Bad error message")
