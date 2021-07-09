@@ -16,7 +16,7 @@ class EnvironmentMessaging(ABC):
 
     @abstractmethod
     def create_request(self, dst_ip: Union[str, IPAddress], dst_service: str = "", action: Action = None,
-                       session: Session = None, authorization: Optional[Union[Authorization, AuthenticationToken]] = None) -> Request:
+                       session: Session = None, auth: Optional[Union[Authorization, AuthenticationToken]] = None) -> Request:
         pass
 
     @abstractmethod

@@ -70,3 +70,7 @@ class Action(ABC):
     @abstractmethod
     def tokens(self) -> List[Tuple[ActionToken, ActionToken]]:
         pass
+
+    @abstractmethod
+    def copy(self):
+        pass

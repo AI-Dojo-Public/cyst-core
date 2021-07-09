@@ -69,7 +69,7 @@ class METAInterpreter(ActionInterpreter):
         return 1, self._messaging.create_response(message, Status(StatusOrigin.NODE, StatusValue.SUCCESS),
                                                   node, session=message.session, auth=message.auth)
 
-    def process_authenticate(self, message: Request, node: Node, auth_token: AuthenticationToken=None) -> Tuple[int, Response]:
+    def process_authenticate(self, message: Request, node: Node) -> Tuple[int, Response]:
         # To authenticate, an actor has to go through all the phases in the authentication scheme.
         # After each factor in authentication scheme is passed, the actor is given an authorization, which enables them
         # to attempt a next step. If it is the last step, the full authorization for this authentication scheme is
@@ -80,18 +80,13 @@ class METAInterpreter(ActionInterpreter):
         dst_node = str(message.dst_ip)
         dst_service = message.dst_service
 
-        # First of all, check if the message contains authentication token, primary is token from action
+        # First of all, check if the message contains authentication token
         token_found = False
         token = None
         for parameter in message.action.parameters:
             if parameter.action_type == ActionParameterType.TOKEN and isinstance(parameter.value, AuthenticationToken):
                 token_found = True
                 token = parameter.value
-
-        # as a fallback check if token was provided as arg, this means we have auto-authentication
-        if token is None and auth_token is not None:
-            token = auth_token
-            token_found = True
 
 
         if not token_found:

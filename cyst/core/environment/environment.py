@@ -15,14 +15,15 @@ from cyst.api.environment.configuration import EnvironmentConfiguration, General
 from cyst.api.environment.messaging import EnvironmentMessaging
 from cyst.api.environment.policy import EnvironmentPolicy
 from cyst.api.environment.resources import EnvironmentResources
-from cyst.api.environment.message import Message, MessageType, Request, StatusValue, StatusOrigin, Status, Response
+from cyst.api.environment.message import Message, MessageType, Request, StatusValue, StatusOrigin, Status, Response, \
+    StatusDetail
 from cyst.api.environment.interpreter import ActionInterpreterDescription
 from cyst.api.environment.stores import ActionStore, ExploitStore
 from cyst.api.network.elements import Interface, Route
 from cyst.api.network.node import Node
 from cyst.api.logic.access import Authorization, AccessLevel, AuthenticationToken, AuthenticationProvider, \
     AuthenticationTokenSecurity, AuthenticationTokenType, AuthenticationProviderType, AccessScheme, AuthenticationTarget
-from cyst.api.logic.action import Action
+from cyst.api.logic.action import Action, ActionParameter, ActionParameterType
 from cyst.api.logic.data import Data
 from cyst.api.logic.exploit import VulnerableService, ExploitParameter, ExploitParameterType, ExploitLocality, \
     ExploitCategory, Exploit
@@ -508,8 +509,8 @@ class _Environment(Environment, EnvironmentControl, EnvironmentMessaging, Enviro
         return AuthenticationProviderImpl(provider_type, token_type, security, ip, timeout)
 
     def create_authentication_token(self, type: AuthenticationTokenType, security: AuthenticationTokenSecurity,
-                                    identity: str) -> AuthenticationToken:
-        return AuthenticationTokenImpl(type, security, identity)
+                                    identity: str, is_local: bool) -> AuthenticationToken:
+        return AuthenticationTokenImpl(type, security, identity, is_local)
 
     def register_authentication_token(self, provider: AuthenticationProvider, token: AuthenticationToken) -> bool:
         if isinstance(provider, AuthenticationProviderImpl):
@@ -521,7 +522,8 @@ class _Environment(Environment, EnvironmentControl, EnvironmentMessaging, Enviro
     def create_and_register_authentication_token(self, provider: AuthenticationProvider, identity: str) -> Optional[
         AuthenticationToken]:
         if isinstance(provider, AuthenticationProviderImpl):
-            token = self.create_authentication_token(provider.token_type, provider.security, identity)
+            token = self.create_authentication_token(provider.token_type, provider.security, identity,
+                                                True if provider.type == AuthenticationProviderType.LOCAL else False)
             self.register_authentication_token(provider, token)
             return token
 
@@ -735,16 +737,29 @@ class _Environment(Environment, EnvironmentControl, EnvironmentMessaging, Enviro
         time = 0
         response = None
 
+        message = RequestImpl.cast_from(message)
+
         # TODO: auto-authentication here, maybe??
         if message.auth and isinstance(message.auth, AuthenticationToken):
-            meta_interpreter: METAInterpreter = self._interpreters["meta"]
-            auth_time, auth_response = meta_interpreter.process_authenticate(message, node, message.auth) # must give auth, as process wont look for this by default
+            if not AuthenticationTokenImpl.is_local_instance(message.auth):
+                return time, self.messaging.create_response(message, Status(StatusOrigin.SERVICE,
+                                                                            StatusValue.FAILURE,
+                                                                            StatusDetail.AUTHENTICATION_NOT_APPLICABLE),
+                                                            "Auto-authentication does not work with non-local tokens",
+                                                            session=message.session, auth=message.auth)
+            # TODO: assess if locality check makes sense
+            original_action = message.action
+            auth_action = self.action_store.get("meta:authenticate").copy()
+            auth_action.add_parameters(ActionParameter(ActionParameterType.TOKEN, message.auth))
+            message.action = auth_action  # swap to authentication
+            auth_time, auth_response = self._interpreters["meta"].evaluate(message, node)
 
             if auth_response.status.value == StatusValue.FAILURE:  # not authorized
                 return auth_time, auth_response
 
             message.auth = auth_response.auth  # if authentication successful, swap auth token for authorization
-        # and continue to action
+            message.action = original_action   # swap back original action
+        #  and continue to action
 
         # TODO: In light of tags abandonment, how to deal with splitting id into namespace and action name
         if message.action.namespace in self._interpreters:

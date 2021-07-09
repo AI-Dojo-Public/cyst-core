@@ -32,7 +32,7 @@ class ScriptedAttacker(ActiveService, ScriptedAttackerControl):
 
     def execute_action(self, target: str, service: str, action: Action, session: Session = None,
                        auth: Optional[Union[Authorization, AuthenticationToken]] = None) -> None:
-        request = self._env.create_request(target, service, action, session=session, authorization=auth)
+        request = self._env.create_request(target, service, action, session=session, auth=auth)
         self._env.send_message(request)
 
     def process_message(self, message: Message) -> Tuple[bool, int]:

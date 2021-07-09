@@ -276,10 +276,12 @@ class Policy(EnvironmentPolicy):
 
 class AuthenticationTokenImpl(AuthenticationToken):
 
-    def __init__(self, token_type: AuthenticationTokenType, security: AuthenticationTokenSecurity, identity: str):
+    def __init__(self, token_type: AuthenticationTokenType, security: AuthenticationTokenSecurity, identity: str,
+                 is_local: bool):
         self._type = token_type
         self._security = security
         self._identity = identity
+        self._is_local = is_local
 
         # create data according to the security
         # TODO: Until the concept of sealed data is introduced in the code, all is assumed to be OPEN
@@ -289,6 +291,10 @@ class AuthenticationTokenImpl(AuthenticationToken):
     @property
     def type(self) -> AuthenticationTokenType:
         return self._type
+
+    @property
+    def is_local(self):
+        return self._is_local
 
     @property
     def security(self) -> AuthenticationTokenSecurity:
@@ -304,6 +310,12 @@ class AuthenticationTokenImpl(AuthenticationToken):
     @property
     def content(self) -> Optional[Data]:
         return self._content
+
+    @staticmethod
+    def is_local_instance(obj: AuthenticationToken):
+        if isinstance(obj, AuthenticationTokenImpl):
+            return obj.is_local
+        return False
 
 
 class AuthenticationTargetImpl(AuthenticationTarget):

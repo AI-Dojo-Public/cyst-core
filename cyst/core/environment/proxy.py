@@ -30,8 +30,8 @@ class EnvironmentProxy(EnvironmentMessaging):
         self._env.send_message(message, delay)
 
     def create_request(self, dst_ip: Union[str, IPAddress], dst_service: str = "",
-                       action: Action = None, session: Session = None, authorization: Authorization = None) -> Request:
-        return self._env.create_request(dst_ip, dst_service, action, session, authorization)
+                       action: Action = None, session: Session = None, auth: Authorization = None) -> Request:
+        return self._env.create_request(dst_ip, dst_service, action, session, auth)
 
     def create_response(self, request: Request, status: Status, content: Optional[Any] = None,
                         session: Optional[Session] = None, auth: Optional[Authorization] = None):

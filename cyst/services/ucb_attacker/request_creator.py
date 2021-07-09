@@ -32,7 +32,7 @@ class HostRequester(RequestCreator):
 
     def request(self, targeter: TargetSelector = None) -> Request:
         action = self._actions[self._rit.split("-")[0]]
-        request = self._messaging.create_request(str(targeter.host()), "", action=action, session=targeter.session(), authorization=None)
+        request = self._messaging.create_request(str(targeter.host()), "", action=action, session=targeter.session(), auth=None)
         return request
 
 
@@ -40,7 +40,7 @@ class ServiceRequester(RequestCreator):
 
     def request(self, targeter: TargetSelector = None) -> Request:
         action = self._actions[self._rit.split("-")[0]]
-        request = self._messaging.create_request(str(targeter.host()), targeter.service(), action=action, session=targeter.session(), authorization=None)
+        request = self._messaging.create_request(str(targeter.host()), targeter.service(), action=action, session=targeter.session(), auth=None)
         return request
 
 
@@ -48,7 +48,7 @@ class ServiceAuthRequester(RequestCreator):
 
     def request(self, targeter: TargetSelector = None) -> Request:
         action = self._actions[self._rit.split("-")[0]]
-        request = self._messaging.create_request(str(targeter.host()), targeter.service(), action=action, session=targeter.session(), authorization=targeter.auth())
+        request = self._messaging.create_request(str(targeter.host()), targeter.service(), action=action, session=targeter.session(), auth=targeter.auth())
         return request
 
 
@@ -57,7 +57,7 @@ class ServiceExploitRequester(RequestCreator):
     def request(self, targeter: TargetSelector = None) -> Request:
         action = self._actions[self._rit.split("-")[0]]
         action.set_exploit(self._resources.exploit_store.get_exploit(targeter.exploit())[0])
-        request = self._messaging.create_request(str(targeter.host()), targeter.service(), action=action, session=targeter.session(), authorization=None)
+        request = self._messaging.create_request(str(targeter.host()), targeter.service(), action=action, session=targeter.session(), auth=None)
         return request
 
 
@@ -66,7 +66,7 @@ class ServiceExploitAuthRequester(RequestCreator):
     def request(self, targeter: TargetSelector = None) -> Request:
         action = self._actions[self._rit.split("-")[0]]
         action.set_exploit(self._resources.exploit_store.get_exploit(targeter.exploit())[0])
-        request = self._messaging.create_request(str(targeter.host()), targeter.service(), action=action, session=targeter.session(), authorization=targeter.auth())
+        request = self._messaging.create_request(str(targeter.host()), targeter.service(), action=action, session=targeter.session(), auth=targeter.auth())
         return request
 
 
@@ -77,5 +77,5 @@ class LateralMovementRequester(RequestCreator):
         attacker_class = "ucb_attacker"
         # attacker_class += targeter.class_suffix()
         action.add_parameters(ActionParameter(ActionParameterType.ID, attacker_class))
-        request = self._messaging.create_request(str(targeter.host()), "", action, session=targeter.session(), authorization=targeter.auth())
+        request = self._messaging.create_request(str(targeter.host()), "", action, session=targeter.session(), auth=targeter.auth())
         return request

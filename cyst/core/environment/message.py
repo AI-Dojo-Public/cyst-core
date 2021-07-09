@@ -104,6 +104,7 @@ class MessageImpl(Message):
     def next_hop(self) -> Optional[Endpoint]:
         return self._next_hop
 
+
     # Next hop can be explicitly set by a switch, or can be taken from an active session
     def set_next_hop(self, origin_endpoint: Endpoint = None, destination_endpoint: Endpoint = None) -> None:
         if origin_endpoint and destination_endpoint:
@@ -219,6 +220,10 @@ class RequestImpl(MessageImpl, Request):
     @property
     def action(self) -> Action:
         return self._action
+
+    @action.setter
+    def action(self, value):
+        self._action = value
 
     def __str__(self) -> str:
         result = "Request: [ID: {}, Type: {}, Origin: {}, Source: {}, Target: {}, Destination service: {}, Source service: {}, Action: {}, Session: {}, Authorization: {}]"\

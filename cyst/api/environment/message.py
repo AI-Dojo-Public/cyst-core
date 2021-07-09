@@ -131,17 +131,9 @@ class Message(ABC):
 class Request(Message, ABC):
 
     @property
-    def auth(self):
-        return self._auth
-
-    @property
     @abstractmethod
     def action(self) -> Action:
         pass
-
-    @auth.setter
-    def auth(self, value):
-        self._auth = value
 
 
 class Response(Message, ABC):

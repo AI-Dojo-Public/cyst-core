@@ -207,11 +207,11 @@ class TestMetaAuth(unittest.TestCase):
 
         _action_list = cls._env.resources.action_store.get_prefixed("meta")
         for action in _action_list:
-            cls._actions[action.id] = action
+            cls._actions[action.id] = action.copy()
 
         _action_list = cls._env.resources.action_store.get_prefixed("aif")
         for action in _action_list:
-            cls._actions[action.id] = action
+            cls._actions[action.id] = action.copy()
 
         # create attacker
         attacker_service = cls._env.configuration.general.get_object_by_id("attacker_service", Service)
@@ -223,7 +223,7 @@ class TestMetaAuth(unittest.TestCase):
 
     def test_000_no_token_provided(self):
 
-        action = self._actions["meta:authenticate"]
+        action = self._actions["meta:authenticate"].copy()
 
         self.assertIsNotNone(action, "Authentication action unavailable")
 
@@ -246,7 +246,7 @@ class TestMetaAuth(unittest.TestCase):
 
     def test_001_bad_service(self):
 
-        action = self._actions["meta:authenticate"]
+        action = self._actions["meta:authenticate"].copy()
 
         self.assertIsNotNone(action, "Authentication action unavailable")
 
@@ -270,14 +270,15 @@ class TestMetaAuth(unittest.TestCase):
 
     def test_002_wrong_token(self):
 
-        action = self._actions["meta:authenticate"]
+        action = self._actions["meta:authenticate"].copy()
 
         self.assertIsNotNone(action, "Authentication action unavailable")
         action.add_parameters(ActionParameter(ActionParameterType.TOKEN,
                                                      AuthenticationTokenImpl(
                                                          AuthenticationTokenType.PASSWORD,
                                                          AuthenticationTokenSecurity.OPEN,
-                                                         identity="user1"
+                                                         identity="user1",
+                                                         is_local=True
                                                      )
                                              )
                               )
@@ -301,7 +302,7 @@ class TestMetaAuth(unittest.TestCase):
 
     def test_003_good_token_get_auth(self):
 
-        action = self._actions["meta:authenticate"]
+        action = self._actions["meta:authenticate"].copy()
         self.assertIsNotNone(action, "Authentication action unavailable")
         action.add_parameters(ActionParameter(ActionParameterType.TOKEN, self._ssh_token))
 
@@ -326,7 +327,7 @@ class TestMetaAuth(unittest.TestCase):
 
     def test_004_good_token_get_next_target(self):
 
-        action = self._actions["meta:authenticate"]
+        action = self._actions["meta:authenticate"].copy()
         self.assertIsNotNone(action, "Authentication action unavailable")
         action.add_parameters(ActionParameter(ActionParameterType.TOKEN, self._custom_token))
 
@@ -352,7 +353,7 @@ class TestMetaAuth(unittest.TestCase):
 
     def test_005_auto_authentication_bad_token(self):
 
-        action = self._actions["aif:ensure_access:command_and_control"]
+        action = self._actions["aif:ensure_access:command_and_control"].copy()
         self.assertIsNotNone(action, "Action unavailable")
 
 
@@ -363,7 +364,8 @@ class TestMetaAuth(unittest.TestCase):
             auth = AuthenticationTokenImpl(
                 AuthenticationTokenType.PASSWORD,
                 AuthenticationTokenSecurity.OPEN,
-                identity="user1"
+                identity="user1",
+                is_local=True
             )
 
         )
@@ -381,7 +383,7 @@ class TestMetaAuth(unittest.TestCase):
 
     def test_006_auto_authentication_good_token(self):
 
-        action = self._actions["aif:ensure_access:command_and_control"]
+        action = self._actions["aif:ensure_access:command_and_control"].copy()
         self.assertIsNotNone(action, "Action unavailable")
 
         self._attacker.execute_action(
@@ -400,7 +402,7 @@ class TestMetaAuth(unittest.TestCase):
 
     def test_007_auto_good_token_more_factors_remaining(self):
 
-        action = self._actions["aif:ensure_access:command_and_control"]
+        action = self._actions["aif:ensure_access:command_and_control"].copy()
         self.assertIsNotNone(action, "Action unavailable")
 
         self._attacker.execute_action(
@@ -422,3 +424,35 @@ class TestMetaAuth(unittest.TestCase):
         self.assertIsInstance(message.auth, AuthenticationTarget, "Bad object type")
         self.assertEqual(message.auth.address, remote_email_auth.ip, "Bad target address")
         self.assertEqual(message.content, "Continue with next factor", "Bad error message")
+
+    def test_008_auto_authentication_non_local_token(self):
+
+        action = self._actions["aif:ensure_access:command_and_control"].copy()
+        self.assertIsNotNone(action, "Action unavailable")
+
+        self._attacker.execute_action(
+            "192.168.0.4",
+            "ssh",
+            action,
+            auth=AuthenticationTokenImpl(
+                AuthenticationTokenType.PASSWORD,
+                AuthenticationTokenSecurity.OPEN,
+                identity="user1",
+                is_local=False
+            )
+
+        )
+
+        result, state = self._env.control.run()
+        message = self._attacker.get_last_response()
+
+        self.assertEqual((True, EnvironmentState.PAUSED), (result, state), "Task run failed.")
+
+        self.assertEqual(message.status, Status(StatusOrigin.SERVICE,
+                                                StatusValue.FAILURE,
+                                                StatusDetail.AUTHENTICATION_NOT_APPLICABLE),
+                         "Bad state")
+        self.assertEqual(message.content, "Auto-authentication does not work with non-local tokens", "Bad error message")
+
+
+

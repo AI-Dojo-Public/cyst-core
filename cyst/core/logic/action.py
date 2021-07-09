@@ -53,3 +53,6 @@ class ActionImpl(Action):
             return o
         else:
             raise ValueError("Malformed underlying object passed with the Action interface")
+
+    def copy(self):
+        return ActionImpl(ActionDescription(self.id, self._description, self._tokens))
