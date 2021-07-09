@@ -80,7 +80,7 @@ class TestMETAIntegration(unittest.TestCase):
         action = self._actions["aif:ensure_access:command_and_control"]
         target = self._target.interfaces[0].ip
 
-        self._attacker.execute_action(str(target), "openssh", action, authorization=self._all_auth)
+        self._attacker.execute_action(str(target), "openssh", action, auth=self._all_auth)
 
         result, state = self._env.control.run()
         message = self._attacker.get_last_response()

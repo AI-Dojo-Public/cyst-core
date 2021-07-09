@@ -295,7 +295,7 @@ class TestAIFIntegration(unittest.TestCase):
         self.assertEqual((result, state), (True, EnvironmentState.PAUSED), "Task ran and was successfully paused.")
         self.assertEqual(message.status, Status(StatusOrigin.NODE, StatusValue.ERROR), "Failed because neither auth nor exploit were provided")
 
-        self._attacker.execute_action("192.168.0.2", "openssh", action, authorization=self._ssh_auth_1)
+        self._attacker.execute_action("192.168.0.2", "openssh", action, auth=self._ssh_auth_1)
 
         self._env.control.run()
         message = self._attacker.get_last_response()
@@ -310,7 +310,7 @@ class TestAIFIntegration(unittest.TestCase):
         good_exploit = self._env.resources.exploit_store.get_exploit(service="lighttpd", category=ExploitCategory.CODE_EXECUTION)[0]
         action.set_exploit(good_exploit)
 
-        self._attacker.execute_action("192.168.0.2", "lighttpd", action, authorization=dud_ssh_auth)
+        self._attacker.execute_action("192.168.0.2", "lighttpd", action, auth=dud_ssh_auth)
 
         self._env.control.run()
         message = self._attacker.get_last_response()

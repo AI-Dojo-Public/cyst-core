@@ -274,7 +274,7 @@ class TestSessions(unittest.TestCase):
         action = actions["aif:ensure_access:command_and_control"]
 
         # Test direct connection to an inaccessible node
-        attacker.execute_action("192.168.2.2", "ssh", action, session=None, authorization=all_root)
+        attacker.execute_action("192.168.2.2", "ssh", action, session=None, auth=all_root)
 
         env.control.run()
 
@@ -286,7 +286,7 @@ class TestSessions(unittest.TestCase):
 
         # Correct via multiple sessions
 
-        attacker.execute_action("192.168.1.2", "ssh", action, session=None, authorization=all_root)
+        attacker.execute_action("192.168.1.2", "ssh", action, session=None, auth=all_root)
 
         env.control.run()
 
@@ -299,7 +299,7 @@ class TestSessions(unittest.TestCase):
         session1 = create_session("root", ["attacker_node", "router1", "router2", "target1"], None)
         self.assertEqual(s, session1)
 
-        attacker.execute_action("192.168.2.3", "ssh", action, session=s, authorization=all_root)
+        attacker.execute_action("192.168.2.3", "ssh", action, session=s, auth=all_root)
 
         env.control.run()
 
@@ -314,7 +314,7 @@ class TestSessions(unittest.TestCase):
 
         # Now to just try running an action over two sessions
         action = actions["aif:active_recon:service_discovery"]
-        attacker.execute_action("192.168.3.4", "ssh", action, session=s, authorization=all_root)
+        attacker.execute_action("192.168.3.4", "ssh", action, session=s, auth=all_root)
 
         env.control.run()
 

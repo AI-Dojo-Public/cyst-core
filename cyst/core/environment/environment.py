@@ -52,6 +52,9 @@ from cyst.core.utils.file import root_dir
 
 # Environment is unlike other core implementation given an underscore-prefixed name to let python complain about
 # it being private if instantiated otherwise than via the create_environment()
+from cyst.interpreters.META.main import METAInterpreter
+
+
 class _Environment(Environment, EnvironmentControl, EnvironmentMessaging, EnvironmentResources,
                    EnvironmentConfiguration,
                    NodeConfiguration, NetworkConfiguration, ServiceConfiguration, ExploitConfiguration,
@@ -116,12 +119,14 @@ class _Environment(Environment, EnvironmentControl, EnvironmentMessaging, Enviro
     # ------------------------------------------------------------------------------------------------------------------
     # EnvironmentMessaging
     def create_request(self, dst_ip: Union[str, IPAddress], dst_service: str = "",
-                       action: Action = None, session: Session = None, authorization: Authorization = None) -> Request:
-        request = RequestImpl(dst_ip, dst_service, action, session, authorization)
+                       action: Action = None, session: Session = None,
+                       auth: Optional[Union[Authorization, AuthenticationToken]] = None) -> Request:
+        request = RequestImpl(dst_ip, dst_service, action, session, auth)
         return request
 
     def create_response(self, request: Request, status: Status, content: Optional[Any] = None,
-                        session: Optional[Session] = None, auth: Optional[Authorization] = None) -> Response:
+                        session: Optional[Session] = None,
+                        auth: Optional[Union[Authorization, AuthenticationTarget]] = None) -> Response:
         # Let's abuse the duck typing and "cast" Request to RequestImpl
         if isinstance(request, RequestImpl):
             response = ResponseImpl(request, status, content, session, auth)
@@ -729,6 +734,17 @@ class _Environment(Environment, EnvironmentControl, EnvironmentMessaging, Enviro
     def _process_passive(self, message: Request, node: Node):
         time = 0
         response = None
+
+        # TODO: auto-authentication here, maybe??
+        if message.auth and isinstance(message.auth, AuthenticationToken):
+            meta_interpreter: METAInterpreter = self._interpreters["meta"]
+            auth_time, auth_response = meta_interpreter.process_authenticate(message, node, message.auth) # must give auth, as process wont look for this by default
+
+            if auth_response.status.value == StatusValue.FAILURE:  # not authorized
+                return auth_time, auth_response
+
+            message.auth = auth_response.auth  # if authentication successful, swap auth token for authorization
+        # and continue to action
 
         # TODO: In light of tags abandonment, how to deal with splitting id into namespace and action name
         if message.action.namespace in self._interpreters:

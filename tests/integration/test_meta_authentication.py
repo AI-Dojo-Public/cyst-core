@@ -203,10 +203,14 @@ class TestMetaAuth(unittest.TestCase):
         # init the environment
         cls._env.control.init()
 
-        # get the actions from meta, we will only need authenticate
-        cls._action_list = cls._env.resources.action_store.get_prefixed("meta")
         cls._actions = {}
-        for action in cls._action_list:
+
+        _action_list = cls._env.resources.action_store.get_prefixed("meta")
+        for action in _action_list:
+            cls._actions[action.id] = action
+
+        _action_list = cls._env.resources.action_store.get_prefixed("aif")
+        for action in _action_list:
             cls._actions[action.id] = action
 
         # create attacker
@@ -227,7 +231,7 @@ class TestMetaAuth(unittest.TestCase):
             "192.168.0.2",
             "email_srv",
             action,
-            authorization=None
+            auth=None
         )
 
         result, state = self._env.control.run()
@@ -267,6 +271,8 @@ class TestMetaAuth(unittest.TestCase):
     def test_002_wrong_token(self):
 
         action = self._actions["meta:authenticate"]
+
+        self.assertIsNotNone(action, "Authentication action unavailable")
         action.add_parameters(ActionParameter(ActionParameterType.TOKEN,
                                                      AuthenticationTokenImpl(
                                                          AuthenticationTokenType.PASSWORD,
@@ -275,8 +281,6 @@ class TestMetaAuth(unittest.TestCase):
                                                      )
                                              )
                               )
-
-        self.assertIsNotNone(action, "Authentication action unavailable")
 
         self._attacker.execute_action(
             "192.168.0.4",
@@ -298,9 +302,9 @@ class TestMetaAuth(unittest.TestCase):
     def test_003_good_token_get_auth(self):
 
         action = self._actions["meta:authenticate"]
+        self.assertIsNotNone(action, "Authentication action unavailable")
         action.add_parameters(ActionParameter(ActionParameterType.TOKEN, self._ssh_token))
 
-        self.assertIsNotNone(action, "Authentication action unavailable")
 
         self._attacker.execute_action(
             "192.168.0.4",
@@ -323,9 +327,9 @@ class TestMetaAuth(unittest.TestCase):
     def test_004_good_token_get_next_target(self):
 
         action = self._actions["meta:authenticate"]
+        self.assertIsNotNone(action, "Authentication action unavailable")
         action.add_parameters(ActionParameter(ActionParameterType.TOKEN, self._custom_token))
 
-        self.assertIsNotNone(action, "Authentication action unavailable")
 
         self._attacker.execute_action(
             "192.168.0.4",
@@ -345,3 +349,51 @@ class TestMetaAuth(unittest.TestCase):
         self.assertIsInstance(message.auth, AuthenticationTarget, "Bad object type")
         self.assertEqual(message.auth.address, remote_email_auth.ip, "Bad target address")
         self.assertEqual(message.content, "Continue with next factor", "Bad error message")
+
+    def test_005_auto_authentication_bad_token(self):
+
+        action = self._actions["aif:ensure_access:command_and_control"]
+        self.assertIsNotNone(action, "Action unavailable")
+
+
+        self._attacker.execute_action(
+            "192.168.0.4",
+            "ssh",
+            action,
+            auth = AuthenticationTokenImpl(
+                AuthenticationTokenType.PASSWORD,
+                AuthenticationTokenSecurity.OPEN,
+                identity="user1"
+            )
+
+        )
+
+        result, state = self._env.control.run()
+        message = self._attacker.get_last_response()
+
+        self.assertEqual((True, EnvironmentState.PAUSED), (result, state), "Task run failed.")
+
+        self.assertEqual(message.status, Status(StatusOrigin.SERVICE,
+                                                StatusValue.FAILURE,
+                                                StatusDetail.AUTHENTICATION_NOT_APPLICABLE),
+                         "Bad state")
+        self.assertEqual(message.content, "Token invalid for this service", "Bad error message")
+
+    def test_006_auto_authentication_good_token(self):
+
+        action = self._actions["aif:ensure_access:command_and_control"]
+        self.assertIsNotNone(action, "Action unavailable")
+
+        self._attacker.execute_action(
+            "192.168.0.4",
+            "ssh",
+            action,
+            auth=self._ssh_token
+        )
+
+        result, state = self._env.control.run()
+        message = self._attacker.get_last_response()
+
+        self.assertEqual((True, EnvironmentState.PAUSED), (result, state), "Task run failed.")
+        self.assertIsInstance(message.auth, Authorization, "AuthenticationToken was not swapped for authorization")
+        self.assertEqual(message.content, "Service ssh at node 192.168.0.4 does not enable session creation.", "bad description")
