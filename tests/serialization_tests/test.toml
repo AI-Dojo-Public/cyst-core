@@ -1,0 +1,298 @@
+[ConfigItem0]
+cls_type = "NodeConfig"
+active_services = []
+shell = "bash"
+id = "email_server_node"
+[[ConfigItem0.passive_services]]
+cls_type = "PassiveServiceConfig"
+type = "email_srv"
+owner = "email"
+version = "3.3.3"
+local = false
+access_level = 1
+access_schemes = []
+public_data = []
+private_data = []
+public_authorizations = []
+private_authorizations = []
+parameters = []
+id = "11332d7a-16f0-4021-b228-72b77318c6c7"
+[[ConfigItem0.passive_services.authentication_providers]]
+cls_type = "AuthenticationProviderConfig"
+provider_type = 2
+token_type = 1
+token_security = 1
+id = "96804363-a242-4a89-9d65-b8b56471505e"
+ip = "192.168.0.2"
+timeout = 60
+
+
+[[ConfigItem0.interfaces]]
+cls_type = "InterfaceConfig"
+ip = "192.168.0.2"
+net = "192.168.0.1/24"
+index = -1
+id = "f5a59f99-7ec6-4b61-897b-7a07b0a1a07f"
+
+[ConfigItem1]
+cls_type = "NodeConfig"
+active_services = []
+shell = "bash"
+id = "sso_server_node"
+[[ConfigItem1.passive_services]]
+cls_type = "PassiveServiceConfig"
+type = "sso_service"
+owner = "sso"
+version = "1.2.3"
+local = false
+access_level = 1
+access_schemes = []
+public_data = []
+private_data = []
+public_authorizations = []
+private_authorizations = []
+parameters = []
+id = "1aa31656-7f7d-4735-91aa-5439ce0efe1f"
+[[ConfigItem1.passive_services.authentication_providers]]
+cls_type = "AuthenticationProviderConfig"
+provider_type = 1
+token_type = 1
+token_security = 1
+id = "3668d415-be0f-4f88-9eb4-6edde36a8c66"
+ip = "192.168.0.3"
+timeout = 30
+
+
+[[ConfigItem1.interfaces]]
+cls_type = "InterfaceConfig"
+ip = "192.168.0.3"
+net = "192.168.0.1/24"
+index = -1
+id = "44e97129-8254-4e15-bcf4-2e8c2d59f884"
+
+[ConfigItem2]
+cls_type = "NodeConfig"
+active_services = []
+shell = "bash"
+id = "target_node"
+[[ConfigItem2.passive_services]]
+cls_type = "PassiveServiceConfig"
+type = "ssh"
+owner = "ssh"
+version = "5.1.4"
+local = false
+access_level = 1
+public_data = []
+private_data = []
+public_authorizations = []
+private_authorizations = []
+parameters = []
+id = "c3aa5d62-ea37-4d65-aa53-d3cb6e0ebe59"
+[[ConfigItem2.passive_services.authentication_providers]]
+cls_type = "AuthenticationProviderConfig"
+provider_type = 0
+token_type = 1
+token_security = 1
+id = "ssh_service_local_auth_id"
+ip = "None"
+timeout = 30
+
+[[ConfigItem2.passive_services.access_schemes]]
+cls_type = "AccessSchemeConfig"
+authentication_providers = [ "ssh_service_local_auth_id",]
+id = "6995f148-937c-4c50-9509-af94b2fadf81"
+
+[ConfigItem2.passive_services.access_schemes.authorization_domain]
+cls_type = "AuthorizationDomainConfig"
+type = 0
+id = "f9f1e7dd-1b0f-472f-b494-7fc68f747f2a"
+[[ConfigItem2.passive_services.access_schemes.authorization_domain.authorizations]]
+cls_type = "AuthorizationConfig"
+identity = "user1"
+access_level = 1
+id = "9b367bd4-041d-4b0c-b598-b561509ef406"
+
+[[ConfigItem2.passive_services.access_schemes.authorization_domain.authorizations]]
+cls_type = "AuthorizationConfig"
+identity = "user2"
+access_level = 1
+id = "20d9b710-090d-4875-904b-031a5da18de6"
+
+[[ConfigItem2.passive_services.access_schemes.authorization_domain.authorizations]]
+cls_type = "AuthorizationConfig"
+identity = "root"
+access_level = 2
+id = "d667ee0b-9b3d-4a2f-abce-f3fe3877b31b"
+
+
+[[ConfigItem2.passive_services]]
+cls_type = "PassiveServiceConfig"
+type = "my_custom_service"
+owner = "custom"
+version = "1.0.0"
+local = true
+access_level = 1
+public_data = []
+private_data = []
+public_authorizations = []
+private_authorizations = []
+parameters = []
+id = "b0b3b21c-c4e6-4fef-9ae5-88f139d42d8a"
+[[ConfigItem2.passive_services.authentication_providers]]
+cls_type = "AuthenticationProviderConfig"
+provider_type = 0
+token_type = 1
+token_security = 1
+id = "my_custom_service_auth_id"
+ip = "None"
+timeout = 30
+
+[[ConfigItem2.passive_services.access_schemes]]
+cls_type = "AccessSchemeConfig"
+authentication_providers = [ "my_custom_service_auth_id", "96804363-a242-4a89-9d65-b8b56471505e",]
+id = "2f2fee6d-1ba5-4456-8c58-9dfcaa06bbef"
+
+[ConfigItem2.passive_services.access_schemes.authorization_domain]
+cls_type = "AuthorizationDomainConfig"
+type = 0
+id = "61e26b44-353b-42fe-902e-a4595875f44e"
+[[ConfigItem2.passive_services.access_schemes.authorization_domain.authorizations]]
+cls_type = "AuthorizationConfig"
+identity = "user1"
+access_level = 1
+id = "3b12acd1-5654-44d7-88af-71cbb1554535"
+
+[[ConfigItem2.passive_services.access_schemes.authorization_domain.authorizations]]
+cls_type = "AuthorizationConfig"
+identity = "user2"
+access_level = 1
+id = "d2d0d531-0af5-44ae-b92b-6da73245af48"
+
+[[ConfigItem2.passive_services.access_schemes.authorization_domain.authorizations]]
+cls_type = "AuthorizationConfig"
+identity = "root"
+access_level = 2
+id = "ae259a00-cb01-44d1-98f6-58bf51f9d53a"
+
+
+[[ConfigItem2.passive_services]]
+cls_type = "PassiveServiceConfig"
+type = "lighttpd"
+owner = "lighttpd"
+version = "8.1.4"
+local = false
+access_level = 1
+authentication_providers = []
+public_data = []
+private_data = []
+public_authorizations = []
+private_authorizations = []
+parameters = []
+id = "4b4bf0e0-81ba-456f-8b65-235541ff95f6"
+[[ConfigItem2.passive_services.access_schemes]]
+cls_type = "AccessSchemeConfig"
+authentication_providers = [ "3668d415-be0f-4f88-9eb4-6edde36a8c66",]
+id = "ffe7eb49-90c0-4900-835e-ecb574a4bed5"
+
+[ConfigItem2.passive_services.access_schemes.authorization_domain]
+cls_type = "AuthorizationDomainConfig"
+type = 1
+id = "my_sso_domain"
+[[ConfigItem2.passive_services.access_schemes.authorization_domain.authorizations]]
+cls_type = "FederatedAuthorizationConfig"
+identity = "user1"
+access_level = 1
+nodes = [ "node1", "node2",]
+services = [ "lighttpd",]
+id = "384c85fb-4ff5-41d4-b9ed-39dde5890a6c"
+
+
+[[ConfigItem2.interfaces]]
+cls_type = "InterfaceConfig"
+ip = "192.168.0.4"
+net = "192.168.0.1/24"
+index = -1
+id = "87ff125a-cf57-41d0-ba9d-954d4bd4edf8"
+
+[ConfigItem3]
+cls_type = "RouterConfig"
+id = "router1"
+[[ConfigItem3.interfaces]]
+cls_type = "InterfaceConfig"
+ip = "192.168.0.1"
+net = "192.168.0.1/24"
+index = 0
+id = "c85fcb0e-2e78-40b3-abcd-46142489601b"
+
+[[ConfigItem3.interfaces]]
+cls_type = "InterfaceConfig"
+ip = "192.168.0.1"
+net = "192.168.0.1/24"
+index = 1
+id = "8818e233-66c6-4e31-a668-b1be3aead7ff"
+
+[[ConfigItem3.interfaces]]
+cls_type = "InterfaceConfig"
+ip = "192.168.0.1"
+net = "192.168.0.1/24"
+index = 2
+id = "cb4be45c-5cf6-4f2d-bde3-c86698f5880a"
+
+[[ConfigItem3.interfaces]]
+cls_type = "InterfaceConfig"
+ip = "192.168.0.1"
+net = "192.168.0.1/24"
+index = 3
+id = "2fc06744-c03c-4c4e-b57b-da40571dc7b6"
+
+[ConfigItem4]
+cls_type = "NodeConfig"
+passive_services = []
+shell = ""
+id = "attacker_node"
+[[ConfigItem4.active_services]]
+cls_type = "ActiveServiceConfig"
+type = "scripted_attacker"
+name = "scripted_attacker"
+owner = "attacker"
+access_level = 1
+id = "attacker_service"
+
+[[ConfigItem4.interfaces]]
+cls_type = "InterfaceConfig"
+ip = "192.168.0.5"
+net = "192.168.0.1/24"
+index = -1
+id = "2c4e3768-cbf7-4cde-a762-600fa639cde8"
+
+[ConfigItem5]
+cls_type = "ConnectionConfig"
+src_id = "attacker_node"
+src_port = 0
+dst_id = "router1"
+dst_port = 0
+id = "6b880b5b-779f-416a-99bd-c96b890900e6"
+
+[ConfigItem6]
+cls_type = "ConnectionConfig"
+src_id = "target_node"
+src_port = 0
+dst_id = "router1"
+dst_port = 1
+id = "6646f905-a936-4782-b844-5c9c94ae3c2b"
+
+[ConfigItem7]
+cls_type = "ConnectionConfig"
+src_id = "sso_server_node"
+src_port = 0
+dst_id = "router1"
+dst_port = 2
+id = "53b12563-a991-46d3-a55a-b2016681060c"
+
+[ConfigItem8]
+cls_type = "ConnectionConfig"
+src_id = "email_server_node"
+src_port = 0
+dst_id = "router1"
+dst_port = 3
+id = "5cecde9b-15d9-47cd-811b-c142761d2db3"

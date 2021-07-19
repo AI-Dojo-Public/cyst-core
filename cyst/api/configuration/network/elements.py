@@ -2,26 +2,45 @@ from dataclasses import dataclass, field
 from netaddr import IPAddress, IPNetwork
 from typing import Optional
 from uuid import uuid4
+from tools.serde_customized import serialize, deserialize
 
 from cyst.api.configuration.configuration import ConfigItem
 
 
+@deserialize
+@serialize
 @dataclass
 class PortConfig(ConfigItem):
-    ip: IPAddress
-    net: IPNetwork
+    ip: IPAddress = field(metadata={
+        'serde_serializer': lambda x: str(x),
+        'serde_deserializer': lambda x: IPAddress(x)
+    })
+    net: IPNetwork = field(metadata={
+        'serde_serializer': lambda x: str(x),
+        'serde_deserializer': lambda x: IPNetwork(x)
+    })
     index: int = field(default=-1)
     id: str = field(default_factory=lambda: str(uuid4()))
 
 
+@deserialize
+@serialize
 @dataclass
 class InterfaceConfig(ConfigItem):
-    ip: IPAddress
-    net: IPNetwork
+    ip: IPAddress = field(metadata={
+        'serde_serializer': lambda x: str(x),
+        'serde_deserializer': lambda x: IPAddress(x)
+    })
+    net: IPNetwork = field(metadata={
+        'serde_serializer': lambda x: str(x),
+        'serde_deserializer': lambda x: IPNetwork(x)
+    })
     index: int = field(default=-1)
     id: str = field(default_factory=lambda: str(uuid4()))
 
 
+@deserialize
+@serialize
 @dataclass
 class ConnectionConfig(ConfigItem):
     src_id: str
