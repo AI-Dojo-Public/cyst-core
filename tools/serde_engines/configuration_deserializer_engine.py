@@ -30,7 +30,6 @@ class Deserializer:
 
     def _process(self, sub_collection):
 
-
         if isinstance(sub_collection, list) or isinstance(sub_collection, tuple):
             return [self._process(item) for item in sub_collection]
 

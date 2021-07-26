@@ -219,9 +219,7 @@ def to_obj(o, named: bool, reuse_instances: bool, convert_sets: bool):
             return serde_scope.funcs[TO_ITER](o, reuse_instances=reuse_instances, convert_sets=convert_sets)
     elif is_dataclass(o):
         if named:
-            retval = dataclasses.asdict(o)
-            retval["cls_type"] = type(o)
-            return retval
+            return dataclasses.asdict(o)
         else:
             return dataclasses.astuple(o)
     elif isinstance(o, list):
@@ -649,6 +647,6 @@ def enum_value(cls, e):
         if is_enum(v):
             return enum_value(v.__class__, v)
         else:
-            return v
+            return {"cls_type": typename(type(e)), "value": v}
     else:
         return cls(e).value
