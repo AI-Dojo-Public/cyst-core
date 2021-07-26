@@ -5,7 +5,5 @@ from dataclasses import dataclass
 from tools.serde_customized import serialize
 
 
-@serialize
-@dataclass
 class ConfigItem:
     id: str

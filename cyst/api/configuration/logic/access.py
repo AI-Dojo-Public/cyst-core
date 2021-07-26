@@ -3,13 +3,14 @@ from dataclasses import dataclass, field
 from enum import IntEnum
 from typing import List, Optional, Union, Tuple
 from uuid import uuid4
+
 from netaddr import IPAddress
 from tools.serde_customized import serialize
 
 from cyst.api.configuration.configuration import ConfigItem
-from cyst.api.logic.access import AccessLevel, AuthenticationTokenSecurity, AuthenticationTokenType, AuthenticationToken, \
-                                  AuthenticationProviderType, AuthenticationProvider, Authorization, AuthenticationTarget, \
-                                  AccessScheme
+from cyst.api.logic.access import AccessLevel, AuthenticationTokenSecurity, AuthenticationTokenType, \
+                                  AuthenticationProviderType
+from tools.serde_customized.compat import typename
 
 
 @serialize
@@ -51,8 +52,7 @@ class AuthenticationProviderConfig(ConfigItem):
     token_security: AuthenticationTokenSecurity
     id: str = field(default_factory=lambda: str(uuid4()))
     ip: Optional[IPAddress] = field(default=None, metadata={
-        'serde_serializer': lambda x: str(x),
-        'serde_deserializer': lambda x: IPAddress(x) if x != 'None' else None
+        'serde_serializer': lambda x: {"cls_type": typename(type(x)), "value": str(x)},
     })
     timeout: int = 0
 

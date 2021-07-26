@@ -1,4 +1,5 @@
 from typing import List, Dict
+from netaddr import IPAddress, IPNetwork
 
 
 from cyst.api.configuration.configuration import ConfigItem
@@ -39,6 +40,9 @@ class Deserializer:
 
         if cls_type is None:
             raise RuntimeError("cannot defer type, config serialized with inappropriate tool")
+
+        if cls_type == typename(type(IPAddress)) or cls_type == typename(type(IPNetwork)):
+            return globals()[cls_type](sub_collection["value"]) if sub_collection.get("value") is not None else None
 
         for attribute_name, attribute_value in sub_collection.items():
             sub_collection[attribute_name] = self._process(attribute_value)

@@ -1,6 +1,4 @@
-import unittest
 
-import toml
 from netaddr import IPAddress, IPNetwork
 
 from cyst.api.configuration import *
@@ -19,7 +17,7 @@ from cyst.services.scripted_attacker.main import ScriptedAttackerControl
 
 
 from tools.serde_engines.configuration_serializer_engine import serialize_toml
-#from tools.serde_engines.configuration_deserializer_engine import deserialize_toml
+from tools.serde_engines.configuration_deserializer_engine import deserialize_toml
 
 
 """Environment configuration"""
@@ -178,17 +176,17 @@ connections = [
     ConnectionConfig("email_server_node", 0, "router1", 3)
 ]
 
-"""
+
 with open("./test.toml", "w") as f:
     serialize_toml(f, email_server, sso_server, target, router1, attacker1, *connections)
-"""
-"""
+
+
 back = []
-with open("./test,toml", "r") as f:
+with open("./test.toml", "r") as f:
     back = deserialize_toml(f)
 
 print(back)
-"""
+
 
 
 
