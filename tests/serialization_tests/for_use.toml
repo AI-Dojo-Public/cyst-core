@@ -16,13 +16,13 @@ private_data = []
 public_authorizations = []
 private_authorizations = []
 parameters = []
-id = "34252799-fcd0-4d4d-b607-ee47aa7ebab0"
+id = "5d9a3ea6-7c23-4db8-9d10-0952a46d8479"
 [[ConfigItem0.passive_services.authentication_providers]]
 cls_type = "AuthenticationProviderConfig"
 provider_type = 2
 token_type = 1
 token_security = 1
-id = "c27866e8-831d-4593-bd54-b1f3dbf8fdc8"
+id = "47157e9e-2d32-4283-8040-db633fac18b0"
 timeout = 60
 
 [ConfigItem0.passive_services.authentication_providers.ip]
@@ -32,7 +32,7 @@ value = "192.168.0.2"
 [[ConfigItem0.interfaces]]
 cls_type = "InterfaceConfig"
 index = -1
-id = "2f4fd813-627f-45db-8169-c8863188a825"
+id = "a4fc085a-ddc3-4d7d-b315-838b68cd912d"
 
 [ConfigItem0.interfaces.ip]
 cls_type = "IPAddress"
@@ -59,13 +59,13 @@ private_data = []
 public_authorizations = []
 private_authorizations = []
 parameters = []
-id = "32a94feb-63f2-4193-9ea5-4c2e086ef6ea"
+id = "26e8f3ae-83f5-4155-a37f-5b0ae99949aa"
 [[ConfigItem1.passive_services.authentication_providers]]
 cls_type = "AuthenticationProviderConfig"
 provider_type = 1
 token_type = 1
 token_security = 1
-id = "4db105de-147c-4644-80c9-22028ff4ccab"
+id = "8a48bbfd-b16c-4677-901d-b4870edfb3ac"
 timeout = 30
 
 [ConfigItem1.passive_services.authentication_providers.ip]
@@ -75,7 +75,7 @@ value = "192.168.0.3"
 [[ConfigItem1.interfaces]]
 cls_type = "InterfaceConfig"
 index = -1
-id = "06489ba4-a8f4-4d42-83d7-d115f55e751c"
+id = "9a2a032d-c1e5-4163-ad7a-14a5ede5b3f5"
 
 [ConfigItem1.interfaces.ip]
 cls_type = "IPAddress"
@@ -101,7 +101,7 @@ private_data = []
 public_authorizations = []
 private_authorizations = []
 parameters = []
-id = "5671e44e-a0bc-4c7c-a227-b3e55079ea6b"
+id = "262fe158-8db8-4ef4-aacd-4399b1bff381"
 [[ConfigItem2.passive_services.authentication_providers]]
 cls_type = "AuthenticationProviderConfig"
 provider_type = 0
@@ -116,29 +116,29 @@ value = "None"
 [[ConfigItem2.passive_services.access_schemes]]
 cls_type = "AccessSchemeConfig"
 authentication_providers = [ "ssh_service_local_auth_id",]
-id = "290bef14-2b88-4682-95e1-3b7871102d1d"
+id = "69cef602-450b-47a5-931b-66435c77f394"
 
 [ConfigItem2.passive_services.access_schemes.authorization_domain]
 cls_type = "AuthorizationDomainConfig"
 type = 0
-id = "50290e12-d96f-47db-8bce-4b83fdc346a0"
+id = "f8753615-1c6c-42cf-9260-0ed6640c3ce6"
 [[ConfigItem2.passive_services.access_schemes.authorization_domain.authorizations]]
 cls_type = "AuthorizationConfig"
 identity = "user1"
 access_level = 1
-id = "fa007c1d-3cc6-490a-93fe-58d9bb831ab7"
+id = "ca0ec53b-5609-4ee6-88a9-6a251fc8b281"
 
 [[ConfigItem2.passive_services.access_schemes.authorization_domain.authorizations]]
 cls_type = "AuthorizationConfig"
 identity = "user2"
 access_level = 1
-id = "1fdd4cd2-26c9-404a-8105-ee5c6f930d96"
+id = "7881db62-a345-437a-96e5-395a3f3ce65f"
 
 [[ConfigItem2.passive_services.access_schemes.authorization_domain.authorizations]]
 cls_type = "AuthorizationConfig"
 identity = "root"
 access_level = 2
-id = "141c8f2b-f8ab-4f13-ba9b-d42a383ce832"
+id = "dd49173b-d0b5-477d-b7d0-ace108a69187"
 
 
 [[ConfigItem2.passive_services]]
@@ -153,7 +153,7 @@ private_data = []
 public_authorizations = []
 private_authorizations = []
 parameters = []
-id = "04d2b56b-ce85-49ee-b01c-ca3b55b9729c"
+id = "787eab88-2529-48e7-8939-6768225ed7c4"
 [[ConfigItem2.passive_services.authentication_providers]]
 cls_type = "AuthenticationProviderConfig"
 provider_type = 0
@@ -167,30 +167,30 @@ cls_type = "NoneType"
 value = "None"
 [[ConfigItem2.passive_services.access_schemes]]
 cls_type = "AccessSchemeConfig"
-authentication_providers = [ "my_custom_service_auth_id", "c27866e8-831d-4593-bd54-b1f3dbf8fdc8",]
-id = "0f5ff3e2-949f-45d2-a588-fc533efa3a2c"
+authentication_providers = [ "my_custom_service_auth_id", "47157e9e-2d32-4283-8040-db633fac18b0",]
+id = "1d45b557-d8f4-4313-b9eb-6ac124efdf87"
 
 [ConfigItem2.passive_services.access_schemes.authorization_domain]
 cls_type = "AuthorizationDomainConfig"
 type = 0
-id = "453f16fa-2de1-4d84-a894-4f9d1b9accd9"
+id = "82921811-b8e6-4606-9966-61c48042b165"
 [[ConfigItem2.passive_services.access_schemes.authorization_domain.authorizations]]
 cls_type = "AuthorizationConfig"
 identity = "user1"
 access_level = 1
-id = "99a62ff8-5c05-4967-9445-4d8e2baefab2"
+id = "1cb28b6f-cd68-488f-816d-17bb519a4002"
 
 [[ConfigItem2.passive_services.access_schemes.authorization_domain.authorizations]]
 cls_type = "AuthorizationConfig"
 identity = "user2"
 access_level = 1
-id = "338164e6-d722-476e-849d-2c1de4c8eec5"
+id = "819ac67d-feb9-4f05-9d95-942024555f4e"
 
 [[ConfigItem2.passive_services.access_schemes.authorization_domain.authorizations]]
 cls_type = "AuthorizationConfig"
 identity = "root"
 access_level = 2
-id = "a0183f95-d9a2-49c8-9b7d-9c657a1dc363"
+id = "4c3610df-da9a-4e3e-8c89-f26e9939911f"
 
 
 [[ConfigItem2.passive_services]]
@@ -206,11 +206,11 @@ private_data = []
 public_authorizations = []
 private_authorizations = []
 parameters = []
-id = "189e1e8b-90f2-49bb-a73f-1220f4a11c1a"
+id = "b801557d-5cfa-40ee-a07a-a3ef911083d3"
 [[ConfigItem2.passive_services.access_schemes]]
 cls_type = "AccessSchemeConfig"
-authentication_providers = [ "4db105de-147c-4644-80c9-22028ff4ccab",]
-id = "6a4ad782-a56b-4e09-abe8-6a75f576074d"
+authentication_providers = [ "8a48bbfd-b16c-4677-901d-b4870edfb3ac",]
+id = "4cfdae76-e358-4218-bb72-1f55635b80a3"
 
 [ConfigItem2.passive_services.access_schemes.authorization_domain]
 cls_type = "AuthorizationDomainConfig"
@@ -222,13 +222,13 @@ identity = "user1"
 access_level = 1
 nodes = [ "node1", "node2",]
 services = [ "lighttpd",]
-id = "ad04c325-1757-4c28-8c0f-fab986a95d6f"
+id = "1e8d266f-f203-42b6-96f9-a6452a3b74fa"
 
 
 [[ConfigItem2.interfaces]]
 cls_type = "InterfaceConfig"
 index = -1
-id = "dfa3400e-cade-491e-909d-7ea603727230"
+id = "9ff72396-06c3-4743-b6b2-4455f17175c3"
 
 [ConfigItem2.interfaces.ip]
 cls_type = "IPAddress"
@@ -243,7 +243,7 @@ id = "router1"
 [[ConfigItem3.interfaces]]
 cls_type = "InterfaceConfig"
 index = 0
-id = "51337b2c-d2d1-4aaa-a60c-1c31047c9d9c"
+id = "29f15107-40c2-4ed1-a97f-964d3a944f2f"
 
 [ConfigItem3.interfaces.ip]
 cls_type = "IPAddress"
@@ -254,7 +254,7 @@ value = "192.168.0.1/24"
 [[ConfigItem3.interfaces]]
 cls_type = "InterfaceConfig"
 index = 1
-id = "2cf6a66c-f709-417b-8c22-d3698cf63f5a"
+id = "5e19d255-e7c7-4b3b-ab2a-88c79d18c895"
 
 [ConfigItem3.interfaces.ip]
 cls_type = "IPAddress"
@@ -265,7 +265,7 @@ value = "192.168.0.1/24"
 [[ConfigItem3.interfaces]]
 cls_type = "InterfaceConfig"
 index = 2
-id = "e1a8aab4-b7e3-4d45-866d-85c75dea8c54"
+id = "d91b125a-e8ce-44e2-a7b9-8df1fdd22ead"
 
 [ConfigItem3.interfaces.ip]
 cls_type = "IPAddress"
@@ -276,7 +276,7 @@ value = "192.168.0.1/24"
 [[ConfigItem3.interfaces]]
 cls_type = "InterfaceConfig"
 index = 3
-id = "3104b7a0-0a48-43a0-b320-cc0ca540d3db"
+id = "5098b982-b3e5-4a34-9a41-68c5e341f3c4"
 
 [ConfigItem3.interfaces.ip]
 cls_type = "IPAddress"
@@ -301,7 +301,7 @@ id = "attacker_service"
 [[ConfigItem4.interfaces]]
 cls_type = "InterfaceConfig"
 index = -1
-id = "78b22d16-8210-4442-9cec-de60ccc0b4c6"
+id = "70f578ff-e4d8-4275-a882-74a87eb7f322"
 
 [ConfigItem4.interfaces.ip]
 cls_type = "IPAddress"
@@ -316,7 +316,7 @@ src_id = "attacker_node"
 src_port = 0
 dst_id = "router1"
 dst_port = 0
-id = "558ec876-abd9-4928-bd0b-2d4f9fe58226"
+id = "dd86ad5a-01de-4fc1-9d01-801ec59733f5"
 
 [ConfigItem6]
 cls_type = "ConnectionConfig"
@@ -324,7 +324,7 @@ src_id = "target_node"
 src_port = 0
 dst_id = "router1"
 dst_port = 1
-id = "08507569-3547-476a-9d89-93a1f719cfea"
+id = "b4b8e7eb-1c5b-4f5a-afda-4a3b8b6b4d99"
 
 [ConfigItem7]
 cls_type = "ConnectionConfig"
@@ -332,7 +332,7 @@ src_id = "sso_server_node"
 src_port = 0
 dst_id = "router1"
 dst_port = 2
-id = "84830ec5-3b51-41aa-b286-4baecd80ce2d"
+id = "83d7a1bc-35a2-4a5d-ad3f-4e784fa9b252"
 
 [ConfigItem8]
 cls_type = "ConnectionConfig"
@@ -340,4 +340,4 @@ src_id = "email_server_node"
 src_port = 0
 dst_id = "router1"
 dst_port = 3
-id = "094bdad8-fa40-4e20-a6de-e3f4f36967c8"
+id = "4578ff0e-a953-4759-a66c-60c068a3d902"

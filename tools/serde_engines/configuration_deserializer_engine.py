@@ -30,6 +30,7 @@ class Deserializer:
 
     def _process(self, sub_collection):
 
+
         if isinstance(sub_collection, list) or isinstance(sub_collection, tuple):
             return [self._process(item) for item in sub_collection]
 
@@ -41,7 +42,10 @@ class Deserializer:
         if cls_type is None:
             raise RuntimeError("cannot defer type, config serialized with inappropriate tool")
 
-        if cls_type == typename(type(IPAddress)) or cls_type == typename(type(IPNetwork)):
+        if cls_type == 'NoneType':
+            return None
+
+        if cls_type == typename(IPAddress) or cls_type == typename(IPNetwork):
             return globals()[cls_type](sub_collection["value"]) if sub_collection.get("value") is not None else None
 
         for attribute_name, attribute_value in sub_collection.items():
@@ -54,3 +58,17 @@ def deserialize_toml(file):
     from rtoml import load
     toml_deserializer = Deserializer(file, load)
     return toml_deserializer.deserialize()
+
+
+def deserialize_json(file):
+    from json import load
+    json_deserializer = Deserializer(file, load)
+    return json_deserializer.deserialize()
+
+
+def deserialize_yaml(file):
+    from yaml import safe_load
+    yaml_deserializer = Deserializer(file, safe_load)
+    return yaml_deserializer.deserialize()
+
+

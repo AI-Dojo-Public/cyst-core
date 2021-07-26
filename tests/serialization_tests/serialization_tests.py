@@ -1,23 +1,12 @@
-
-from netaddr import IPAddress, IPNetwork
+import unittest
 
 from cyst.api.configuration import *
-from cyst.api.environment.control import EnvironmentState
-from cyst.api.environment.environment import Environment
-from cyst.api.environment.message import Status, StatusOrigin, StatusValue, StatusDetail
-from cyst.api.host.service import Service
+
 from cyst.api.logic.access import AuthenticationProviderType, AuthenticationTokenType, AuthenticationTokenSecurity
-from cyst.api.logic.action import ActionParameter, ActionParameterType
-
-from cyst.api.network.node import Node
-from cyst.api.logic.access import AuthenticationProvider, Authorization, AuthenticationTarget
-from cyst.core.logic.access import AuthenticationProviderImpl
-from cyst.core.logic.access import AuthenticationTokenImpl
-from cyst.services.scripted_attacker.main import ScriptedAttackerControl
 
 
-from tools.serde_engines.configuration_serializer_engine import serialize_toml
-from tools.serde_engines.configuration_deserializer_engine import deserialize_toml
+from tools.serde_engines.configuration_serializer_engine import serialize_toml, serialize_json, serialize_yaml
+from tools.serde_engines.configuration_deserializer_engine import deserialize_toml, deserialize_json, deserialize_yaml
 
 
 """Environment configuration"""
@@ -177,15 +166,58 @@ connections = [
 ]
 
 
-with open("./test.toml", "w") as f:
-    serialize_toml(f, email_server, sso_server, target, router1, attacker1, *connections)
+class SerializeTest(unittest.TestCase):
 
+    @classmethod
+    def setUpClass(cls) -> None:
+        with open("./test.toml", "w") as f:
+            serialize_toml(f, email_server, sso_server, target, router1, attacker1, *connections)
 
-back = []
-with open("./test.toml", "r") as f:
-    back = deserialize_toml(f)
+        with open("./test.json", "w") as f:
+            serialize_json(f, email_server, sso_server, target, router1, attacker1, *connections)
 
-print(back)
+        with open("./test.yaml", "w") as f:
+            serialize_yaml(f, email_server, sso_server, target, router1, attacker1, *connections)
+
+    def test_000_full_serde_toml(self):
+        self._back = []
+        with open("./test.toml", "r") as f:
+            self._back = deserialize_toml(f)
+
+        self.assertIn(email_server, self._back, "missing or mismatched config Item")
+        self.assertIn(sso_server, self._back, "missing or mismatched config Item")
+        self.assertIn(target, self._back, "missing or mismatched config Item")
+        self.assertIn(router1, self._back, "missing or mismatched config Item")
+        self.assertIn(attacker1, self._back, "missing or mismatched config Item")
+        for conn in connections:
+            self.assertIn(conn, self._back, "missing or mismatched config Item")
+
+    def test_001_full_serde_json(self):
+        self._back = []
+        with open("./test.json", "r") as f:
+            self._back = deserialize_json(f)
+
+        self.assertIn(email_server, self._back, "missing or mismatched config Item")
+        self.assertIn(sso_server, self._back, "missing or mismatched config Item")
+        self.assertIn(target, self._back, "missing or mismatched config Item")
+        self.assertIn(router1, self._back, "missing or mismatched config Item")
+        self.assertIn(attacker1, self._back, "missing or mismatched config Item")
+        for conn in connections:
+            self.assertIn(conn, self._back, "missing or mismatched config Item")
+
+    def test_002_full_serde_yaml(self):
+        self._back = []
+        with open("./test.yaml", "r") as f:
+            self._back = deserialize_yaml(f)
+
+        self.assertIn(email_server, self._back, "missing or mismatched config Item")
+        self.assertIn(sso_server, self._back, "missing or mismatched config Item")
+        self.assertIn(target, self._back, "missing or mismatched config Item")
+        self.assertIn(router1, self._back, "missing or mismatched config Item")
+        self.assertIn(attacker1, self._back, "missing or mismatched config Item")
+        for conn in connections:
+            self.assertIn(conn, self._back, "missing or mismatched config Item")
+
 
 
 
