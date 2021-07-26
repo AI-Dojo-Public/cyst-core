@@ -2,7 +2,7 @@ from dataclasses import dataclass, field
 from typing import Optional, Dict, Any, List, Union, Tuple
 from uuid import uuid4
 
-from tools.serde_customized import deserialize, serialize
+from tools.serde_customized import serialize
 
 from cyst.api.configuration.configuration import ConfigItem
 from cyst.api.configuration.logic.access import AuthorizationConfig, AccessSchemeConfig, AuthenticationProviderConfig
@@ -13,7 +13,6 @@ from cyst.api.environment.configuration import ServiceParameter
 from cyst.api.logic.access import AccessLevel
 
 
-@deserialize
 @serialize
 @dataclass
 class ActiveServiceConfig(ConfigItem):
@@ -25,7 +24,6 @@ class ActiveServiceConfig(ConfigItem):
     id: str = field(default_factory=lambda: str(uuid4()))
 
 
-@deserialize
 @serialize
 @dataclass
 class PassiveServiceConfig(ConfigItem):

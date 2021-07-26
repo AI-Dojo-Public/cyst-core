@@ -2,12 +2,11 @@ from dataclasses import dataclass, field
 from netaddr import IPAddress, IPNetwork
 from typing import Optional
 from uuid import uuid4
-from tools.serde_customized import serialize, deserialize
+from tools.serde_customized import serialize
 
 from cyst.api.configuration.configuration import ConfigItem
 
 
-@deserialize
 @serialize
 @dataclass
 class PortConfig(ConfigItem):
@@ -23,7 +22,6 @@ class PortConfig(ConfigItem):
     id: str = field(default_factory=lambda: str(uuid4()))
 
 
-@deserialize
 @serialize
 @dataclass
 class InterfaceConfig(ConfigItem):
@@ -39,7 +37,6 @@ class InterfaceConfig(ConfigItem):
     id: str = field(default_factory=lambda: str(uuid4()))
 
 
-@deserialize
 @serialize
 @dataclass
 class ConnectionConfig(ConfigItem):

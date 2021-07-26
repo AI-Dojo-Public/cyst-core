@@ -18,9 +18,9 @@ from cyst.core.logic.access import AuthenticationTokenImpl
 from cyst.services.scripted_attacker.main import ScriptedAttackerControl
 
 
-from tools.serde_customized.toml import to_toml, from_dict, to_dict, from_toml
-import rtoml
 from tools.serde_engines.configuration_serializer_engine import serialize_toml
+#from tools.serde_engines.configuration_deserializer_engine import deserialize_toml
+
 
 """Environment configuration"""
 local_password_auth = AuthenticationProviderConfig \
@@ -178,10 +178,17 @@ connections = [
     ConnectionConfig("email_server_node", 0, "router1", 3)
 ]
 
-
+"""
 with open("./test.toml", "w") as f:
     serialize_toml(f, email_server, sso_server, target, router1, attacker1, *connections)
+"""
+"""
+back = []
+with open("./test,toml", "r") as f:
+    back = deserialize_toml(f)
 
+print(back)
+"""
 
 
 

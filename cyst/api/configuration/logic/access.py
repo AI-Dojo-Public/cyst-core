@@ -4,16 +4,14 @@ from enum import IntEnum
 from typing import List, Optional, Union, Tuple
 from uuid import uuid4
 from netaddr import IPAddress
-from tools.serde_customized import serialize, deserialize
+from tools.serde_customized import serialize
 
 from cyst.api.configuration.configuration import ConfigItem
-from cyst.api.configuration.logic.data import DataConfig
 from cyst.api.logic.access import AccessLevel, AuthenticationTokenSecurity, AuthenticationTokenType, AuthenticationToken, \
                                   AuthenticationProviderType, AuthenticationProvider, Authorization, AuthenticationTarget, \
                                   AccessScheme
 
 
-@deserialize
 @serialize
 @dataclass
 class AuthorizationConfig(ConfigItem):
@@ -22,7 +20,6 @@ class AuthorizationConfig(ConfigItem):
     id: str = field(default_factory=lambda: str(uuid4()))
 
 
-@deserialize
 @serialize
 @dataclass
 class FederatedAuthorizationConfig(ConfigItem):
@@ -38,7 +35,6 @@ class AuthorizationDomainType(IntEnum):
     FEDERATED = 1
 
 
-@deserialize
 @serialize
 @dataclass
 class AuthorizationDomainConfig(ConfigItem):
@@ -47,7 +43,6 @@ class AuthorizationDomainConfig(ConfigItem):
     id: str = field(default_factory=lambda: str(uuid4()))
 
 
-@deserialize
 @serialize
 @dataclass
 class AuthenticationProviderConfig(ConfigItem):
@@ -71,7 +66,6 @@ class AuthenticationProviderConfig(ConfigItem):
         return new_one
 
 
-@deserialize
 @serialize
 @dataclass
 class AccessSchemeConfig(ConfigItem):
