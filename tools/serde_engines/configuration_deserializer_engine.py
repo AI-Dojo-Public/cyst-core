@@ -20,8 +20,12 @@ class Deserializer:
         self._items = []
         self._load_func = load_func
 
-    def deserialize(self) -> List[ConfigItem]:
+    def deserialize_file(self) -> List[ConfigItem]:
         self._traverse(self._load_func(self._file))
+        return self._items
+
+    def deserialize_data(self, data):  # make this option nicer nicer
+        self._traverse(self._load_func(data))
         return self._items
 
     def _traverse(self, collection: Dict):
@@ -56,18 +60,24 @@ class Deserializer:
 def deserialize_toml(file):
     from rtoml import load
     toml_deserializer = Deserializer(file, load)
-    return toml_deserializer.deserialize()
+    return toml_deserializer.deserialize_file()
 
 
 def deserialize_json(file):
     from json import load
     json_deserializer = Deserializer(file, load)
-    return json_deserializer.deserialize()
+    return json_deserializer.deserialize_file()
 
 
 def deserialize_yaml(file):
     from yaml import safe_load
     yaml_deserializer = Deserializer(file, safe_load)
-    return yaml_deserializer.deserialize()
+    return yaml_deserializer.deserialize_file()
+
+
+def deserialize_gura(file):
+    from gura import loads
+    gura_deserializer = Deserializer(file, loads)
+    return gura_deserializer.deserialize_data(file.read())
 
 

@@ -5,9 +5,10 @@ from cyst.api.configuration import *
 from cyst.api.logic.access import AuthenticationProviderType, AuthenticationTokenType, AuthenticationTokenSecurity
 
 
-from tools.serde_engines.configuration_serializer_engine import serialize_toml, serialize_json, serialize_yaml
-from tools.serde_engines.configuration_deserializer_engine import deserialize_toml, deserialize_json, deserialize_yaml
-
+from tools.serde_engines.configuration_serializer_engine import serialize_toml, serialize_json, serialize_yaml, \
+    serialize_gura
+from tools.serde_engines.configuration_deserializer_engine import deserialize_toml, deserialize_json, deserialize_yaml, \
+    deserialize_gura
 
 """Environment configuration"""
 local_password_auth = AuthenticationProviderConfig \
@@ -179,6 +180,9 @@ class SerializeTest(unittest.TestCase):
         with open("./test.yaml", "w") as f:
             serialize_yaml(f, email_server, sso_server, target, router1, attacker1, *connections)
 
+        with open("./test.gura", "w") as f:
+            serialize_gura(f, email_server, sso_server, target, router1, attacker1, *connections)
+
     def test_000_full_serde_toml(self):
         self._back = []
         with open("./test.toml", "r") as f:
@@ -209,6 +213,19 @@ class SerializeTest(unittest.TestCase):
         self._back = []
         with open("./test.yaml", "r") as f:
             self._back = deserialize_yaml(f)
+
+        self.assertIn(email_server, self._back, "missing or mismatched config Item")
+        self.assertIn(sso_server, self._back, "missing or mismatched config Item")
+        self.assertIn(target, self._back, "missing or mismatched config Item")
+        self.assertIn(router1, self._back, "missing or mismatched config Item")
+        self.assertIn(attacker1, self._back, "missing or mismatched config Item")
+        for conn in connections:
+            self.assertIn(conn, self._back, "missing or mismatched config Item")
+
+    def test_002_full_serde_gura(self):
+        self._back = []
+        with open("./test.gura", "r") as f:
+            self._back = deserialize_gura(f)
 
         self.assertIn(email_server, self._back, "missing or mismatched config Item")
         self.assertIn(sso_server, self._back, "missing or mismatched config Item")

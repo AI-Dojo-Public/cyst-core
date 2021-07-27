@@ -14,6 +14,11 @@ def serialize_yaml(file, *args):
     _serialize(file, to_yaml, *args)
 
 
+def serialize_gura(file, *args):
+    from tools.serde_customized.gura import to_gura
+    _serialize(file, to_gura, *args)
+
+
 def _serialize(file, func, *args):
 
     config_items = {}

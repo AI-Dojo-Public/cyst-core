@@ -9,5 +9,7 @@ py-flags==1.1.4
 toml==0.10.2
 rtoml==0.7.0
 pyyaml==5.4.1
+gura==1.2.0
+
 Jinja2~=3.0.1
 stringcase~=1.2.0
