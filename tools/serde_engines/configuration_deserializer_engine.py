@@ -1,4 +1,4 @@
-from typing import List, Dict
+from typing import List, Dict, TextIO, Callable
 from netaddr import IPAddress, IPNetwork
 
 
@@ -15,7 +15,7 @@ from cyst.api.configuration.network.elements import *
 
 
 class Deserializer:
-    def __init__(self, file, load_func):
+    def __init__(self, file: TextIO, load_func: Callable):
         self._file = file
         self._items = []
         self._load_func = load_func
@@ -24,7 +24,7 @@ class Deserializer:
         self._traverse(self._load_func(self._file))
         return self._items
 
-    def deserialize_data(self, data):  # make this option nicer nicer
+    def deserialize_data(self, data: str):  # make this option nicer nicer
         self._traverse(self._load_func(data))
         return self._items
 
@@ -32,7 +32,7 @@ class Deserializer:
         for item in collection.values():
             self._items.append(self._process(item))
 
-    def _process(self, sub_collection):
+    def _process(self, sub_collection: Any):
 
         if isinstance(sub_collection, list) or isinstance(sub_collection, tuple):
             return [self._process(item) for item in sub_collection]
@@ -57,25 +57,25 @@ class Deserializer:
         return globals()[cls_type](**sub_collection)
 
 
-def deserialize_toml(file):
+def deserialize_toml(file: TextIO):
     from rtoml import load
     toml_deserializer = Deserializer(file, load)
     return toml_deserializer.deserialize_file()
 
 
-def deserialize_json(file):
+def deserialize_json(file: TextIO):
     from json import load
     json_deserializer = Deserializer(file, load)
     return json_deserializer.deserialize_file()
 
 
-def deserialize_yaml(file):
+def deserialize_yaml(file: TextIO):
     from yaml import safe_load
     yaml_deserializer = Deserializer(file, safe_load)
     return yaml_deserializer.deserialize_file()
 
 
-def deserialize_gura(file):
+def deserialize_gura(file: TextIO):
     from gura import loads
     gura_deserializer = Deserializer(file, loads)
     return gura_deserializer.deserialize_data(file.read())
