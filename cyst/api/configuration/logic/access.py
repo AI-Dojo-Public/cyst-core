@@ -3,15 +3,17 @@ from dataclasses import dataclass, field
 from enum import IntEnum
 from typing import List, Optional, Union, Tuple
 from uuid import uuid4
+
 from netaddr import IPAddress
+from tools.serde_customized import serialize
 
 from cyst.api.configuration.configuration import ConfigItem
-from cyst.api.configuration.logic.data import DataConfig
-from cyst.api.logic.access import AccessLevel, AuthenticationTokenSecurity, AuthenticationTokenType, AuthenticationToken, \
-                                  AuthenticationProviderType, AuthenticationProvider, Authorization, AuthenticationTarget, \
-                                  AccessScheme
+from cyst.api.logic.access import AccessLevel, AuthenticationTokenSecurity, AuthenticationTokenType, \
+                                  AuthenticationProviderType
+from tools.serde_customized.compat import typename
 
 
+@serialize
 @dataclass
 class AuthorizationConfig(ConfigItem):
     identity: str
@@ -19,6 +21,7 @@ class AuthorizationConfig(ConfigItem):
     id: str = field(default_factory=lambda: str(uuid4()))
 
 
+@serialize
 @dataclass
 class FederatedAuthorizationConfig(ConfigItem):
     identity: str
@@ -33,6 +36,7 @@ class AuthorizationDomainType(IntEnum):
     FEDERATED = 1
 
 
+@serialize
 @dataclass
 class AuthorizationDomainConfig(ConfigItem):
     type: AuthorizationDomainType
@@ -40,13 +44,16 @@ class AuthorizationDomainConfig(ConfigItem):
     id: str = field(default_factory=lambda: str(uuid4()))
 
 
+@serialize
 @dataclass
 class AuthenticationProviderConfig(ConfigItem):
     provider_type: AuthenticationProviderType
     token_type: AuthenticationTokenType
     token_security: AuthenticationTokenSecurity
     id: str = field(default_factory=lambda: str(uuid4()))
-    ip: IPAddress = field(default=None)
+    ip: Optional[IPAddress] = field(default=None, metadata={
+        'serde_serializer': lambda x: {"cls_type": typename(type(x)), "value": str(x)},
+    })
     timeout: int = 0
 
     # Copy stays the same, but changes the id
@@ -59,6 +66,7 @@ class AuthenticationProviderConfig(ConfigItem):
         return new_one
 
 
+@serialize
 @dataclass
 class AccessSchemeConfig(ConfigItem):
     authentication_providers: List[str]
