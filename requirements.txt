@@ -13,3 +13,4 @@ gura==1.2.0
 
 Jinja2~=3.0.1
 stringcase~=1.2.0
+typing-inspect==0.7.1
