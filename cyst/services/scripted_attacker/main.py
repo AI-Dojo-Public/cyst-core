@@ -1,8 +1,8 @@
 from abc import ABC, abstractmethod
-from typing import Tuple, Optional, Dict, Any
+from typing import Tuple, Optional, Dict, Any, Union
 
 from cyst.api.logic.action import Action
-from cyst.api.logic.access import Authorization, AccessLevel
+from cyst.api.logic.access import Authorization, AuthenticationToken
 from cyst.api.environment.environment import EnvironmentMessaging
 from cyst.api.environment.message import Request, Response, MessageType, Message
 from cyst.api.environment.resources import EnvironmentResources
@@ -12,7 +12,8 @@ from cyst.api.host.service import ActiveService, ActiveServiceDescription, Servi
 
 class ScriptedAttackerControl(ABC):
     @abstractmethod
-    def execute_action(self, target: str, service: str, action: Action, session: Session = None, authorization: Authorization = None) -> None:
+    def execute_action(self, target: str, service: str, action: Action, session: Session = None,
+                       auth: Optional[Union[Authorization, AuthenticationToken]] = None) -> None:
         pass
 
     @abstractmethod
@@ -29,8 +30,9 @@ class ScriptedAttacker(ActiveService, ScriptedAttackerControl):
     def run(self):
         print("Launched a scripted attacker")
 
-    def execute_action(self, target: str, service: str, action: Action, session: Session = None, authorization: Authorization = None) -> None:
-        request = self._env.create_request(target, service, action, session=session, authorization=authorization)
+    def execute_action(self, target: str, service: str, action: Action, session: Session = None,
+                       auth: Optional[Union[Authorization, AuthenticationToken]] = None) -> None:
+        request = self._env.create_request(target, service, action, session=session, auth=auth)
         self._env.send_message(request)
 
     def process_message(self, message: Message) -> Tuple[bool, int]:

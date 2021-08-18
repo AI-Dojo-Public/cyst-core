@@ -1,8 +1,9 @@
 from semver import VersionInfo
 from typing import List, Set, Union
 
+import cyst
 from cyst.api.host.service import Service, ActiveService, PassiveService
-from cyst.api.logic.access import AccessLevel, Authorization
+from cyst.api.logic.access import AccessLevel, Authorization, AuthenticationProvider, AccessScheme
 from cyst.api.logic.data import Data
 from cyst.api.network.session import Session
 
@@ -85,6 +86,9 @@ class PassiveServiceImpl(ServiceImpl, PassiveService):
         self._enable_session = False
         self._session_access_level = AccessLevel.NONE
         self._local = local
+        self._provided_auths = []
+        self._access_schemes = []
+        self._active_authorizations = []
 
     # ------------------------------------------------------------------------------------------------------------------
     # PassiveService
@@ -119,6 +123,17 @@ class PassiveServiceImpl(ServiceImpl, PassiveService):
         for tag in tags:
             self._tags.add(tag)
 
+    def add_provider(self, provider: AuthenticationProvider):
+        self._provided_auths.append(provider)
+        if isinstance(provider, cyst.core.logic.access.AuthenticationProviderImpl):
+            provider.set_service(self._id)
+
+    def add_access_scheme(self, scheme: AccessScheme):
+        self._access_schemes.append(scheme)
+
+    def add_active_authorization(self, auth: Authorization):
+        self._active_authorizations.append(auth)
+
     @property
     def private_data(self) -> List[Data]:
         return self._private_data
@@ -139,6 +154,10 @@ class PassiveServiceImpl(ServiceImpl, PassiveService):
     def enable_session(self) -> bool:
         return self._enable_session
 
+    @property
+    def access_schemes(self) -> List[AccessScheme]:
+        return self._access_schemes
+
     def set_enable_session(self, value: bool) -> None:
         self._enable_session = value
 
@@ -155,3 +174,4 @@ class PassiveServiceImpl(ServiceImpl, PassiveService):
             return o
         else:
             raise ValueError("Malformed underlying object passed with the PassiveService interface")
+

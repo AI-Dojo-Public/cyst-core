@@ -4,7 +4,7 @@ from netaddr import IPAddress
 from typing import Any, Optional, Union, NamedTuple
 
 from cyst.api.network.session import Session
-from cyst.api.logic.access import Authorization
+from cyst.api.logic.access import Authorization, AuthenticationToken, AuthenticationTarget
 from cyst.api.logic.action import Action
 
 
@@ -33,6 +33,7 @@ class StatusValue(Enum):
 # - NOT_EXISTING: WHAT does not exist within the context of current simulation run (e.g., service name, user name, etc.)
 # - NOT_APPLICABLE: WHAT cannot be used (e.g., wrong authorization, wrong exploit parameters, etc.)
 # - NOT_SUPPORTED: WHAT exists as a valid concept, but the target does not support it (e.g., attempting to open a session to a service that does not support it)
+# - NEXT: WHAT was a correct step towards success, but another WHAT is required
 class StatusDetail(Enum):
     UNKNOWN = 0
     # NODE.FAILURE
@@ -54,6 +55,9 @@ class StatusDetail(Enum):
     EXPLOIT_PARAMETER_NOT_APPLICABLE = auto()
     AUTHORIZATION_NOT_PROVIDED = auto()
     AUTHORIZATION_NOT_APPLICABLE = auto()
+    AUTHENTICATION_NOT_PROVIDED = auto()
+    AUTHENTICATION_NOT_APPLICABLE = auto()
+    AUTHENTICATION_NEXT = auto()
 
     # SERVICE.ERROR
 
@@ -115,7 +119,7 @@ class Message(ABC):
 
     @property
     @abstractmethod
-    def authorization(self) -> Authorization:
+    def auth(self) -> Optional[Union[Authorization, AuthenticationToken, AuthenticationTarget]]:
         pass
 
     @property

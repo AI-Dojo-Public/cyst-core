@@ -1,37 +1,174 @@
 import unittest
 import uuid
 
-from netaddr import IPAddress
+from netaddr import IPAddress, IPNetwork
 
 from cyst.api.logic.access import AccessLevel, Authorization
 from cyst.api.logic.action import ActionParameter, ActionParameterType
 from cyst.api.logic.exploit import ExploitCategory, ExploitLocality, ExploitParameterType
 from cyst.api.environment.environment import Environment
 from cyst.api.environment.control import EnvironmentControl, EnvironmentState
-from cyst.api.environment.configuration import ServiceParameter
 from cyst.api.environment.messaging import EnvironmentMessaging
 from cyst.api.environment.message import StatusOrigin, StatusValue, Status
 from cyst.api.environment.stores import ExploitStore
 from cyst.api.network.node import Node
-
-# from cyst.core.logic.access import AuthorizationImpl
-# from cyst.core.logic.data import DataImpl
-# from cyst.core.logic.exploit import ExploitImpl, VulnerableServiceImpl, ExploitParameterImpl
-# from cyst.core.environment.environment import EnvironmentProxy
-# from cyst.core.network.router import Router, Route
-# from cyst.core.network.elements import InterfaceImpl, Endpoint, Hop
-# from cyst.core.network.session import SessionImpl
-# from cyst.core.network.node import NodeImpl
-# from cyst.core.host.service import PassiveServiceImpl, ServiceImpl
+from cyst.api.host.service import Service
 
 from cyst.services.scripted_attacker.main import ScriptedAttacker
+
+from cyst.api.configuration import *
+
+# Topology configuration
+target1 = NodeConfig(
+    active_services=[],
+    passive_services=[
+        PassiveServiceConfig(
+            type="openssh",
+            owner="bash",
+            version="8.1.0",
+            local=False,
+            access_level=AccessLevel.ELEVATED,
+            parameters=[
+                (ServiceParameter.ENABLE_SESSION, True),
+                (ServiceParameter.SESSION_ACCESS_LEVEL, AccessLevel.LIMITED)
+            ]
+        ),
+        PassiveServiceConfig(
+            type="bash",
+            owner="bash",
+            version="5.0.0",
+            local=True,
+            access_level=AccessLevel.LIMITED,
+            public_data=[
+                DataConfig(
+                    owner="user1",
+                    description="Completely useless data"
+                )
+            ],
+            private_data=[
+                DataConfig(
+                    owner="user1",
+                    description="Interesting data, somehow hidden in bash"
+                )
+            ]
+        ),
+        PassiveServiceConfig(
+            type="lighttpd",
+            owner="lighttpd",
+            version="1.4.54",
+            local=False,
+            access_level=AccessLevel.LIMITED,
+            public_data=[
+                DataConfig(
+                    owner="user1",
+                    description="Worthless data"
+                )
+            ],
+            private_data=[
+                DataConfig(
+                    owner="user1",
+                    description="Much more interesting piece of information"
+                )
+            ],
+            private_authorizations=[
+                "http_auth_1",
+                "http_auth_2"
+            ]
+        )
+    ],
+    shell="bash",
+    interfaces=[
+        InterfaceConfig(
+            ip=IPAddress("192.168.0.2"),
+            net=IPNetwork("192.168.0.1/24")
+        )
+    ],
+    id="target1"
+)
+
+router1 = RouterConfig(
+    interfaces=[
+      InterfaceConfig(IPAddress("192.168.0.1"), IPNetwork("192.168.0.1/24"), index=0),
+      InterfaceConfig(IPAddress("192.168.0.1"), IPNetwork("192.168.0.1/24"), index=1)
+    ],
+    id="router1"
+)
+
+attacker1 = NodeConfig(
+    active_services=[
+        ActiveServiceConfig(
+            "scripted_attacker",
+            "scripted_attacker",
+            "attacker",
+            AccessLevel.LIMITED,
+            id="attacker_service"
+        )
+    ],
+    passive_services=[],
+    interfaces=[
+        InterfaceConfig(IPAddress("192.168.0.3"), IPNetwork("192.168.0.1/24"))
+    ],
+    shell="",
+    id="attacker_node"
+)
+
+connections = [
+    ConnectionConfig("attacker_node", 0, "router1", 0),
+    ConnectionConfig("target1", 0, "router1", 1)
+]
+
+# TODO: Manual setting of tokens is really awkward and this should probably be better arranged
+authorizations = [
+    AuthorizationConfig("root", ["target1"], ["*"], AccessLevel.ELEVATED, id="all_auth"),
+    AuthorizationConfig("user1", ["target1"], ["openssh"], AccessLevel.LIMITED, id="ssh_auth_1"),
+    AuthorizationConfig("user2", ["target1"], ["openssh"], AccessLevel.LIMITED, id="ssh_auth_2"),
+    AuthorizationConfig("user1", ["target1"], ["bash"], AccessLevel.LIMITED, id="bash_auth_1"),
+    AuthorizationConfig("user2", ["target1"], ["bash"], AccessLevel.LIMITED, id="bash_auth_2"),
+    AuthorizationConfig("user1", ["target1"], [], AccessLevel.LIMITED, id="http_auth_1"),
+    AuthorizationConfig("user2", ["target1"], [], AccessLevel.LIMITED, id="http_auth_2")
+]
+
+exploits = [
+    ExploitConfig([VulnerableServiceConfig("lighttpd", "1.4.54")], ExploitLocality.REMOTE, ExploitCategory.CODE_EXECUTION, id="http_exploit"),
+    ExploitConfig([VulnerableServiceConfig("lighttpd", "1.4.54")], ExploitLocality.REMOTE, ExploitCategory.CODE_EXECUTION,
+                  parameters=[ExploitParameterConfig(ExploitParameterType.ENABLE_ELEVATED_ACCESS, "TRUE", immutable=True)],
+                  id="http_root_exploit"),
+    ExploitConfig([VulnerableServiceConfig("vsftpd", "3.0.3")], ExploitLocality.REMOTE, ExploitCategory.CODE_EXECUTION, id="ftp_exploit"),
+    ExploitConfig([VulnerableServiceConfig("bash", "5.0.0")], ExploitLocality.LOCAL, ExploitCategory.AUTH_MANIPULATION,
+                  parameters=[
+                      ExploitParameterConfig(ExploitParameterType.IDENTITY),
+                      ExploitParameterConfig(ExploitParameterType.ENABLE_ELEVATED_ACCESS, "FALSE", immutable=True)
+                  ],
+                  id="bash_user_exploit"),
+    ExploitConfig([VulnerableServiceConfig("bash", "5.0.0")], ExploitLocality.LOCAL, ExploitCategory.AUTH_MANIPULATION,
+                  parameters=[ExploitParameterConfig(ExploitParameterType.ENABLE_ELEVATED_ACCESS, "TRUE", immutable=True)],
+                  id="bash_root_exploit"),
+    ExploitConfig([VulnerableServiceConfig("bash", "5.0.0")], ExploitLocality.LOCAL, ExploitCategory.AUTH_MANIPULATION,
+                  parameters=[
+                      ExploitParameterConfig(ExploitParameterType.ENABLE_ELEVATED_ACCESS, "TRUE", immutable=True),
+                      ExploitParameterConfig(ExploitParameterType.IMPACT_IDENTITY, "ALL", immutable=True),
+                      ExploitParameterConfig(ExploitParameterType.IMPACT_NODE, "ALL", immutable=True),
+                      ExploitParameterConfig(ExploitParameterType.IMPACT_SERVICE, "ALL", immutable=True)
+                  ],
+                  id="bash_master_exploit")
+]
 
 
 class TestAIFIntegration(unittest.TestCase):
 
     @classmethod
     def setUpClass(cls) -> None:
-        cls._env = Environment.create()
+        cls._env = Environment.create().configure(target1, router1, attacker1, *authorizations, *exploits, *connections)
+        cls._attacker = cls._env.configuration.service.get_service_interface(cls._env.configuration.general.get_object_by_id("attacker_service", Service).active_service, ScriptedAttacker)
+
+        # This is cumbersome, but not really a typical use-case for a user. 
+        cls._ssh_auth_1 = cls._env.configuration.general.get_object_by_id("ssh_auth_1", Authorization)
+        cls._ssh_auth_2 = cls._env.configuration.general.get_object_by_id("ssh_auth_2", Authorization)
+        cls._bash_auth_1 = cls._env.configuration.general.get_object_by_id("bash_auth_1", Authorization)
+        cls._bash_auth_2 = cls._env.configuration.general.get_object_by_id("bash_auth_2", Authorization)
+        cls._http_auth_1 = cls._env.configuration.general.get_object_by_id("http_auth_1", Authorization)
+        cls._http_auth_2 = cls._env.configuration.general.get_object_by_id("http_auth_2", Authorization)
+
         cls._env.control.init()
 
         cls._action_list = cls._env.resources.action_store.get_prefixed("aif")
@@ -39,118 +176,7 @@ class TestAIFIntegration(unittest.TestCase):
         for action in cls._action_list:
             cls._actions[action.id] = action
 
-        # Function aliases to make it more readable
-        create_node = cls._env.configuration.node.create_node
-        create_router = cls._env.configuration.node.create_router
-        create_active_service = cls._env.configuration.service.create_active_service
-        create_passive_service = cls._env.configuration.service.create_passive_service
-        add_service = cls._env.configuration.node.add_service
-        set_service_parameter = cls._env.configuration.service.set_service_parameter
-        create_interface = cls._env.configuration.node.create_interface
-        add_node = cls._env.configuration.network.add_node
-        add_connection = cls._env.configuration.network.add_connection
-        add_route = cls._env.configuration.node.add_route
-        add_interface = cls._env.configuration.node.add_interface
-        create_session = cls._env.configuration.network.create_session
-        public_data = cls._env.configuration.service.public_data
-        private_data = cls._env.configuration.service.private_data
-        create_data = cls._env.configuration.service.create_data
-        private_authorizations = cls._env.configuration.service.private_authorizations
-        add_exploit = cls._env.configuration.exploit.add_exploit
-        create_exploit = cls._env.configuration.exploit.create_exploit
-        create_vulnerable_service = cls._env.configuration.exploit.create_vulnerable_service
-        create_exploit_parameter = cls._env.configuration.exploit.create_exploit_parameter
-
-        # A passive node that:
-        # - is running two services - ssh and a http
-        # - has two users and a root
-        # - contains interesting data data can be shared
-        target = create_node("target1")
-        all_auth = cls._env.policy.create_authorization("root", ["target1"], ["*"], AccessLevel.ELEVATED)
-        cls._env.policy.add_authorization(all_auth)
-
-        # SSH service, with valid authentication grants a user access to the system
-        # Exploiting the service grants a root access to the system
-        ssh_service = create_passive_service("openssh", owner="ssh", version="8.1.0", service_access_level=AccessLevel.ELEVATED)
-        # SSH enables session creation
-        set_service_parameter(ssh_service.passive_service, ServiceParameter.ENABLE_SESSION, True)
-        # Sessions can be opened by ordinary users and root
-        set_service_parameter(ssh_service.passive_service, ServiceParameter.SESSION_ACCESS_LEVEL, AccessLevel.LIMITED)
-        # make the ssh authorization available to the attacker
-        cls._ssh_auth_1 = cls._env.policy.create_authorization("user1", ["target1"], ["openssh"], AccessLevel.LIMITED)
-        cls._ssh_auth_2 = cls._env.policy.create_authorization("user2", ["target1"], ["openssh"], AccessLevel.LIMITED)
-        cls._env.policy.add_authorization(cls._ssh_auth_1, cls._ssh_auth_2)
-
-        # Bash service, accessible only locally
-        bash_service = create_passive_service("bash", owner="bash", version="5.0.0", local=True, service_access_level=AccessLevel.LIMITED)
-        # TODO Bash and other services should probably support local code execution exploits
-        bash_auth_1 = cls._env.policy.create_authorization("user1", ["target1"], ["bash"], AccessLevel.LIMITED)
-        bash_auth_2 = cls._env.policy.create_authorization("user2", ["target1"], ["bash"], AccessLevel.LIMITED)
-        cls._env.policy.add_authorization(bash_auth_1, bash_auth_2)
-
-        # Setting bash as a shell - this way, any successful code-execution exploits to other services will also be
-        # given an access to the bash authorizations
-        cls._env.configuration.node.set_shell(target, bash_service)
-
-        public_data(bash_service.passive_service).append(create_data(None, "user1", "Worthless data"))
-        private_data(bash_service.passive_service).append(create_data(None, "user1", "Interesting data, somehow hidden in bash"))
-
-        # HTTP service provides a list of users when queried for information. May get system access with exploit
-        # Authorizations only added as a public data and are not registered in the policy, because on their own, they do not
-        # grant any access.
-        http_service = create_passive_service("lighttpd", owner="lighttpd", version="1.4.54", service_access_level=AccessLevel.LIMITED)
-        http_auth_1 = cls._env.policy.create_stub_authorization("user1", ["target1"])
-        http_auth_2 = cls._env.policy.create_stub_authorization("user2", ["target1"])
-        cls._env.policy.add_authorization(http_auth_1, http_auth_2)
-
-        # Add some public and private data to the service
-        public_data(http_service.passive_service).append(create_data(None, "user1", "Completely useless data"))
-        private_data(http_service.passive_service).append(create_data(None, "user1", "Much more interesting piece of information"))
-        private_authorizations(http_service.passive_service).extend([http_auth_1, http_auth_2])
-
-        # Add system exploitability
-        exploit1 = create_exploit("http_exploit", [create_vulnerable_service("lighttpd", "1.4.54")], ExploitLocality.REMOTE, ExploitCategory.CODE_EXECUTION)
-        exploit2 = create_exploit("http_root_exploit", [create_vulnerable_service("lighttpd", "1.4.54")], ExploitLocality.REMOTE, ExploitCategory.CODE_EXECUTION,
-                                  create_exploit_parameter(ExploitParameterType.ENABLE_ELEVATED_ACCESS, "TRUE", immutable=True))
-        exploit3 = create_exploit("ftp_exploit", [create_vulnerable_service("vsftpd", "3.0.3")], ExploitLocality.REMOTE, ExploitCategory.CODE_EXECUTION)
-        exploit4 = create_exploit("bash_user_exploit", [create_vulnerable_service("bash", "5.0.0")], ExploitLocality.LOCAL,
-                                  ExploitCategory.AUTH_MANIPULATION, create_exploit_parameter(ExploitParameterType.IDENTITY),
-                                  create_exploit_parameter(ExploitParameterType.ENABLE_ELEVATED_ACCESS, "FALSE", immutable=True))
-        exploit5 = create_exploit("bash_root_exploit", [create_vulnerable_service("bash", "5.0.0")], ExploitLocality.LOCAL, ExploitCategory.AUTH_MANIPULATION,
-                                  create_exploit_parameter(ExploitParameterType.ENABLE_ELEVATED_ACCESS, "TRUE", immutable=True))
-        exploit6 = create_exploit("bash_master_exploit", [create_vulnerable_service("bash", "5.0.0")], ExploitLocality.LOCAL,
-                                  ExploitCategory.AUTH_MANIPULATION,
-                                  create_exploit_parameter(ExploitParameterType.ENABLE_ELEVATED_ACCESS, "TRUE", immutable=True),
-                                  create_exploit_parameter(ExploitParameterType.IMPACT_IDENTITY, "ALL", immutable=True),
-                                  create_exploit_parameter(ExploitParameterType.IMPACT_NODE, "ALL", immutable=True),
-                                  create_exploit_parameter(ExploitParameterType.IMPACT_SERVICE, "ALL", immutable=True))
-
-        add_exploit(exploit1, exploit2, exploit3, exploit4, exploit5, exploit6)
-
-        add_service(target, ssh_service)
-        add_service(target, http_service)
-        add_service(target, bash_service)
-
-        # Place a router in front of the target
-        router = create_router("router1", cls._env.messaging)
-        add_interface(router, create_interface("192.168.0.1", "255.255.255.0"))
-
-        # Create an attacker
-        attacker_node = create_node("attacker_node")
-        attacker_service = create_active_service("scripted_attacker", "attacker", "scripted_attacker", attacker_node)
-        add_service(attacker_node, attacker_service)
-        cls._attacker = ScriptedAttacker.cast_from(attacker_service)
-
         cls._env.control.add_pause_on_response("attacker_node.scripted_attacker")
-
-        # Connect the environment pieces
-        add_node(target)
-        add_node(router)
-        add_node(attacker_node)
-
-        # TODO change this to env method, once this is merged from bronze_butler branch
-        add_connection(router, target, net="192.168.0.0/24")
-        add_connection(router, attacker_node, net="192.168.0.0/24")
 
     # Test correct handling of active scans, namely:
     # - successful scanning of a live machine
@@ -194,7 +220,7 @@ class TestAIFIntegration(unittest.TestCase):
 
         self.assertEqual((result, state), (True, EnvironmentState.PAUSED), "Task ran and was successfully paused.")
         self.assertEqual(message.status, Status(StatusOrigin.NODE, StatusValue.SUCCESS), "Services disclosed")
-        self.assertEqual(message.content, ["openssh", "lighttpd", "bash"])
+        self.assertCountEqual(message.content, ["openssh", "lighttpd", "bash"])
 
     # Test getting correct versions of services running on the target and an attempt to get a version of a
     # service, which is not running
@@ -269,7 +295,7 @@ class TestAIFIntegration(unittest.TestCase):
         self.assertEqual((result, state), (True, EnvironmentState.PAUSED), "Task ran and was successfully paused.")
         self.assertEqual(message.status, Status(StatusOrigin.NODE, StatusValue.ERROR), "Failed because neither auth nor exploit were provided")
 
-        self._attacker.execute_action("192.168.0.2", "openssh", action, authorization=self._ssh_auth_1)
+        self._attacker.execute_action("192.168.0.2", "openssh", action, auth=self._ssh_auth_1)
 
         self._env.control.run()
         message = self._attacker.get_last_response()
@@ -284,7 +310,7 @@ class TestAIFIntegration(unittest.TestCase):
         good_exploit = self._env.resources.exploit_store.get_exploit(service="lighttpd", category=ExploitCategory.CODE_EXECUTION)[0]
         action.set_exploit(good_exploit)
 
-        self._attacker.execute_action("192.168.0.2", "lighttpd", action, authorization=dud_ssh_auth)
+        self._attacker.execute_action("192.168.0.2", "lighttpd", action, auth=dud_ssh_auth)
 
         self._env.control.run()
         message = self._attacker.get_last_response()
