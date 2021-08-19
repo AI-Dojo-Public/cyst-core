@@ -204,7 +204,7 @@ class AccessConfiguration(ABC):
         pass
 
     @abstractmethod
-    def create_and_register_authentication_token(self, provider: AuthenticationProvider, identity: str) -> Optional[AuthenticationToken]:
+    def create_and_register_authentication_token(self, provider: AuthenticationProvider, identity: str, is_local: bool) -> Optional[AuthenticationToken]:
         pass
 
     @abstractmethod

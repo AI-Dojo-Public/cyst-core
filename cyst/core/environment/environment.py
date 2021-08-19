@@ -32,7 +32,7 @@ from cyst.api.network.firewall import FirewallRule, FirewallPolicy
 from cyst.api.host.service import ActiveServiceDescription, Service, PassiveService, ActiveService
 from cyst.api.configuration.configuration import ConfigItem
 
-from cyst.core.environment.configuration import Configuration
+from cyst.core.environment.configuration import Configuration, ConfigItemCloner
 from cyst.core.environment.message import MessageImpl, RequestImpl, ResponseImpl
 from cyst.core.environment.proxy import EnvironmentProxy
 from cyst.core.environment.stores import ActionStoreImpl, ServiceStoreImpl, ExploitStoreImpl
@@ -115,7 +115,7 @@ class _Environment(Environment, EnvironmentControl, EnvironmentMessaging, Enviro
         return self._policy
 
     def configure(self, *config_item: ConfigItem) -> Environment:
-        return self._configuration.configure(*config_item)
+        return self._configuration.configure(*[ConfigItemCloner.clone(x) for x in config_item])
 
     # ------------------------------------------------------------------------------------------------------------------
     # EnvironmentMessaging
