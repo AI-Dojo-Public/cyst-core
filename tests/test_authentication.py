@@ -166,18 +166,12 @@ connections = [
     ConnectionConfig("sso_server_node", 0, "router1", 2),
     ConnectionConfig("email_server_node", 0, "router1", 3)
 ]
-master_environment = Environment.create().configure(email_server, sso_server, target, router1, attacker1, *connections)
-master_environment1 = Environment.create().configure(email_server, sso_server, target, router1, attacker1, *connections)
-### WARN(Dark magic) - the above line was actually in both test classes (in setUpClass) but then it did not work
-# when the tests were run at once,
-# however it was fine if they were launched separately
-
 
 class AuthenticationProcessTestSSH(unittest.TestCase):
 
     @classmethod
     def setUpClass(cls) -> None:
-        cls.env = master_environment
+        cls.env = Environment.create().configure(email_server, sso_server, target, router1, attacker1, *connections)
 
         node = cls.env.configuration.general.get_object_by_id("target_node", Node)
         service = next(filter(lambda x: x.name == "ssh", node.services.values()))
@@ -224,7 +218,7 @@ class AuthenticationProcessTestCustomService(unittest.TestCase):
 
     @classmethod
     def setUpClass(cls) -> None:
-        cls.env = master_environment
+        cls.env = Environment.create().configure(email_server, sso_server, target, router1, attacker1, *connections)
 
         node = cls.env.configuration.general.get_object_by_id("target_node", Node)
         service = next(filter(lambda x: x.name == "my_custom_service", node.services.values()))

@@ -4,6 +4,7 @@ from heapq import heappush, heappop
 from itertools import product
 from typing import Tuple, List, Union, Optional, Any, Dict, Type
 from uuid import uuid4
+import copy
 
 from netaddr import IPAddress
 
@@ -115,7 +116,7 @@ class _Environment(Environment, EnvironmentControl, EnvironmentMessaging, Enviro
         return self._policy
 
     def configure(self, *config_item: ConfigItem) -> Environment:
-        return self._configuration.configure(*[ConfigItemCloner.clone(x) for x in config_item])
+        return self._configuration.configure(*[copy.deepcopy(x) for x in config_item])
 
     # ------------------------------------------------------------------------------------------------------------------
     # EnvironmentMessaging
@@ -574,7 +575,7 @@ class _Environment(Environment, EnvironmentControl, EnvironmentMessaging, Enviro
         if isinstance(service, PassiveServiceImpl):
             for scheme in service.access_schemes:
                 result = self.assess_token(scheme, token)
-                if isinstance(result, Authorization):  # None or AuthTarget
+                if isinstance(result, Authorization):
                     return self.user_auth_create(result, service, node)
                 if isinstance(result, AuthenticationTargetImpl):
                     if result.address is None:

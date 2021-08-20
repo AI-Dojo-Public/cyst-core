@@ -3,7 +3,8 @@ import uuid
 
 from netaddr import IPAddress, IPNetwork
 
-from cyst.api.logic.access import AccessLevel, Authorization
+from cyst.api.logic.access import AccessLevel, Authorization, AuthenticationTokenType, AuthenticationProviderType, \
+    AuthenticationTokenSecurity
 from cyst.api.logic.action import ActionParameter, ActionParameterType
 from cyst.api.logic.exploit import ExploitCategory, ExploitLocality, ExploitParameterType
 from cyst.api.environment.environment import Environment
@@ -19,6 +20,16 @@ from cyst.services.scripted_attacker.main import ScriptedAttacker
 from cyst.api.configuration import *
 
 # Topology configuration
+
+local_password_auth = AuthenticationProviderConfig \
+        (
+        provider_type=AuthenticationProviderType.LOCAL,
+        token_type=AuthenticationTokenType.PASSWORD,
+        token_security=AuthenticationTokenSecurity.SEALED,
+        timeout=30
+    )
+
+
 target1 = NodeConfig(
     active_services=[],
     passive_services=[
@@ -28,10 +39,22 @@ target1 = NodeConfig(
             version="8.1.0",
             local=False,
             access_level=AccessLevel.ELEVATED,
+            authentication_providers=[local_password_auth("openssh_local_pwd_auth")],
             parameters=[
                 (ServiceParameter.ENABLE_SESSION, True),
                 (ServiceParameter.SESSION_ACCESS_LEVEL, AccessLevel.LIMITED)
-            ]
+            ],
+            access_schemes=[AccessSchemeConfig(
+                    authentication_providers=["openssh_local_pwd_auth"],
+                    authorization_domain=AuthorizationDomainConfig(
+                        type=AuthorizationDomainType.LOCAL,
+                        authorizations=[
+                            AuthorizationConfig("user1", AccessLevel.LIMITED, id="ssh_auth_1"),
+                            AuthorizationConfig("user2", AccessLevel.LIMITED, id="ssh_auth_2"),
+                            AuthorizationConfig("root", AccessLevel.ELEVATED)
+                        ]
+                    )
+                )]
         ),
         PassiveServiceConfig(
             type="bash",
@@ -39,6 +62,7 @@ target1 = NodeConfig(
             version="5.0.0",
             local=True,
             access_level=AccessLevel.LIMITED,
+            authentication_providers=[local_password_auth("bash_login")],
             public_data=[
                 DataConfig(
                     owner="user1",
@@ -50,7 +74,18 @@ target1 = NodeConfig(
                     owner="user1",
                     description="Interesting data, somehow hidden in bash"
                 )
-            ]
+            ],
+            access_schemes=[AccessSchemeConfig(
+                                authentication_providers=["bash_login"],
+                                authorization_domain=AuthorizationDomainConfig(
+                                    type=AuthorizationDomainType.LOCAL,
+                                    authorizations=[
+                                        AuthorizationConfig("user1", AccessLevel.LIMITED, id="bash_auth_1"),
+                                        AuthorizationConfig("user2", AccessLevel.LIMITED, id="bash_auth_2"),
+                                        AuthorizationConfig("root", AccessLevel.ELEVATED)
+                                    ]
+                                )
+                            )]
         ),
         PassiveServiceConfig(
             type="lighttpd",
@@ -58,6 +93,7 @@ target1 = NodeConfig(
             version="1.4.54",
             local=False,
             access_level=AccessLevel.LIMITED,
+            authentication_providers=[local_password_auth("lighttpd_local_pwd_auth")],
             public_data=[
                 DataConfig(
                     owner="user1",
@@ -73,7 +109,18 @@ target1 = NodeConfig(
             private_authorizations=[
                 "http_auth_1",
                 "http_auth_2"
-            ]
+            ],
+            access_schemes=[AccessSchemeConfig(
+                                authentication_providers=["lighttpd_local_pwd_auth"],
+                                authorization_domain=AuthorizationDomainConfig(
+                                    type=AuthorizationDomainType.LOCAL,
+                                    authorizations=[
+                                        AuthorizationConfig("user1",  AccessLevel.LIMITED, id="http_auth_1"),
+                                        AuthorizationConfig("user2",  AccessLevel.LIMITED, id="http_auth_2"),
+                                        AuthorizationConfig("root", AccessLevel.ELEVATED)
+                                    ]
+                                )
+                            )]
         )
     ],
     shell="bash",
@@ -117,16 +164,6 @@ connections = [
     ConnectionConfig("target1", 0, "router1", 1)
 ]
 
-# TODO: Manual setting of tokens is really awkward and this should probably be better arranged
-authorizations = [
-    AuthorizationConfig("root", ["target1"], ["*"], AccessLevel.ELEVATED, id="all_auth"),
-    AuthorizationConfig("user1", ["target1"], ["openssh"], AccessLevel.LIMITED, id="ssh_auth_1"),
-    AuthorizationConfig("user2", ["target1"], ["openssh"], AccessLevel.LIMITED, id="ssh_auth_2"),
-    AuthorizationConfig("user1", ["target1"], ["bash"], AccessLevel.LIMITED, id="bash_auth_1"),
-    AuthorizationConfig("user2", ["target1"], ["bash"], AccessLevel.LIMITED, id="bash_auth_2"),
-    AuthorizationConfig("user1", ["target1"], [], AccessLevel.LIMITED, id="http_auth_1"),
-    AuthorizationConfig("user2", ["target1"], [], AccessLevel.LIMITED, id="http_auth_2")
-]
 
 exploits = [
     ExploitConfig([VulnerableServiceConfig("lighttpd", "1.4.54")], ExploitLocality.REMOTE, ExploitCategory.CODE_EXECUTION, id="http_exploit"),
@@ -158,7 +195,7 @@ class TestAIFIntegration(unittest.TestCase):
 
     @classmethod
     def setUpClass(cls) -> None:
-        cls._env = Environment.create().configure(target1, router1, attacker1, *authorizations, *exploits, *connections)
+        cls._env = Environment.create().configure(target1, router1, attacker1, *exploits, *connections)
         cls._attacker = cls._env.configuration.service.get_service_interface(cls._env.configuration.general.get_object_by_id("attacker_service", Service).active_service, ScriptedAttacker)
 
         # This is cumbersome, but not really a typical use-case for a user. 
@@ -394,7 +431,7 @@ class TestAIFIntegration(unittest.TestCase):
         message = self._attacker.get_last_response()
 
         session = message.session
-        auth = message.authorization
+        auth = message.auth
 
         self.assertEqual(session.end, IPAddress("192.168.0.2"), "Got correct session")
 
@@ -578,7 +615,7 @@ class TestAIFIntegration(unittest.TestCase):
         message = self._attacker.get_last_response()
 
         session = message.session
-        auth = message.authorization
+        auth = message.auth
 
         # At this point, we can guess which users are present on the system from message.content, which is a NodeView.
         # TODO However, there is no clear mapping of service -> user accounts
@@ -618,7 +655,7 @@ class TestAIFIntegration(unittest.TestCase):
         self._env.control.run()
         message = self._attacker.get_last_response()
 
-        user_auth = message.authorization
+        user_auth = message.auth
 
         self.assertEqual(message.status, Status(StatusOrigin.SERVICE, StatusValue.SUCCESS), "Escalated privileges")
         self.assertEqual(user_auth.identity, "user1", "Got access as user1")
@@ -691,7 +728,7 @@ class TestAIFIntegration(unittest.TestCase):
         self.assertEqual(message.status, Status(StatusOrigin.SERVICE, StatusValue.SUCCESS), "Gained session to the target")
 
         view = message.content
-        auth = message.authorization
+        auth = message.auth
         sess = message.session
 
         # Get IDs of public data
@@ -734,7 +771,7 @@ class TestAIFIntegration(unittest.TestCase):
         self._env.control.run()
         message = self._attacker.get_last_response()
 
-        user_auth = message.authorization
+        user_auth = message.auth
 
         self.assertEqual(message.status, Status(StatusOrigin.SERVICE, StatusValue.SUCCESS), "Escalated privileges")
         self.assertEqual(user_auth.identity, "user1", "Got access as user1")
@@ -791,7 +828,7 @@ class TestAIFIntegration(unittest.TestCase):
         self.assertEqual(message.status, Status(StatusOrigin.SERVICE, StatusValue.SUCCESS), "Gained session to the target")
 
         sess = message.session
-        auth = message.authorization
+        auth = message.auth
 
         # Run the action without an attacker id
         self._attacker.execute_action("192.168.0.2", "", action_lm, sess, auth)
@@ -835,7 +872,7 @@ class TestAIFIntegration(unittest.TestCase):
         self.assertEqual(message.status, Status(StatusOrigin.SERVICE, StatusValue.SUCCESS), "Gained session to the target")
 
         root_sess = message.session
-        root_auth = message.authorization
+        root_auth = message.auth
 
         # And finally launch the attacker on the remote system
         self._attacker.execute_action("192.168.0.2", "", action_lm, root_sess, root_auth)

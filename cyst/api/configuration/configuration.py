@@ -9,7 +9,10 @@ from typing import Any
 class ConfigItem:
     id: str
 
-
+"""
+A utility class to recursively copy ConfigItems due to the destructive property of environment creation.
+At the moment we use deepcopy tho, and this is a backup option.
+"""
 class ConfigItemCloner:
 
     @classmethod

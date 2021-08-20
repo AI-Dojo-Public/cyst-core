@@ -128,7 +128,7 @@ class PolicyStats:
     def authorization_entry_count(self):
         return self._authorization_entry_count
 
-
+"""
 class Policy(EnvironmentPolicy):
 
     def __init__(self):
@@ -268,11 +268,16 @@ class Policy(EnvironmentPolicy):
             ids.add(id[0])
 
         return list(map(lambda x: AuthorizationImpl(x), ids))
-
+"""
 
 # ----------------------------------------------------------------------------------------------------------------------
 # New version
 # ----------------------------------------------------------------------------------------------------------------------
+
+class Policy(EnvironmentPolicy):
+    pass
+
+
 
 class AuthenticationTokenImpl(AuthenticationToken):
 
