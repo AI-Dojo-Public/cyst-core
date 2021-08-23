@@ -84,7 +84,7 @@ class _Environment(Environment, EnvironmentControl, EnvironmentMessaging, Enviro
 
         self._interpreters = {}
 
-        self._policy = Policy()
+        self._policy = Policy(self)
 
         self._sessions_to_add = []
 

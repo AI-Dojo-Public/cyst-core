@@ -1,5 +1,5 @@
 from semver import VersionInfo
-from typing import List, Set, Union
+from typing import List, Set, Union, Tuple
 
 import cyst
 from cyst.api.host.service import Service, ActiveService, PassiveService
@@ -133,6 +133,13 @@ class PassiveServiceImpl(ServiceImpl, PassiveService):
 
     def add_active_authorization(self, auth: Authorization):
         self._active_authorizations.append(auth)
+
+    def assess_authorization(self, auth: Authorization, access_level: AccessLevel) -> Tuple[bool, str]:
+        for active_auth in self._active_authorizations:
+            if auth.id == active_auth.id and access_level == active_auth.access_level:
+                return True, "Authorization is valid."
+        return False, "Invalid authorization."
+
 
     @property
     def private_data(self) -> List[Data]:

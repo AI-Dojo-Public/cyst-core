@@ -356,7 +356,7 @@ class TestAIFIntegration(unittest.TestCase):
         self.assertEqual(message.status, Status(StatusOrigin.SERVICE, StatusValue.SUCCESS), "Correctly established a session")
         self.assertTrue(isinstance(message.content, Node), "Got a node view of the target")
         self.assertEqual(message.session.end, IPAddress("192.168.0.2"))
-        self.assertEqual(message.authorization.identity, "lighttpd", "Got correct identity for newly created authorization")
+        self.assertEqual(message.auth.identity, "lighttpd", "Got correct identity for newly created authorization")
 
         # Bad exploit used
         bad_exploit = self._env.resources.exploit_store.get_exploit(service="vsftpd")[0]
