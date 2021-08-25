@@ -225,6 +225,7 @@ class TestSessions(unittest.TestCase):
         set_service_parameter(ssh_service.passive_service, ServiceParameter.ENABLE_SESSION, True)
         set_service_parameter(ssh_service.passive_service, ServiceParameter.SESSION_ACCESS_LEVEL, AccessLevel.LIMITED)
 
+
         add_service(target1, ssh_service)
         add_service(target2, ssh_service)
         add_service(target3, ssh_service)

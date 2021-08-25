@@ -6,7 +6,7 @@ from typing import Tuple, List, Union, Optional, Any, Dict, Type
 from uuid import uuid4
 import copy
 
-from netaddr import IPAddress
+from netaddr import IPAddress, IPNetwork
 
 from cyst.api.environment.environment import Environment
 from cyst.api.environment.control import EnvironmentState, EnvironmentControl
@@ -38,8 +38,9 @@ from cyst.core.environment.message import MessageImpl, RequestImpl, ResponseImpl
 from cyst.core.environment.proxy import EnvironmentProxy
 from cyst.core.environment.stores import ActionStoreImpl, ServiceStoreImpl, ExploitStoreImpl
 from cyst.core.host.service import ServiceImpl, PassiveServiceImpl
-from cyst.core.logic.access import Policy, AuthenticationTokenImpl, AuthenticationProviderImpl, AuthorizationImpl, \
+from cyst.core.logic.access import AuthenticationTokenImpl, AuthenticationProviderImpl, AuthorizationImpl, \
     AccessSchemeImpl, AuthenticationTargetImpl
+from cyst.core.logic.policy import Policy
 from cyst.core.logic.data import DataImpl
 from cyst.core.logic.exploit import VulnerableServiceImpl, ExploitImpl, ExploitParameterImpl
 from cyst.core.network.elements import Endpoint, Connection, InterfaceImpl, Hop
@@ -329,6 +330,9 @@ class _Environment(Environment, EnvironmentControl, EnvironmentMessaging, Enviro
     def create_interface(self, ip: Union[str, IPAddress] = "", mask: str = "", index: int = 0):
         return InterfaceImpl(ip, mask, index)
 
+    def create_route(self, net: IPNetwork, port: int, metric: int) -> Route:
+        return Route(net, port, metric)
+
     def add_interface(self, node: Node, interface: Interface, index: int = -1) -> int:
         if node.type == "Router":
             return Router.cast_from(node).add_port(interface.ip, interface.mask, index)
@@ -394,8 +398,9 @@ class _Environment(Environment, EnvironmentControl, EnvironmentMessaging, Enviro
             raise RuntimeError("Given active service does not provide control interface of given type.")
 
     def create_passive_service(self, id: str, owner: str, version: str = "0.0.0", local: bool = False,
-                               service_access_level: AccessLevel = AccessLevel.LIMITED) -> Service:
-        return PassiveServiceImpl(id, owner, version, local, service_access_level)
+                               service_access_level: AccessLevel = AccessLevel.LIMITED, enable_session_creation=False,
+                               session_access_level=AccessLevel.NONE) -> Service:
+        return PassiveServiceImpl(id, owner, version, local, service_access_level, enable_session_creation, session_access_level)
 
     def set_service_parameter(self, service: PassiveService, parameter: ServiceParameter, value: Any) -> None:
         service = PassiveServiceImpl.cast_from(service)

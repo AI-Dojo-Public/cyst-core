@@ -38,5 +38,7 @@ class PassiveServiceConfig(ConfigItem):
     private_data: List[Union[DataConfig, str]] = field(default_factory=lambda: [])
     public_authorizations: List[Union[AuthorizationConfig, str]] = field(default_factory=lambda: [])
     private_authorizations: List[Union[AuthorizationConfig, str]] = field(default_factory=lambda: [])
+    enable_session_creation: bool = field(default=False)
+    session_access_level: AccessLevel = field(default=AccessLevel.NONE)
     parameters: List[Tuple[ServiceParameter, Any]] = field(default_factory=lambda: [])
     id: str = field(default_factory=lambda: str(uuid4()))

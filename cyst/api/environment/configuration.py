@@ -1,6 +1,6 @@
 from abc import ABC, abstractmethod
 from typing import Any, List, Optional, Union, Dict, TypeVar, Type
-from netaddr import IPAddress
+from netaddr import IPAddress, IPNetwork
 from flags import Flags
 
 from cyst.api.environment.messaging import EnvironmentMessaging
@@ -42,6 +42,10 @@ class NodeConfiguration(ABC):
 
     @abstractmethod
     def create_interface(self, ip: Union[str, IPAddress] = "", mask: str = "", index: int = 0) -> Interface:
+        pass
+
+    @abstractmethod
+    def create_route(self, net: IPNetwork, port: int, metric: int) -> Route:
         pass
 
     @abstractmethod
@@ -98,7 +102,8 @@ class ServiceConfiguration(ABC):
 
     @abstractmethod
     def create_passive_service(self, id: str, owner: str, version: str = "0.0.0", local: bool = False,
-                               service_access_level: AccessLevel = AccessLevel.LIMITED) -> Service:
+                               service_access_level: AccessLevel = AccessLevel.LIMITED, enable_session_creation=False,
+                               session_access_level=AccessLevel.NONE) -> Service:
         pass
 
     @abstractmethod

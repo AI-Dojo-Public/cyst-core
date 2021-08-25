@@ -8,7 +8,7 @@ from cyst.api.configuration.logic.access import AuthorizationConfig, Authenticat
     AuthorizationDomainConfig, FederatedAuthorizationConfig
 from cyst.api.configuration.logic.data import DataConfig
 from cyst.api.configuration.logic.exploit import VulnerableServiceConfig, ExploitParameterConfig, ExploitConfig
-from cyst.api.configuration.network.elements import PortConfig, InterfaceConfig, ConnectionConfig
+from cyst.api.configuration.network.elements import PortConfig, InterfaceConfig, ConnectionConfig, RouteConfig
 from cyst.api.configuration.network.firewall import FirewallChainConfig, FirewallConfig
 from cyst.api.configuration.network.network import NetworkConfig
 from cyst.api.configuration.network.router import RouterConfig
@@ -86,12 +86,16 @@ class Configurator:
 
     def _process_RouterConfig(self, cfg: RouterConfig):
         interface_ids = []
+        route_ids = []
 
         for interface in cfg.interfaces:
             if isinstance(interface, str):
                 interface_ids.append(interface)
             else:
                 interface_ids.append(self._process_cfg_item(interface))
+
+        for route in cfg.routing_table:
+            self._process_RouteConfig(route)
 
         cfg.interfaces = interface_ids
         self._routers.append(cfg)
@@ -254,6 +258,11 @@ class Configurator:
         self._refs[cfg.id] = cfg
         return cfg.id
 
+    def _process_RouteConfig(self, cfg: RouteConfig) -> str:
+
+        self._refs[cfg.id] = cfg
+        return cfg.id
+
     def _process_default(self, cfg):
         raise ValueError("Unknown config type provided")
 
@@ -382,7 +391,9 @@ class Configurator:
         passive_service_obj = {}
         for service in self._passive_services:
             s = self._env.configuration.service.create_passive_service(service.type, service.owner, service.version,
-                                                                       service.local, service.access_level)
+                                                                       service.local, service.access_level,
+                                                                       service.enable_session_creation,
+                                                                       service.session_access_level)
 
             for d in service.public_data:
                 self._env.configuration.service.public_data(s.passive_service).append(self._obj_refs[d])
@@ -441,6 +452,14 @@ class Configurator:
             for iface_id in router.interfaces:
                 iface = self._obj_refs[iface_id]
                 self._env.configuration.node.add_interface(r, iface, iface.index)
+
+            for route in router.routing_table:
+                route_obj = self._env.configuration.node.create_route(route.network, route.port, route.metric)
+                self._env.configuration.node.add_route(r, route_obj)
+                self._obj_refs[route.id] = route_obj
+
+            # TODO: Firewall
+
             self._env.configuration.network.add_node(r)
 
             self._obj_refs[router.id] = r
