@@ -443,6 +443,8 @@ class Configurator:
                 self._obj_refs[service_cfg.id] = s
                 self._env.configuration.node.add_service(n, s)
 
+            self._env.configuration.node.set_shell(n, n.services.get(node.shell, None))
+
             self._env.configuration.network.add_node(n)
 
             self._obj_refs[node.id] = n

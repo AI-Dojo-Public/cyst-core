@@ -205,7 +205,7 @@ class TestSessions(unittest.TestCase):
         create_session = env.configuration.network.create_session
 
         # We discard testing all authorizations for this scenario
-        all_root = env.policy.create_authorization("root", ["*"], ["*"], AccessLevel.ELEVATED)
+        all_root = env.policy.create_authorization("root", ["*"], ["*"], AccessLevel.ELEVATED, None)
         env.policy.add_authorization(all_root)
 
         # Create a simple scripted attacker

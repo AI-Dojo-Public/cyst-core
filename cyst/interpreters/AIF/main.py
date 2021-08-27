@@ -207,7 +207,8 @@ class AIFInterpreter(ActionInterpreter):
                 param = message.action.exploit.parameters.get(ExploitParameterType.ENABLE_ELEVATED_ACCESS, None)
                 if param and param.value == "TRUE":
                     access_level = AccessLevel.ELEVATED
-                auth = self._policy.create_authorization(message.dst_service, [node], [message.dst_service, node.shell], access_level)
+                auth = self._policy.create_authorization(message.dst_service, [node], [message.dst_service, node.shell],
+                                                         access_level, "evil_one")
                 return 1, self._messaging.create_response(message, Status(StatusOrigin.SERVICE, StatusValue.SUCCESS),
                                                           node, session=self._configuration.network.create_session_from_message(message),
                                                           auth=auth)
@@ -305,7 +306,9 @@ class AIFInterpreter(ActionInterpreter):
             user_required = "*"
 
         # Root exploit adds a new root user even if the user was not pre-existing
-        new_auth = self._policy.create_authorization(user_required, nodes, services, access_level=AccessLevel.LIMITED if mode == "user" else AccessLevel.ELEVATED)
+        new_auth = self._policy.create_authorization(user_required, nodes, services,
+                                                     access_level=AccessLevel.LIMITED if mode == "user" else AccessLevel.ELEVATED,
+                                                     id=None)
 
         return 1, self._messaging.create_response(message, Status(StatusOrigin.SERVICE, StatusValue.SUCCESS), "",
                                                   session=message.session, auth=new_auth)

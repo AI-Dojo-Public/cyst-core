@@ -11,6 +11,6 @@ from cyst.api.configuration.network.firewall import FirewallConfig
 @dataclass
 class RouterConfig(ConfigItem):
     interfaces: List[Union[InterfaceConfig]]
-    routing_table: List[RouteConfig] # should we allow str(id references? doesnt make much sense)
+    routing_table: List[RouteConfig] = field(default_factory=list)  # TODO: check if such a default is ok
     firewall: Optional[FirewallConfig] = field(default=None)
     id: str = field(default_factory=lambda: str(uuid4()))

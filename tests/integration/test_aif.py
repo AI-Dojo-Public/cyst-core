@@ -4,7 +4,7 @@ import uuid
 from netaddr import IPAddress, IPNetwork
 
 from cyst.api.logic.access import AccessLevel, Authorization, AuthenticationTokenType, AuthenticationProviderType, \
-    AuthenticationTokenSecurity
+    AuthenticationTokenSecurity, AuthenticationProvider
 from cyst.api.logic.action import ActionParameter, ActionParameterType
 from cyst.api.logic.exploit import ExploitCategory, ExploitLocality, ExploitParameterType
 from cyst.api.environment.environment import Environment
@@ -14,6 +14,7 @@ from cyst.api.environment.message import StatusOrigin, StatusValue, Status
 from cyst.api.environment.stores import ExploitStore
 from cyst.api.network.node import Node
 from cyst.api.host.service import Service
+from cyst.core.logic.access import AuthenticationProviderImpl
 
 from cyst.services.scripted_attacker.main import ScriptedAttacker
 
@@ -174,7 +175,7 @@ exploits = [
     ExploitConfig([VulnerableServiceConfig("bash", "5.0.0")], ExploitLocality.LOCAL, ExploitCategory.AUTH_MANIPULATION,
                   parameters=[
                       ExploitParameterConfig(ExploitParameterType.IDENTITY),
-                      ExploitParameterConfig(ExploitParameterType.ENABLE_ELEVATED_ACCESS, "FALSE", immutable=True)
+                      ExploitParameterConfig(ExploitParameterType.ENABLE_ELEVATED_ACCESS, "FALSE", immutable=False)
                   ],
                   id="bash_user_exploit"),
     ExploitConfig([VulnerableServiceConfig("bash", "5.0.0")], ExploitLocality.LOCAL, ExploitCategory.AUTH_MANIPULATION,
@@ -183,7 +184,7 @@ exploits = [
     ExploitConfig([VulnerableServiceConfig("bash", "5.0.0")], ExploitLocality.LOCAL, ExploitCategory.AUTH_MANIPULATION,
                   parameters=[
                       ExploitParameterConfig(ExploitParameterType.ENABLE_ELEVATED_ACCESS, "TRUE", immutable=True),
-                      ExploitParameterConfig(ExploitParameterType.IMPACT_IDENTITY, "ALL", immutable=True),
+                      ExploitParameterConfig(ExploitParameterType.IMPACT_IDENTITY, "ALL", immutable=False),
                       ExploitParameterConfig(ExploitParameterType.IMPACT_NODE, "ALL", immutable=True),
                       ExploitParameterConfig(ExploitParameterType.IMPACT_SERVICE, "ALL", immutable=True)
                   ],
@@ -196,15 +197,37 @@ class TestAIFIntegration(unittest.TestCase):
     @classmethod
     def setUpClass(cls) -> None:
         cls._env = Environment.create().configure(target1, router1, attacker1, *exploits, *connections)
-        cls._attacker = cls._env.configuration.service.get_service_interface(cls._env.configuration.general.get_object_by_id("attacker_service", Service).active_service, ScriptedAttacker)
+        cls._attacker = cls._env.configuration.service.get_service_interface(
+            cls._env.configuration.general.get_object_by_id("attacker_service", Service).active_service,
+            ScriptedAttacker)
 
-        # This is cumbersome, but not really a typical use-case for a user. 
-        cls._ssh_auth_1 = cls._env.configuration.general.get_object_by_id("ssh_auth_1", Authorization)
-        cls._ssh_auth_2 = cls._env.configuration.general.get_object_by_id("ssh_auth_2", Authorization)
-        cls._bash_auth_1 = cls._env.configuration.general.get_object_by_id("bash_auth_1", Authorization)
-        cls._bash_auth_2 = cls._env.configuration.general.get_object_by_id("bash_auth_2", Authorization)
-        cls._http_auth_1 = cls._env.configuration.general.get_object_by_id("http_auth_1", Authorization)
-        cls._http_auth_2 = cls._env.configuration.general.get_object_by_id("http_auth_2", Authorization)
+        # Getting auths is really ugly ATM, but when we solve their data part(will not be random, but user defined), we can do this easily
+        ssh_provider = cls._env.configuration.general.get_object_by_id("openssh_local_pwd_auth", AuthenticationProvider)
+        bash_provider = cls._env.configuration.general.get_object_by_id("bash_login", AuthenticationProvider)
+        http_provider = cls._env.configuration.general.get_object_by_id("lighttpd_local_pwd_auth", AuthenticationProvider)
+
+        cls._ssh_auth_1 = None
+        cls._ssh_auth_2 = None
+        cls._bash_auth_1 = None
+        cls._bash_auth_2 = None
+        cls._http_auth_1 = None
+        cls._http_auth_2 = None
+
+        if isinstance(ssh_provider, AuthenticationProviderImpl):
+            cls._ssh_auth_1 = next(filter(lambda token: token.identity == "user1", ssh_provider._tokens))
+            cls._ssh_auth_2 = next(filter(lambda token: token.identity == "user2", ssh_provider._tokens))
+
+        if isinstance(bash_provider, AuthenticationProviderImpl):
+            cls._bash_auth_1 = next(filter(lambda token: token.identity == "user1", bash_provider._tokens))
+            cls._bash_auth_2 = next(filter(lambda token: token.identity == "user2", bash_provider._tokens))
+
+        if isinstance(http_provider, AuthenticationProviderImpl):
+            cls._http_auth_1 = next(filter(lambda token: token.identity == "user1", http_provider._tokens))
+            cls._http_auth_2 = next(filter(lambda token: token.identity == "user2", http_provider._tokens))
+
+        assert None not in [cls._ssh_auth_1, cls._ssh_auth_2, cls._bash_auth_1, cls._bash_auth_2, cls._http_auth_1,
+                           cls._bash_auth_2]
+
 
         cls._env.control.init()
 
@@ -435,8 +458,8 @@ class TestAIFIntegration(unittest.TestCase):
 
         self.assertEqual(session.end, IPAddress("192.168.0.2"), "Got correct session")
 
-        self.assertTrue(self._env.policy.decide("", "lighttpd", AccessLevel.NONE, auth), "Authorization for correct target received")
-        self.assertTrue(self._env.policy.decide("", "bash", AccessLevel.NONE, auth), "Authorization for correct target received")
+        self.assertTrue(self._env.policy.decide("target1", "lighttpd", AccessLevel.NONE, auth), "Authorization for correct target received")
+        self.assertTrue(self._env.policy.decide("target1", "bash", AccessLevel.NONE, auth), "Authorization for correct target received")
 
         # --------------------------------------------------------------------------------------------------------------
         # Sanity tests (round 2)
@@ -533,8 +556,8 @@ class TestAIFIntegration(unittest.TestCase):
         self._env.control.run()
         message = self._attacker.get_last_response()
 
-        self.assertEqual(message.status, Status(StatusOrigin.SERVICE, StatusValue.SUCCESS), "We correctly commenced the exploit")
-        self.assertEqual(message.authorization.identity, "user1", "Got authorization for requested user")
+        self.assertEqual(message.status, Status(StatusOrigin.SERVICE, StatusValue.SUCCESS), "We correctly commenced the exploit") # TODO somehow the exploitparameter identity is None, and cannot be set, check
+        self.assertEqual(message.auth.identity, "user1", "Got authorization for requested user")
 
         # --------------------------------------------------------------------------------------------------------------
         # Successful root exploit
@@ -546,7 +569,7 @@ class TestAIFIntegration(unittest.TestCase):
         message = self._attacker.get_last_response()
 
         self.assertEqual(message.status, Status(StatusOrigin.SERVICE, StatusValue.SUCCESS), "We correctly commenced the exploit")
-        self.assertEqual(message.authorization.identity, "root", "Got authorization for root")
+        self.assertEqual(message.auth.identity, "root", "Got authorization for root")
         self.assertTrue(self._env.policy.decide("", "", AccessLevel.ELEVATED, auth), "Got elevated access level")
 
         # --------------------------------------------------------------------------------------------------------------
@@ -622,7 +645,7 @@ class TestAIFIntegration(unittest.TestCase):
 
         self.assertEqual(message.status, Status(StatusOrigin.SERVICE, StatusValue.SUCCESS), "Established a session")
 
-        self.assertTrue(self._env.policy.decide("", "lighttpd", AccessLevel.NONE, auth), "Exploited lighttpd successfully")
+        self.assertTrue(self._env.policy.decide("target1", "lighttpd", AccessLevel.NONE, auth), "Exploited lighttpd successfully")
 
         # Now that we have session, we got access to bash. Let's extract public data from it
         self._attacker.execute_action("192.168.0.2", "bash", action, session)

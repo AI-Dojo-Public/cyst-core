@@ -6,7 +6,7 @@ from cyst.api.host.service import Service
 from cyst.api.logic.access import AccessLevel, Authorization
 from cyst.api.network.node import Node
 from cyst.core.host.service import PassiveServiceImpl
-from cyst.core.logic.access import AuthorizationImpl
+from cyst.core.logic.access import AuthorizationImpl, AccessSchemeImpl
 from cyst.core.network.node import NodeImpl
 
 
@@ -16,13 +16,14 @@ class Policy(EnvironmentPolicy):
         self._config = configuration
 
     def create_authorization(self, identity: str, nodes: List[Union[str, Node]], services: List[Union[str, Service]],
-                             access_level: AccessLevel, id: Optional[str] = None,
-                             token: Optional[str] = None) -> Optional[Authorization]:
+                             access_level: AccessLevel, id: str, token: Optional[str] = None) -> Optional[Authorization]:
 
         if not nodes or not services:
             return None
 
-        auth = AuthorizationImpl(identity, nodes, services, access_level, id, token)
+        auth = AuthorizationImpl(identity, list(map(lambda node: node if isinstance(node, str) else node.id, nodes)),
+                                 list(map(lambda service: service if isinstance(service, str) else service.name, services)),
+                                 access_level, id, token)
 
         if len(nodes) > 1 or services == ["*"]: # federated, temporary solution
             return auth
@@ -53,7 +54,21 @@ class Policy(EnvironmentPolicy):
 
     def get_authorizations(self, node: Union[str, Node], service: str, access_level: AccessLevel = AccessLevel.NONE) -> \
     List[Authorization]:
-        pass
+        """ This only return the Authorization templates"""
+
+        actual_node = node if isinstance(node, Node) else self._config.general.get_object_by_id(node, Node)
+
+        actual_service = actual_node.services.get(service)
+
+        auths = []
+
+        if isinstance(actual_service, PassiveServiceImpl):
+            for scheme in map(lambda a_sch: AccessSchemeImpl.cast_from(a_sch), actual_service.access_schemes):
+                auths.extend(scheme.authorizations)
+
+        return auths
+
+
 
     def decide(self, node: Union[str, Node], service: str, access_level: AccessLevel, authorization: Authorization) -> \
     Tuple[bool, str]:

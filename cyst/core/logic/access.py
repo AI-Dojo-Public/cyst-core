@@ -367,6 +367,14 @@ class AccessSchemeImpl(AccessScheme):
     def authorizations(self) -> List[Authorization]:
         return self._authorizations
 
+    @staticmethod
+    def cast_from(other: AccessScheme):
+        if isinstance(other, AccessSchemeImpl):
+            return other
+        else:
+            raise ValueError("Malformed underlying object passed with the AccessScheme interface")
+
+
 
 class AuthenticationProviderImpl(AuthenticationProvider):
 
