@@ -116,7 +116,7 @@ target1 = NodeConfig(
                                 authorization_domain=AuthorizationDomainConfig(
                                     type=AuthorizationDomainType.LOCAL,
                                     authorizations=[
-                                        AuthorizationConfig("user1",  AccessLevel.LIMITED, id="http_auth_1"),
+                                        AuthorizationConfig("user1",  AccessLevel.LIMITED, id="http_auth_1"), # TODO originally these were meant as stub authorizations, can i put them here??
                                         AuthorizationConfig("user2",  AccessLevel.LIMITED, id="http_auth_2"),
                                         AuthorizationConfig("root", AccessLevel.ELEVATED)
                                     ]
@@ -174,8 +174,8 @@ exploits = [
     ExploitConfig([VulnerableServiceConfig("vsftpd", "3.0.3")], ExploitLocality.REMOTE, ExploitCategory.CODE_EXECUTION, id="ftp_exploit"),
     ExploitConfig([VulnerableServiceConfig("bash", "5.0.0")], ExploitLocality.LOCAL, ExploitCategory.AUTH_MANIPULATION,
                   parameters=[
-                      ExploitParameterConfig(ExploitParameterType.IDENTITY),
-                      ExploitParameterConfig(ExploitParameterType.ENABLE_ELEVATED_ACCESS, "FALSE", immutable=False)
+                      ExploitParameterConfig(ExploitParameterType.IDENTITY, immutable=False),
+                      ExploitParameterConfig(ExploitParameterType.ENABLE_ELEVATED_ACCESS, "FALSE", immutable=True)
                   ],
                   id="bash_user_exploit"),
     ExploitConfig([VulnerableServiceConfig("bash", "5.0.0")], ExploitLocality.LOCAL, ExploitCategory.AUTH_MANIPULATION,
@@ -184,7 +184,7 @@ exploits = [
     ExploitConfig([VulnerableServiceConfig("bash", "5.0.0")], ExploitLocality.LOCAL, ExploitCategory.AUTH_MANIPULATION,
                   parameters=[
                       ExploitParameterConfig(ExploitParameterType.ENABLE_ELEVATED_ACCESS, "TRUE", immutable=True),
-                      ExploitParameterConfig(ExploitParameterType.IMPACT_IDENTITY, "ALL", immutable=False),
+                      ExploitParameterConfig(ExploitParameterType.IMPACT_IDENTITY, "ALL", immutable=True),
                       ExploitParameterConfig(ExploitParameterType.IMPACT_NODE, "ALL", immutable=True),
                       ExploitParameterConfig(ExploitParameterType.IMPACT_SERVICE, "ALL", immutable=True)
                   ],
@@ -570,7 +570,7 @@ class TestAIFIntegration(unittest.TestCase):
 
         self.assertEqual(message.status, Status(StatusOrigin.SERVICE, StatusValue.SUCCESS), "We correctly commenced the exploit")
         self.assertEqual(message.auth.identity, "root", "Got authorization for root")
-        self.assertTrue(self._env.policy.decide("", "", AccessLevel.ELEVATED, auth), "Got elevated access level")
+        self.assertTrue(self._env.policy.decide("target1", "root", AccessLevel.ELEVATED, auth), "Got elevated access level")
 
         # --------------------------------------------------------------------------------------------------------------
         # Test master exploit
@@ -582,7 +582,7 @@ class TestAIFIntegration(unittest.TestCase):
         message = self._attacker.get_last_response()
 
         self.assertEqual(message.status, Status(StatusOrigin.SERVICE, StatusValue.SUCCESS), "We correctly commenced the exploit")
-        self.assertEqual(message.authorization.identity, "*", "Got authorization for anyone")
+        self.assertEqual(message.auth.identity, "*", "Got authorization for anyone")
         # TODO There is no sensible way to test these from user code. However, the authorization handling still has to be revised.
         #      Until then the code is commented out
         # self.assertEqual(AuthorizationImpl.cast_from(message.authorization).nodes, ["*"], "Got authorization for anyone")
