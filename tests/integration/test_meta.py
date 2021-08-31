@@ -43,8 +43,10 @@ ssh_service = PassiveServiceConfig(
             ]
         )
     )],
-    enable_session_creation=True,
-    session_access_level=AccessLevel.ELEVATED
+    parameters=[
+                    (ServiceParameter.ENABLE_SESSION, True),
+                    (ServiceParameter.SESSION_ACCESS_LEVEL, AccessLevel.LIMITED)
+                ]
 )
 
 target1 = NodeConfig(id="target1", active_services=[], passive_services=[ssh_service],

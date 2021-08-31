@@ -77,8 +77,7 @@ class ServiceImpl(Service):
 
 class PassiveServiceImpl(ServiceImpl, PassiveService):
     def __init__(self, id: str, owner: str, version: str = "0.0.0", local: bool = False,
-                 service_access_level: AccessLevel = AccessLevel.LIMITED, enable_session_creation=False,
-                 session_access_level=AccessLevel.NONE) -> None:
+                 service_access_level: AccessLevel = AccessLevel.LIMITED) -> None:
         super(PassiveServiceImpl, self).__init__(id, self, id, owner, service_access_level)
 
         self._version = VersionInfo.parse(version)
@@ -87,8 +86,8 @@ class PassiveServiceImpl(ServiceImpl, PassiveService):
         self._public_authorizations = []
         self._private_authorizations = []
         self._tags = set()
-        self._enable_session = enable_session_creation
-        self._session_access_level = session_access_level
+        self._enable_session = False
+        self._session_access_level = AccessLevel.NONE
         self._local = local
         self._provided_auths = []
         self._access_schemes = []

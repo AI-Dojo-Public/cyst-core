@@ -391,9 +391,7 @@ class Configurator:
         passive_service_obj = {}
         for service in self._passive_services:
             s = self._env.configuration.service.create_passive_service(service.type, service.owner, service.version,
-                                                                       service.local, service.access_level,
-                                                                       service.enable_session_creation,
-                                                                       service.session_access_level)
+                                                                       service.local, service.access_level)
 
             for d in service.public_data:
                 self._env.configuration.service.public_data(s.passive_service).append(self._obj_refs[d])

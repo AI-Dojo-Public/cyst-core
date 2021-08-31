@@ -174,13 +174,7 @@ class CloneTest(unittest.TestCase):
     def test_000_basic(self):
 
         clone = ConfigItemCloner.clone(email_server)
-        print(id(email_server))
-        print(id(clone))
         self.assertIsNot(email_server, clone, "objects are the same, not clones")
         self.assertIsNot(email_server.passive_services[0], clone.passive_services[0])
-        print(id(email_server.passive_services[0]))
-        print(id(clone.passive_services[0]))
 
-        print(email_server.passive_services[0])
-        print(clone.passive_services[0])
 

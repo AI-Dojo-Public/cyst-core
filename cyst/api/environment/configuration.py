@@ -102,8 +102,7 @@ class ServiceConfiguration(ABC):
 
     @abstractmethod
     def create_passive_service(self, id: str, owner: str, version: str = "0.0.0", local: bool = False,
-                               service_access_level: AccessLevel = AccessLevel.LIMITED, enable_session_creation=False,
-                               session_access_level=AccessLevel.NONE) -> Service:
+                               service_access_level: AccessLevel = AccessLevel.LIMITED) -> Service:
         pass
 
     @abstractmethod

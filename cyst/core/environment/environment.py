@@ -398,9 +398,8 @@ class _Environment(Environment, EnvironmentControl, EnvironmentMessaging, Enviro
             raise RuntimeError("Given active service does not provide control interface of given type.")
 
     def create_passive_service(self, id: str, owner: str, version: str = "0.0.0", local: bool = False,
-                               service_access_level: AccessLevel = AccessLevel.LIMITED, enable_session_creation=False,
-                               session_access_level=AccessLevel.NONE) -> Service:
-        return PassiveServiceImpl(id, owner, version, local, service_access_level, enable_session_creation, session_access_level)
+                               service_access_level: AccessLevel = AccessLevel.LIMITED) -> Service:
+        return PassiveServiceImpl(id, owner, version, local, service_access_level)
 
     def set_service_parameter(self, service: PassiveService, parameter: ServiceParameter, value: Any) -> None:
         service = PassiveServiceImpl.cast_from(service)
