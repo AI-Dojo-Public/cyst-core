@@ -1,4 +1,5 @@
 import unittest
+import uuid
 
 from netaddr import IPAddress, IPNetwork
 
@@ -185,20 +186,10 @@ class TestMetaAuth(unittest.TestCase):
         # get the tokens directly
         provider = cls._env.configuration.general.get_object_by_id("ssh_service_local_auth_id",
                                                                    AuthenticationProvider)
-        ssh_token = None
-        if isinstance(provider, AuthenticationProviderImpl):
-            ssh_token = next(iter(provider._tokens))
 
-        provider = cls._env.configuration.general.get_object_by_id("my_custom_service_auth_id",
-                                                                   AuthenticationProvider)
-        custom_token = None
-        if isinstance(provider, AuthenticationProviderImpl):
-            custom_token = next(iter(provider._tokens))
-
-        assert None not in [ssh_token, custom_token]
-
-        cls._ssh_token = ssh_token
-        cls._custom_token = custom_token
+        cls._ssh_token = AuthenticationTokenImpl(AuthenticationTokenType.PASSWORD, AuthenticationTokenSecurity.OPEN, "user1", True)._set_content(uuid.uuid4())
+        cls._custom_token = AuthenticationTokenImpl(AuthenticationTokenType.PASSWORD, AuthenticationTokenSecurity.OPEN, "user1", True)._set_content(uuid.uuid4())
+        # the above will work only until new methods of tokens will be implemented
 
         # init the environment
         cls._env.control.init()

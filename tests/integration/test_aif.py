@@ -14,7 +14,7 @@ from cyst.api.environment.message import StatusOrigin, StatusValue, Status
 from cyst.api.environment.stores import ExploitStore
 from cyst.api.network.node import Node
 from cyst.api.host.service import Service
-from cyst.core.logic.access import AuthenticationProviderImpl, AuthorizationImpl
+from cyst.core.logic.access import AuthenticationProviderImpl, AuthorizationImpl, AuthenticationTokenImpl
 
 from cyst.services.scripted_attacker.main import ScriptedAttacker
 
@@ -202,21 +202,10 @@ class TestAIFIntegration(unittest.TestCase):
         bash_provider = cls._env.configuration.general.get_object_by_id("bash_login", AuthenticationProvider)
         http_provider = cls._env.configuration.general.get_object_by_id("lighttpd_local_pwd_auth", AuthenticationProvider)
 
-        cls._ssh_auth_1 = None
-        cls._ssh_auth_2 = None
-        cls._bash_auth_1 = None
-        cls._bash_auth_2 = None
-
-        if isinstance(ssh_provider, AuthenticationProviderImpl):
-            cls._ssh_auth_1 = next(filter(lambda token: token.identity == "user1", ssh_provider._tokens))
-            cls._ssh_auth_2 = next(filter(lambda token: token.identity == "user2", ssh_provider._tokens))
-
-        if isinstance(bash_provider, AuthenticationProviderImpl):
-            cls._bash_auth_1 = next(filter(lambda token: token.identity == "user1", bash_provider._tokens))
-            cls._bash_auth_2 = next(filter(lambda token: token.identity == "user2", bash_provider._tokens))
-
-        assert None not in [cls._ssh_auth_1, cls._ssh_auth_2, cls._bash_auth_1, cls._bash_auth_2]
-
+        cls._ssh_auth_1 = AuthenticationTokenImpl(AuthenticationTokenType.PASSWORD, AuthenticationTokenSecurity.OPEN, "user1", True)._set_content(uuid.uuid4())
+        cls._ssh_auth_2 = AuthenticationTokenImpl(AuthenticationTokenType.PASSWORD, AuthenticationTokenSecurity.OPEN, "user2", True)._set_content(uuid.uuid4())
+        cls._bash_auth_1 = AuthenticationTokenImpl(AuthenticationTokenType.PASSWORD, AuthenticationTokenSecurity.OPEN, "user1", True)._set_content(uuid.uuid4())
+        cls._bash_auth_2 = AuthenticationTokenImpl(AuthenticationTokenType.PASSWORD, AuthenticationTokenSecurity.OPEN, "user2", True)._set_content(uuid.uuid4())
 
         cls._env.control.init()
 

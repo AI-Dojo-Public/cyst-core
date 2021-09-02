@@ -19,7 +19,7 @@ from cyst.api.network.elements import Route
 from cyst.api.network.firewall import FirewallRule, FirewallPolicy
 from cyst.api.network.node import Node
 
-from cyst.core.logic.access import AuthenticationProviderImpl
+from cyst.core.logic.access import AuthenticationProviderImpl, AuthenticationTokenImpl
 
 from cyst.services.scripted_attacker.main import ScriptedAttacker
 
@@ -460,26 +460,9 @@ class TestSessions(unittest.TestCase):
         env = Environment.create().configure(target1, target2, target3, attacker_node, router1, router2, *connections)
         env.control.add_pause_on_response("attacker_node.scripted_attacker")
 
-        ssh_token_t1 = None
-        ssh_token_t2 = None
-        ssh_token_t3 = None
-
-        provider = env.configuration.general.get_object_by_id("t1_ssh_pwd_auth",
-                                                              AuthenticationProvider)
-        if isinstance(provider, AuthenticationProviderImpl):
-            ssh_token_t1 = next(iter(provider._tokens))
-
-        provider = env.configuration.general.get_object_by_id("t2_ssh_pwd_auth",
-                                                              AuthenticationProvider)
-        if isinstance(provider, AuthenticationProviderImpl):
-            ssh_token_t2 = next(iter(provider._tokens))
-
-        provider = env.configuration.general.get_object_by_id("t3_ssh_pwd_auth",
-                                                              AuthenticationProvider)
-        if isinstance(provider, AuthenticationProviderImpl):
-            ssh_token_t3 = next(iter(provider._tokens))
-
-        assert None not in [ssh_token_t1, ssh_token_t2, ssh_token_t3]
+        ssh_token_t1 = AuthenticationTokenImpl(AuthenticationTokenType.PASSWORD, AuthenticationTokenSecurity.OPEN, "root", True)._set_content(uuid.uuid4())
+        ssh_token_t2 = AuthenticationTokenImpl(AuthenticationTokenType.PASSWORD, AuthenticationTokenSecurity.OPEN, "root", True)._set_content(uuid.uuid4())
+        ssh_token_t3 = AuthenticationTokenImpl(AuthenticationTokenType.PASSWORD, AuthenticationTokenSecurity.OPEN, "root", True)._set_content(uuid.uuid4())
 
         create_session = env.configuration.network.create_session
 

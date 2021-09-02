@@ -1,4 +1,5 @@
 import unittest
+import uuid
 
 from netaddr import IPAddress, IPNetwork
 
@@ -15,7 +16,7 @@ from cyst.api.environment.message import StatusOrigin, StatusValue, Status
 from cyst.api.logic.action import ActionParameter, ActionParameterType
 from cyst.api.network.node import Node
 from cyst.api.network.session import Session
-from cyst.core.logic.access import AuthenticationProviderImpl
+from cyst.core.logic.access import AuthenticationProviderImpl, AuthenticationTokenImpl
 
 from cyst.services.scripted_attacker.main import ScriptedAttackerControl
 
@@ -110,9 +111,8 @@ class TestMETAIntegration(unittest.TestCase):
 
         provider = cls._env.configuration.general.get_object_by_id("openssh_local_auth_id",
                                                                    AuthenticationProvider)
-        cls._ssh_token = None
-        if isinstance(provider, AuthenticationProviderImpl):
-            cls._ssh_token = next(iter(provider._tokens))
+        cls._ssh_token = AuthenticationTokenImpl(AuthenticationTokenType.PASSWORD,
+                                                 AuthenticationTokenSecurity.OPEN, "root", True)._set_content(uuid.uuid4())
 
 
     def test_0000_inspect_node(self) -> None:
