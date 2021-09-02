@@ -1,4 +1,5 @@
 import importlib
+import uuid
 
 from heapq import heappush, heappop
 from itertools import product
@@ -515,7 +516,8 @@ class _Environment(Environment, EnvironmentControl, EnvironmentMessaging, Enviro
 
     def create_authentication_token(self, type: AuthenticationTokenType, security: AuthenticationTokenSecurity,
                                     identity: str, is_local: bool) -> AuthenticationToken:
-        return AuthenticationTokenImpl(type, security, identity, is_local)
+        return AuthenticationTokenImpl(type, security, identity, is_local)._set_content(uuid.uuid4())
+                # contetn setting is temporary until encrypted/hashed data is implemented
 
     def register_authentication_token(self, provider: AuthenticationProvider, token: AuthenticationToken) -> bool:
         if isinstance(provider, AuthenticationProviderImpl):

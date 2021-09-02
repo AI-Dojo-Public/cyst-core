@@ -14,7 +14,7 @@ from cyst.api.environment.message import StatusOrigin, StatusValue, Status
 from cyst.api.environment.stores import ExploitStore
 from cyst.api.network.node import Node
 from cyst.api.host.service import Service
-from cyst.core.logic.access import AuthenticationProviderImpl
+from cyst.core.logic.access import AuthenticationProviderImpl, AuthorizationImpl
 
 from cyst.services.scripted_attacker.main import ScriptedAttacker
 
@@ -108,16 +108,12 @@ target1 = NodeConfig(
                 )
             ],
             private_authorizations=[
-                "http_auth_1",
-                "http_auth_2"
             ],
             access_schemes=[AccessSchemeConfig(
                                 authentication_providers=["lighttpd_local_pwd_auth"],
                                 authorization_domain=AuthorizationDomainConfig(
                                     type=AuthorizationDomainType.LOCAL,
                                     authorizations=[
-                                        AuthorizationConfig("user1",  AccessLevel.LIMITED, id="http_auth_1"), # TODO originally these were meant as stub authorizations, can i put them here??
-                                        AuthorizationConfig("user2",  AccessLevel.LIMITED, id="http_auth_2"),
                                         AuthorizationConfig("root", AccessLevel.ELEVATED)
                                     ]
                                 )
@@ -210,8 +206,6 @@ class TestAIFIntegration(unittest.TestCase):
         cls._ssh_auth_2 = None
         cls._bash_auth_1 = None
         cls._bash_auth_2 = None
-        cls._http_auth_1 = None
-        cls._http_auth_2 = None
 
         if isinstance(ssh_provider, AuthenticationProviderImpl):
             cls._ssh_auth_1 = next(filter(lambda token: token.identity == "user1", ssh_provider._tokens))
@@ -221,12 +215,7 @@ class TestAIFIntegration(unittest.TestCase):
             cls._bash_auth_1 = next(filter(lambda token: token.identity == "user1", bash_provider._tokens))
             cls._bash_auth_2 = next(filter(lambda token: token.identity == "user2", bash_provider._tokens))
 
-        if isinstance(http_provider, AuthenticationProviderImpl):
-            cls._http_auth_1 = next(filter(lambda token: token.identity == "user1", http_provider._tokens))
-            cls._http_auth_2 = next(filter(lambda token: token.identity == "user2", http_provider._tokens))
-
-        assert None not in [cls._ssh_auth_1, cls._ssh_auth_2, cls._bash_auth_1, cls._bash_auth_2, cls._http_auth_1,
-                           cls._bash_auth_2]
+        assert None not in [cls._ssh_auth_1, cls._ssh_auth_2, cls._bash_auth_1, cls._bash_auth_2]
 
 
         cls._env.control.init()
@@ -366,7 +355,7 @@ class TestAIFIntegration(unittest.TestCase):
         self.assertEqual(message.session.end, IPAddress("192.168.0.2"))
 
         # Create dud authorization, that fails because of wrong access token
-        dud_ssh_auth = self._env.policy.create_stub_authorization("user2", ["target1"], ["ssh"], AccessLevel.LIMITED)
+        dud_ssh_auth = AuthorizationImpl("user2", ["target1"], ["ssh"], AccessLevel.LIMITED)
         good_exploit = self._env.resources.exploit_store.get_exploit(service="lighttpd", category=ExploitCategory.CODE_EXECUTION)[0]
         action.set_exploit(good_exploit)
 

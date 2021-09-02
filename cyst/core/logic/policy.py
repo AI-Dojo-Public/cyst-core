@@ -40,18 +40,6 @@ class Policy(EnvironmentPolicy):
         return auth
 
 
-
-    def create_stub_authorization(self, identity: Optional[str] = None, nodes: Optional[List[Union[str, Node]]] = None,
-                                  services: Optional[List[Union[str, Service]]] = None,
-                                  access_level: AccessLevel = AccessLevel.NONE) -> Authorization:
-        pass
-
-    def create_stub_from_authorization(self, authorization: Authorization) -> Authorization:
-        pass
-
-    def add_authorization(self, *authorizations: Authorization) -> None:
-        pass
-
     def get_authorizations(self, node: Union[str, Node], service: str, access_level: AccessLevel = AccessLevel.NONE) -> \
     List[Authorization]:
         """ This only return the Authorization templates"""

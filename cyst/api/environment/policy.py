@@ -15,18 +15,6 @@ class EnvironmentPolicy(ABC):
         pass
 
     @abstractmethod
-    def create_stub_authorization(self, identity: Optional[str] = None, nodes: Optional[List[Union[str, Node]]] = None, services: Optional[List[Union[str, Service]]] = None, access_level: AccessLevel = AccessLevel.NONE) -> Authorization:
-        pass
-
-    @abstractmethod
-    def create_stub_from_authorization(self, authorization: Authorization) -> Authorization:
-        pass
-
-    @abstractmethod
-    def add_authorization(self, *authorizations: Authorization) -> None:
-        pass
-
-    @abstractmethod
     def get_authorizations(self, node: Union[str, Node], service: str, access_level: AccessLevel = AccessLevel.NONE) -> List[Authorization]:
         pass
 
