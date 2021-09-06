@@ -1,13 +1,14 @@
+import dataclasses
 from typing import List, Union, Optional, Dict, Any, Type, Tuple
 
 from cyst.api.environment.configuration import GeneralConfiguration, ObjectType, ConfigurationObjectType
-from cyst.api.configuration.configuration import ConfigItem
+from cyst.api.configuration.configuration import ConfigItem, ConfigItemCloner
 from cyst.api.configuration.host.service import ActiveServiceConfig, PassiveServiceConfig
 from cyst.api.configuration.logic.access import AuthorizationConfig, AuthenticationProviderConfig, AccessSchemeConfig, \
     AuthorizationDomainConfig, FederatedAuthorizationConfig
 from cyst.api.configuration.logic.data import DataConfig
 from cyst.api.configuration.logic.exploit import VulnerableServiceConfig, ExploitParameterConfig, ExploitConfig
-from cyst.api.configuration.network.elements import PortConfig, InterfaceConfig, ConnectionConfig
+from cyst.api.configuration.network.elements import PortConfig, InterfaceConfig, ConnectionConfig, RouteConfig
 from cyst.api.configuration.network.firewall import FirewallChainConfig, FirewallConfig
 from cyst.api.configuration.network.network import NetworkConfig
 from cyst.api.configuration.network.router import RouterConfig
@@ -85,12 +86,16 @@ class Configurator:
 
     def _process_RouterConfig(self, cfg: RouterConfig):
         interface_ids = []
+        route_ids = []
 
         for interface in cfg.interfaces:
             if isinstance(interface, str):
                 interface_ids.append(interface)
             else:
                 interface_ids.append(self._process_cfg_item(interface))
+
+        for route in cfg.routing_table:
+            self._process_RouteConfig(route)
 
         cfg.interfaces = interface_ids
         self._routers.append(cfg)
@@ -249,6 +254,11 @@ class Configurator:
     def _process_FederatedAuthorizationConfig(self, cfg: FederatedAuthorizationConfig):
 
         # TODO : Ask how this is meant to be handled
+
+        self._refs[cfg.id] = cfg
+        return cfg.id
+
+    def _process_RouteConfig(self, cfg: RouteConfig) -> str:
 
         self._refs[cfg.id] = cfg
         return cfg.id
@@ -431,6 +441,8 @@ class Configurator:
                 self._obj_refs[service_cfg.id] = s
                 self._env.configuration.node.add_service(n, s)
 
+            self._env.configuration.node.set_shell(n, n.services.get(node.shell, None))
+
             self._env.configuration.network.add_node(n)
 
             self._obj_refs[node.id] = n
@@ -440,6 +452,14 @@ class Configurator:
             for iface_id in router.interfaces:
                 iface = self._obj_refs[iface_id]
                 self._env.configuration.node.add_interface(r, iface, iface.index)
+
+            for route in router.routing_table:
+                route_obj = self._env.configuration.node.create_route(route.network, route.port, route.metric)
+                self._env.configuration.node.add_route(r, route_obj)
+                self._obj_refs[route.id] = route_obj
+
+            # TODO: Firewall
+
             self._env.configuration.network.add_node(r)
 
             self._obj_refs[router.id] = r

@@ -11,17 +11,17 @@ from cyst.api.logic.access import AuthenticationProvider, Authorization, Authent
 from cyst.core.logic.access import AuthenticationProviderImpl
 from cyst.core.logic.access import AuthenticationTokenImpl
 
-
-local_password_auth = AuthenticationProviderConfig\
-    (
+"""Environment configuration"""
+local_password_auth = AuthenticationProviderConfig \
+        (
         provider_type=AuthenticationProviderType.LOCAL,
         token_type=AuthenticationTokenType.PASSWORD,
         token_security=AuthenticationTokenSecurity.SEALED,
         timeout=30
     )
 
-remote_email_auth = AuthenticationProviderConfig\
-    (
+remote_email_auth = AuthenticationProviderConfig \
+        (
         provider_type=AuthenticationProviderType.REMOTE,
         token_type=AuthenticationTokenType.PASSWORD,
         token_security=AuthenticationTokenSecurity.SEALED,
@@ -29,8 +29,8 @@ remote_email_auth = AuthenticationProviderConfig\
         timeout=60
     )
 
-proxy_sso = AuthenticationProviderConfig\
-    (
+proxy_sso = AuthenticationProviderConfig \
+        (
         provider_type=AuthenticationProviderType.PROXY,
         token_type=AuthenticationTokenType.PASSWORD,
         token_security=AuthenticationTokenSecurity.SEALED,
@@ -167,7 +167,6 @@ connections = [
     ConnectionConfig("email_server_node", 0, "router1", 3)
 ]
 
-
 class AuthenticationProcessTestSSH(unittest.TestCase):
 
     @classmethod
@@ -193,7 +192,8 @@ class AuthenticationProcessTestSSH(unittest.TestCase):
                                                      AuthenticationTokenImpl(
                                                          AuthenticationTokenType.PASSWORD,
                                                          AuthenticationTokenSecurity.OPEN,
-                                                         identity="user1"
+                                                         identity="user1",
+                                                         is_local=True
                                                      ),  # everything ok except id
                                                      self.node,
                                                      IPAddress("0.0.0.0"))
@@ -208,7 +208,10 @@ class AuthenticationProcessTestSSH(unittest.TestCase):
 
         self.assertIsInstance(result, Authorization, "The object is not an authorization")
         self.assertEqual(result.identity, self.token.identity, "Identities of token and auth do not match")
-        self.assertEqual(result.access_level, AccessLevel.LIMITED, "Mismatched access level")
+        if result.identity == "root":
+            self.assertEqual(result.access_level, AccessLevel.ELEVATED, "Mismatched access level")
+        else:
+            self.assertEqual(result.access_level, AccessLevel.LIMITED, "Mismatched access level")
 
 
 class AuthenticationProcessTestCustomService(unittest.TestCase):
@@ -251,7 +254,8 @@ class AuthenticationProcessTestCustomService(unittest.TestCase):
                                                      AuthenticationTokenImpl(
                                                          AuthenticationTokenType.PASSWORD,
                                                          AuthenticationTokenSecurity.OPEN,
-                                                         identity="user1"
+                                                         identity="user1",
+                                                         is_local=True
                                                      ),  # everything ok except id
                                                      self.node,
                                                      IPAddress("0.0.0.0"))

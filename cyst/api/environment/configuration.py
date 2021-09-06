@@ -1,6 +1,6 @@
 from abc import ABC, abstractmethod
 from typing import Any, List, Optional, Union, Dict, TypeVar, Type
-from netaddr import IPAddress
+from netaddr import IPAddress, IPNetwork
 from flags import Flags
 
 from cyst.api.environment.messaging import EnvironmentMessaging
@@ -42,6 +42,10 @@ class NodeConfiguration(ABC):
 
     @abstractmethod
     def create_interface(self, ip: Union[str, IPAddress] = "", mask: str = "", index: int = 0) -> Interface:
+        pass
+
+    @abstractmethod
+    def create_route(self, net: IPNetwork, port: int, metric: int) -> Route:
         pass
 
     @abstractmethod
@@ -196,7 +200,7 @@ class AccessConfiguration(ABC):
 
     @abstractmethod
     def create_authentication_token(self, type: AuthenticationTokenType, security: AuthenticationTokenSecurity,
-                                    identity: str) -> AuthenticationToken:
+                                    identity: str, is_local: bool) -> AuthenticationToken:
         pass
 
     @abstractmethod

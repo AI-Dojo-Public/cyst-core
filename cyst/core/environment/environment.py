@@ -1,11 +1,13 @@
 import importlib
+import uuid
 
 from heapq import heappush, heappop
 from itertools import product
 from typing import Tuple, List, Union, Optional, Any, Dict, Type
 from uuid import uuid4
+import copy
 
-from netaddr import IPAddress
+from netaddr import IPAddress, IPNetwork
 
 from cyst.api.environment.environment import Environment
 from cyst.api.environment.control import EnvironmentState, EnvironmentControl
@@ -32,13 +34,14 @@ from cyst.api.network.firewall import FirewallRule, FirewallPolicy
 from cyst.api.host.service import ActiveServiceDescription, Service, PassiveService, ActiveService
 from cyst.api.configuration.configuration import ConfigItem
 
-from cyst.core.environment.configuration import Configuration
+from cyst.core.environment.configuration import Configuration, ConfigItemCloner
 from cyst.core.environment.message import MessageImpl, RequestImpl, ResponseImpl
 from cyst.core.environment.proxy import EnvironmentProxy
 from cyst.core.environment.stores import ActionStoreImpl, ServiceStoreImpl, ExploitStoreImpl
 from cyst.core.host.service import ServiceImpl, PassiveServiceImpl
-from cyst.core.logic.access import Policy, AuthenticationTokenImpl, AuthenticationProviderImpl, AuthorizationImpl, \
+from cyst.core.logic.access import AuthenticationTokenImpl, AuthenticationProviderImpl, AuthorizationImpl, \
     AccessSchemeImpl, AuthenticationTargetImpl
+from cyst.core.logic.policy import Policy
 from cyst.core.logic.data import DataImpl
 from cyst.core.logic.exploit import VulnerableServiceImpl, ExploitImpl, ExploitParameterImpl
 from cyst.core.network.elements import Endpoint, Connection, InterfaceImpl, Hop
@@ -83,7 +86,7 @@ class _Environment(Environment, EnvironmentControl, EnvironmentMessaging, Enviro
 
         self._interpreters = {}
 
-        self._policy = Policy()
+        self._policy = Policy(self)
 
         self._sessions_to_add = []
 
@@ -115,7 +118,7 @@ class _Environment(Environment, EnvironmentControl, EnvironmentMessaging, Enviro
         return self._policy
 
     def configure(self, *config_item: ConfigItem) -> Environment:
-        return self._configuration.configure(*config_item)
+        return self._configuration.configure(*[copy.deepcopy(x) for x in config_item])
 
     # ------------------------------------------------------------------------------------------------------------------
     # EnvironmentMessaging
@@ -328,6 +331,9 @@ class _Environment(Environment, EnvironmentControl, EnvironmentMessaging, Enviro
     def create_interface(self, ip: Union[str, IPAddress] = "", mask: str = "", index: int = 0):
         return InterfaceImpl(ip, mask, index)
 
+    def create_route(self, net: IPNetwork, port: int, metric: int) -> Route:
+        return Route(net, port, metric)
+
     def add_interface(self, node: Node, interface: Interface, index: int = -1) -> int:
         if node.type == "Router":
             return Router.cast_from(node).add_port(interface.ip, interface.mask, index)
@@ -510,7 +516,8 @@ class _Environment(Environment, EnvironmentControl, EnvironmentMessaging, Enviro
 
     def create_authentication_token(self, type: AuthenticationTokenType, security: AuthenticationTokenSecurity,
                                     identity: str, is_local: bool) -> AuthenticationToken:
-        return AuthenticationTokenImpl(type, security, identity, is_local)
+        return AuthenticationTokenImpl(type, security, identity, is_local)._set_content(uuid.uuid4())
+                # contetn setting is temporary until encrypted/hashed data is implemented
 
     def register_authentication_token(self, provider: AuthenticationProvider, token: AuthenticationToken) -> bool:
         if isinstance(provider, AuthenticationProviderImpl):
@@ -574,7 +581,7 @@ class _Environment(Environment, EnvironmentControl, EnvironmentMessaging, Enviro
         if isinstance(service, PassiveServiceImpl):
             for scheme in service.access_schemes:
                 result = self.assess_token(scheme, token)
-                if isinstance(result, Authorization):  # None or AuthTarget
+                if isinstance(result, Authorization):
                     return self.user_auth_create(result, service, node)
                 if isinstance(result, AuthenticationTargetImpl):
                     if result.address is None:

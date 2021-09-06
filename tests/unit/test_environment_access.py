@@ -3,7 +3,9 @@ import unittest
 from cyst.api.logic.access import AccessLevel
 from cyst.api.environment.environment import Environment
 
-
+# TODO : can we just delete this?
+"""
+ #  Policies and authorizations have been revamped since, these test have use no more.
 class TestPolicy(unittest.TestCase):
 
     @classmethod
@@ -37,3 +39,4 @@ class TestPolicy(unittest.TestCase):
 
 if __name__ == '__main__':
     unittest.main()
+"""

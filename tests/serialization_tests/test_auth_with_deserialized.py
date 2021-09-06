@@ -181,7 +181,7 @@ class SerializeTest(unittest.TestCase):
             serialize_toml(f, email_server, sso_server, target, router1, attacker1, *connections)
 
         cls._back = []
-        with open("./test.toml", "r") as f:
+        with open("./for_use.toml", "r") as f:
             cls._back = deserialize_toml(f)
 
             #  create environment from config

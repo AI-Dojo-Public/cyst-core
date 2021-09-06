@@ -1,23 +1,13 @@
-import sqlite3
+
 import uuid
 
-from enum import IntEnum
-from itertools import product
-from typing import List, Tuple, Union, Optional
-from sqlite3 import Error
-
+from typing import List, Tuple, Optional
 from netaddr import IPAddress
 
 from cyst.api.configuration.logic.access import AccessLevel
-from cyst.api.host.service import Service
 from cyst.api.logic.access import Authorization, AuthenticationToken, AuthenticationTokenSecurity, \
     AuthenticationTokenType, AuthenticationProvider, AuthenticationTarget, AuthenticationProviderType, AccessScheme
-from cyst.api.environment.policy import EnvironmentPolicy
 from cyst.api.logic.data import Data
-from cyst.api.network.node import Node
-
-from cyst.core.network.node import NodeImpl
-from cyst.core.host.service import ServiceImpl
 from cyst.core.logic.data import DataImpl
 
 
@@ -97,6 +87,9 @@ class AuthorizationImpl(Authorization):
     def token(self, value: uuid) -> None:
         self._token = value
 
+    def matching_id(self, other: Authorization):
+        return self.id == AuthorizationImpl.cast_from(other).id
+
     def __str__(self) -> str:
         return "[Id: {}, Identity: {}, Nodes: {}, Services: {}, Access Level: {}, Token: {}]".format(self.id,
                                                                                                      self.identity,
@@ -129,147 +122,6 @@ class PolicyStats:
         return self._authorization_entry_count
 
 
-class Policy(EnvironmentPolicy):
-
-    def __init__(self):
-        self._authorizations = []
-
-        try:
-            self._conn = sqlite3.connect(':memory:')
-            self._conn.execute("CREATE TABLE authorizations(id varchar, identity varchar, node varchar, service varchar, access integer, token varchar)")
-        except Error as e:
-            print("Could not create an authenticator database. Reason: " + str(e))
-            raise
-
-    def __del__(self):
-        self._conn.close()
-
-    def reset(self):
-        self._conn.execute("DELETE FROM authorizations")
-        self._authorizations.clear()
-
-    def create_authorization(self, identity: str, nodes: List[Union[str, Node]],
-                             services: List[Union[str, Service]], access_level: AccessLevel, id: Optional[str] = None,
-                             token: Optional[str] = None) -> Authorization:
-        node_ids = [NodeImpl.cast_from(x).id if isinstance(x, Node) else x for x in nodes]
-        service_ids = [ServiceImpl.cast_from(x).id if isinstance(x, Service) else x for x in services]
-
-        auth_id = id
-        if not auth_id:
-            auth_id = str(uuid.uuid4())
-        if not token:
-            token = str(uuid.uuid4())
-        auth = AuthorizationImpl(identity, node_ids, service_ids, access_level, auth_id, token)
-        return auth
-
-    # TODO stub authorizations are currently broken af
-    def create_stub_authorization(self, identity: Optional[str] = None, nodes: Optional[List[Union[str, Node]]] = None,
-                                  services: Optional[List[Union[str, Service]]] = None, access_level: Optional[AccessLevel] = AccessLevel.NONE) -> Authorization:
-        if nodes:
-            node_ids = [NodeImpl.cast_from(x).id if isinstance(x, Node) else x for x in nodes]
-        else:
-            node_ids = None
-
-        if services:
-            service_ids = [ServiceImpl.cast_from(x).id if isinstance(x, Service) else x for x in services]
-        else:
-            service_ids = None
-        auth = AuthorizationImpl(identity, node_ids, service_ids, access_level)
-        return auth
-
-    def create_stub_from_authorization(self, authorization: Authorization) -> Authorization:
-        other = AuthorizationImpl.cast_from(authorization)
-        auth = AuthorizationImpl(other.identity, other.nodes, other.services, other.access_level)
-        return auth
-
-    def add_authorization(self, *authorizations: Authorization) -> None:
-        for authorization in authorizations:
-            authorization = AuthorizationImpl.cast_from(authorization)
-            # make a cartesian product of all authorizations
-            data = list(product([authorization.identity], authorization.nodes, authorization.services, [authorization.access_level.value]))
-
-            auth_id = authorization.id
-            # and store them in a database
-            for d in data:
-                auth_identity = d[0]
-                auth_node = d[1]
-                if isinstance(auth_node, NodeImpl):
-                    auth_node = auth_node.id
-                auth_service = d[2]
-                if isinstance(auth_service, ServiceImpl):
-                    auth_service = auth_service.id
-                auth_access = d[3]
-                # TODO somewhere here is lurking an option to bypass authorization process by creating stub Authorizations. This needs to be fixed
-                self._conn.execute("INSERT INTO authorizations(id, identity, node, service, access, token) VALUES(?,?,?,?,?,?)", (auth_id, auth_identity, auth_node, auth_service, auth_access, str(authorization.token) if authorization.token else '*'))
-
-    def decide(self, node: Union[str, Node], service: str, access_level: AccessLevel, authorization: Authorization) -> Tuple[bool, str]:
-        authorization = AuthorizationImpl.cast_from(authorization)
-        node_id: str
-        if isinstance(node, str):
-            node_id = node
-        else:
-            node_id = NodeImpl.cast_from(node).id
-        # First check if the authorization is even valid for given parameters
-        if (
-                ("*" not in authorization.nodes and node_id not in authorization.nodes) or
-                ("*" not in authorization.services and service not in authorization.services) or
-                access_level.value > authorization.access_level.value
-           ):
-            return False, "Authorization not valid for given parameters"
-
-        sql = '''SELECT COUNT(*) FROM authorizations WHERE (identity=? or identity=?) AND (node = ? OR node = ?) AND (service = ? OR service = ?) AND access >= ? AND (token=? OR token=?)'''
-        cursor = self._conn.execute(sql, (authorization.identity, '*', node_id, '*', service, '*', int(access_level), str(authorization.token), '*'))
-        count = cursor.fetchone()[0]
-
-        if count != 0:
-            return True, "Provided authorization is valid"
-        else:
-            return False, "Provided authorization does not match valid authorizations."
-
-    def get_nodes(self, authorization: Authorization) -> List[str]:
-        return AuthorizationImpl.cast_from(authorization).nodes
-
-    def get_services(self, authorization: Authorization) -> List[str]:
-        return AuthorizationImpl.cast_from(authorization).services
-
-    def get_access_level(self, authorization: Authorization) -> AccessLevel:
-        return AuthorizationImpl.cast_from(authorization).access_level
-
-    def get_stats(self) -> PolicyStats:
-        cursor = self._conn.execute("SELECT COUNT(*) FROM authorizations")
-        authorization_entry_count = cursor.fetchone()[0]
-
-        return PolicyStats(authorization_entry_count)
-
-    # TODO what is the purpose of this, dangit?!
-    def get_authorizations(self, node: Union[str, Node], service: str, access_level: AccessLevel = AccessLevel.NONE) -> List[Authorization]:
-        if isinstance(node, Node):
-            node_id = NodeImpl.cast_from(node).id
-        else:
-            node_id = node
-
-        sql = '''SELECT id FROM authorizations WHERE node=?'''
-        if service != '*':
-            sql += ''' AND service = ?'''
-            if access_level != AccessLevel.NONE:
-                sql += " AND access = ?"
-                cursor = self._conn.execute(sql, (node_id, service, int(access_level)))
-            else:
-                cursor = self._conn.execute(sql, (node_id, service))
-        else:
-            if access_level != AccessLevel.NONE:
-                sql += " AND access = ?"
-                cursor = self._conn.execute(sql, (node_id, int(access_level)))
-            else:
-                cursor = self._conn.execute(sql, (node_id,))
-
-        ids = set()
-        for id in cursor.fetchall():
-            ids.add(id[0])
-
-        return list(map(lambda x: AuthorizationImpl(x), ids))
-
-
 # ----------------------------------------------------------------------------------------------------------------------
 # New version
 # ----------------------------------------------------------------------------------------------------------------------
@@ -286,7 +138,7 @@ class AuthenticationTokenImpl(AuthenticationToken):
         # create data according to the security
         # TODO: Until the concept of sealed data is introduced in the code, all is assumed to be OPEN
         value = uuid.uuid4()
-        self._content = DataImpl(value, "")
+        self._content = None
 
     @property
     def type(self) -> AuthenticationTokenType:
@@ -316,6 +168,12 @@ class AuthenticationTokenImpl(AuthenticationToken):
         if isinstance(obj, AuthenticationTokenImpl):
             return obj.is_local
         return False
+
+    def _set_content(self, value) -> 'AuthenticationToken':
+        # this is only needed until we resolve hashed/encrypted data
+        self._content = DataImpl("", value)
+        return self  # just so we can chain call with constructor
+
 
 
 class AuthenticationTargetImpl(AuthenticationTarget):
@@ -374,6 +232,13 @@ class AccessSchemeImpl(AccessScheme):
     def authorizations(self) -> List[Authorization]:
         return self._authorizations
 
+    @staticmethod
+    def cast_from(other: AccessScheme):
+        if isinstance(other, AccessSchemeImpl):
+            return other
+        else:
+            raise ValueError("Malformed underlying object passed with the AccessScheme interface")
+
 
 class AuthenticationProviderImpl(AuthenticationProvider):
 
@@ -410,9 +275,8 @@ class AuthenticationProviderImpl(AuthenticationProvider):
 
     def token_is_registered(self, token: AuthenticationToken):
         for t in self._tokens:
-            if t.identity == token.identity and t.content.id == token.content.id\
-                    and t.content.owner == token.content.owner\
-                    and token.content.description == t.content.description:
+            if t.identity == token.identity and token.content is not None:
+                # This is pretty weak but until encrypted/hashed stuff is implemented its okay for testing
                 return True
         return False
 

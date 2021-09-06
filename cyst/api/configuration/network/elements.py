@@ -43,3 +43,12 @@ class ConnectionConfig(ConfigItem):
     dst_id: str
     dst_port: int
     id: str = field(default_factory=lambda: str(uuid4()))
+
+
+@serialize
+@dataclass
+class RouteConfig(ConfigItem):
+    network: IPNetwork
+    port: int
+    metric: int = field(default=100)
+    id: str = field(default_factory=lambda: str(uuid4()))
