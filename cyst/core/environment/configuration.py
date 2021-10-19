@@ -1,4 +1,4 @@
-import dataclasses
+from dataclasses import dataclass, field
 from typing import List, Union, Optional, Dict, Any, Type, Tuple
 
 from cyst.api.environment.configuration import GeneralConfiguration, ObjectType, ConfigurationObjectType
@@ -507,3 +507,13 @@ class Configuration(GeneralConfiguration):
                                                                                                        str(object_type),
                                                                                                        type(o)))
         return o
+
+# ----------------------------------------------------------------------------------------------------------------------
+# Runtime configuration of the environment. Can be filled from different sources
+@dataclass
+class RuntimeConfiguration:
+    data_backend: str = ""
+    data_backend_params: List[Tuple[str, str]] = field(default_factory=lambda: [])
+    run_id: str = ""
+    config_id: str = ""
+    config_filename: str = ""
