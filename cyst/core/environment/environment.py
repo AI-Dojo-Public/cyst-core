@@ -64,12 +64,7 @@ class _Environment(Environment, EnvironmentControl, EnvironmentMessaging, Enviro
                    NodeConfiguration, NetworkConfiguration, ServiceConfiguration, ExploitConfiguration,
                    AccessConfiguration):
 
-    def __init__(self, pause_on_request: List[str] = None, pause_on_response: List[str] = None) -> None:
-        if pause_on_request is None:
-            pause_on_request = []
-        if pause_on_response is None:
-            pause_on_response = []
-
+    def __init__(self) -> None:
         self._network = Network()
         self._time = 0
         self._tasks = []
@@ -77,8 +72,11 @@ class _Environment(Environment, EnvironmentControl, EnvironmentMessaging, Enviro
         self._terminate = False
         self._initialized = False
         self._state = EnvironmentState.INIT
-        self._pause_on_request = pause_on_request
-        self._pause_on_response = pause_on_response
+
+        self._run_id = ""
+
+        self._pause_on_request = []
+        self._pause_on_response = []
 
         self._action_store = ActionStoreImpl()
         self._service_store = ServiceStoreImpl(self.messaging, self.resources)
@@ -194,13 +192,19 @@ class _Environment(Environment, EnvironmentControl, EnvironmentMessaging, Enviro
     def state(self):
         return self._state
 
-    def reset(self):
+    def reset(self, run_id: str = str(uuid.uuid4())) -> Tuple[bool, EnvironmentState]:
+        if self._state != EnvironmentState.FINISHED and self._state != EnvironmentState.TERMINATED:
+            return False, self._state
+
         self._network.reset()
         self._time = 0
         self._tasks.clear()
         self._pause = False
         self._terminate = False
+        self._run_id = run_id
         self._state = EnvironmentState.INIT
+
+        return True, self._state
 
     def _establish_sessions(self) -> None:
         for session in self._sessions_to_add:
@@ -221,7 +225,7 @@ class _Environment(Environment, EnvironmentControl, EnvironmentMessaging, Enviro
                     node = waypoints[0]
                 ServiceImpl.cast_from(node.services[service]).add_session(session)
 
-    def init(self) -> Tuple[bool, EnvironmentState]:
+    def init(self, run_id: str = str(uuid.uuid4())) -> Tuple[bool, EnvironmentState]:
         if self._initialized:
             return True, self._state
 
@@ -230,7 +234,8 @@ class _Environment(Environment, EnvironmentControl, EnvironmentMessaging, Enviro
 
         self._pause = False
         self._terminate = False
-        self._state = EnvironmentState.PAUSED
+        self._run_id = run_id
+        self._state = EnvironmentState.INIT
 
         self._establish_sessions()
 
@@ -270,6 +275,9 @@ class _Environment(Environment, EnvironmentControl, EnvironmentMessaging, Enviro
 
         self._terminate = True
         return True, self._state
+
+    def commit(self) -> None:
+        pass
 
     def add_pause_on_request(self, id: str) -> None:
         self._pause_on_request.append(id)
@@ -348,7 +356,6 @@ class _Environment(Environment, EnvironmentControl, EnvironmentMessaging, Enviro
 
         if mask:
             iface.set_mask(mask)
-
 
     def add_service(self, node: Node, *service: Service) -> None:
         node = NodeImpl.cast_from(node)
