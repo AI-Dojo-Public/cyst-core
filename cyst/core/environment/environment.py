@@ -2,6 +2,7 @@ import argparse
 import importlib
 import uuid
 import os
+import time
 
 from heapq import heappush, heappop
 from itertools import product
@@ -40,6 +41,7 @@ from cyst.core.environment.configuration import Configuration, ConfigItemCloner,
 from cyst.core.environment.message import MessageImpl, RequestImpl, ResponseImpl
 from cyst.core.environment.proxy import EnvironmentProxy
 from cyst.core.environment.stores import ActionStoreImpl, ServiceStoreImpl, ExploitStoreImpl
+from cyst.core.environment.stats import StatisticsImpl
 from cyst.core.host.service import ServiceImpl, PassiveServiceImpl
 from cyst.core.logic.access import AuthenticationTokenImpl, AuthenticationProviderImpl, AuthorizationImpl, \
     AccessSchemeImpl, AuthenticationTargetImpl
@@ -96,6 +98,8 @@ class _Environment(Environment, EnvironmentControl, EnvironmentMessaging, Enviro
         self._configuration = Configuration(self)
         self._runtime_configuration = RuntimeConfiguration()
         self._configure_runtime()
+
+        self._statistics = StatisticsImpl()
 
     # Runtime parameters can be passed via command-line, configuration file, or through environment variables
     # In case of multiple definitions of one parameter, the order is, from the most important to least:
@@ -298,6 +302,11 @@ class _Environment(Environment, EnvironmentControl, EnvironmentMessaging, Enviro
 
         self._establish_sessions()
 
+        # Set basic statistics
+        self._statistics.run_id = self._runtime_configuration.run_id if self._runtime_configuration.run_id else self._run_id
+        self._statistics.configuration_id = self._runtime_configuration.config_id
+        self._statistics.start_time_real = time.time()
+
         self._initialized = True
 
         return True, self._state
@@ -336,7 +345,8 @@ class _Environment(Environment, EnvironmentControl, EnvironmentMessaging, Enviro
         return True, self._state
 
     def commit(self) -> None:
-        pass
+        self._statistics.end_time_real = time.time()
+        self._statistics.end_time_virtual = self._time
 
     def add_pause_on_request(self, id: str) -> None:
         self._pause_on_request.append(id)
