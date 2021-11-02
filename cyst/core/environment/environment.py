@@ -24,6 +24,7 @@ from cyst.api.environment.message import Message, MessageType, Request, StatusVa
     StatusDetail
 from cyst.api.environment.interpreter import ActionInterpreterDescription
 from cyst.api.environment.stores import ActionStore, ExploitStore
+from cyst.api.environment.stats import Statistics
 from cyst.api.network.elements import Interface, Route
 from cyst.api.network.node import Node
 from cyst.api.logic.access import Authorization, AccessLevel, AuthenticationToken, AuthenticationProvider, \
@@ -38,6 +39,7 @@ from cyst.api.host.service import ActiveServiceDescription, Service, PassiveServ
 from cyst.api.configuration.configuration import ConfigItem
 
 from cyst.core.environment.configuration import Configuration, ConfigItemCloner, RuntimeConfiguration
+from cyst.core.environment.data_store import DataStore
 from cyst.core.environment.message import MessageImpl, RequestImpl, ResponseImpl
 from cyst.core.environment.proxy import EnvironmentProxy
 from cyst.core.environment.stores import ActionStoreImpl, ServiceStoreImpl, ExploitStoreImpl
@@ -99,6 +101,8 @@ class _Environment(Environment, EnvironmentControl, EnvironmentMessaging, Enviro
         self._runtime_configuration = RuntimeConfiguration()
         self._configure_runtime()
 
+        self._data_store = DataStore(self._runtime_configuration.data_backend, self._runtime_configuration.data_backend_params)
+
         self._statistics = StatisticsImpl()
 
     # Runtime parameters can be passed via command-line, configuration file, or through environment variables
@@ -111,7 +115,7 @@ class _Environment(Environment, EnvironmentControl, EnvironmentMessaging, Enviro
         if data_backend:
             data_backend_params_serialized = os.environ.get('CYST_DATA_BACKEND_PARAMS')
             # we expect parameters to be given in the form "param1_name","param1_value","param2_name","param2_value",...
-            data_backed_params = [tuple(x) for x in data_backend_params_serialized.split(',').islice(2)]
+            data_backend_params = dict(tuple(x) for x in data_backend_params_serialized.split(',').islice(2))
         run_id = os.environ.get('CYST_RUN_ID')
         config_id = os.environ.get('CYST_CONFIG_ID')
         config_filename = os.environ.get('CYST_CONFIG_FILENAME')
@@ -141,7 +145,7 @@ class _Environment(Environment, EnvironmentControl, EnvironmentMessaging, Enviro
 
         if args.data_backend_parameter:
             # Convert from list of lists into a list of tuples
-            data_backend_params = [tuple(x) for x in args.data_backend_parameter]
+            data_backend_params = dict(tuple(x) for x in args.data_backend_parameter)
 
         if args.run_id:
             run_id = args.run_id
@@ -150,11 +154,16 @@ class _Environment(Environment, EnvironmentControl, EnvironmentMessaging, Enviro
             config_id = args.config_id
 
         # --------------------------------------------------------------------------------------------------------------
-        self._runtime_configuration.data_backend = data_backend
-        self._runtime_configuration.data_backend_params = data_backend_params
-        self._runtime_configuration.config_filename = config_filename
-        self._runtime_configuration.run_id = run_id
-        self._runtime_configuration.config_id = config_id
+        if data_backend:  # Fuck, I miss oneliners
+            self._runtime_configuration.data_backend = data_backend
+        if data_backend_params:
+            self._runtime_configuration.data_backend_params = data_backend_params
+        if config_filename:
+            self._runtime_configuration.config_filename = config_filename
+        if run_id:
+            self._runtime_configuration.run_id = run_id
+        if config_id:
+            self._runtime_configuration.config_id = config_id
 
     # ------------------------------------------------------------------------------------------------------------------
     # Environment. Currently everything points back to self
@@ -347,6 +356,8 @@ class _Environment(Environment, EnvironmentControl, EnvironmentMessaging, Enviro
     def commit(self) -> None:
         self._statistics.end_time_real = time.time()
         self._statistics.end_time_virtual = self._time
+
+        self._data_store.set(self._run_id, self._statistics, Statistics)
 
     def add_pause_on_request(self, id: str) -> None:
         self._pause_on_request.append(id)
