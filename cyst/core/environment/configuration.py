@@ -1,3 +1,5 @@
+import uuid
+
 from dataclasses import dataclass, field
 from typing import List, Union, Optional, Dict, Any, Type, Tuple
 
@@ -512,8 +514,9 @@ class Configuration(GeneralConfiguration):
 # Runtime configuration of the environment. Can be filled from different sources
 @dataclass
 class RuntimeConfiguration:
-    data_backend: str = ""
-    data_backend_params: List[Tuple[str, str]] = field(default_factory=lambda: [])
-    run_id: str = ""
+    data_backend: str = "MEMORY"
+    data_backend_params: Dict[str, str] = field(default_factory=lambda: {})
+    run_id: str = field(default_factory=lambda: str(uuid.uuid4()))
     config_id: str = ""
     config_filename: str = ""
+
