@@ -1,5 +1,8 @@
+import argparse
 import importlib
 import uuid
+import os
+import time
 
 from heapq import heappush, heappop
 from itertools import product
@@ -21,6 +24,7 @@ from cyst.api.environment.message import Message, MessageType, Request, StatusVa
     StatusDetail
 from cyst.api.environment.interpreter import ActionInterpreterDescription
 from cyst.api.environment.stores import ActionStore, ExploitStore
+from cyst.api.environment.stats import Statistics
 from cyst.api.network.elements import Interface, Route
 from cyst.api.network.node import Node
 from cyst.api.logic.access import Authorization, AccessLevel, AuthenticationToken, AuthenticationProvider, \
@@ -34,10 +38,12 @@ from cyst.api.network.firewall import FirewallRule, FirewallPolicy
 from cyst.api.host.service import ActiveServiceDescription, Service, PassiveService, ActiveService
 from cyst.api.configuration.configuration import ConfigItem
 
-from cyst.core.environment.configuration import Configuration, ConfigItemCloner
+from cyst.core.environment.configuration import Configuration, ConfigItemCloner, RuntimeConfiguration
+from cyst.core.environment.data_store import DataStore
 from cyst.core.environment.message import MessageImpl, RequestImpl, ResponseImpl
 from cyst.core.environment.proxy import EnvironmentProxy
 from cyst.core.environment.stores import ActionStoreImpl, ServiceStoreImpl, ExploitStoreImpl
+from cyst.core.environment.stats import StatisticsImpl
 from cyst.core.host.service import ServiceImpl, PassiveServiceImpl
 from cyst.core.logic.access import AuthenticationTokenImpl, AuthenticationProviderImpl, AuthorizationImpl, \
     AccessSchemeImpl, AuthenticationTargetImpl
@@ -92,6 +98,73 @@ class _Environment(Environment, EnvironmentControl, EnvironmentMessaging, Enviro
         self._register_actions()
 
         self._configuration = Configuration(self)
+        self._runtime_configuration = RuntimeConfiguration()
+        self._configure_runtime()
+
+        self._data_store = DataStore(self._runtime_configuration.data_backend, self._runtime_configuration.data_backend_params)
+
+        self._statistics = StatisticsImpl()
+
+    # Runtime parameters can be passed via command-line, configuration file, or through environment variables
+    # In case of multiple definitions of one parameter, the order is, from the most important to least:
+    #                                                            command line, configuration file, environment variables
+    def _configure_runtime(self) -> None:
+        # Environment
+        data_backend = os.environ.get('CYST_DATA_BACKEND')
+        data_backend_params = []
+        if data_backend:
+            data_backend_params_serialized = os.environ.get('CYST_DATA_BACKEND_PARAMS')
+            # we expect parameters to be given in the form "param1_name","param1_value","param2_name","param2_value",...
+            if data_backend_params_serialized:
+                data_backend_params = dict(tuple(x) for x in data_backend_params_serialized.split(',').islice(2))
+        run_id = os.environ.get('CYST_RUN_ID')
+        config_id = os.environ.get('CYST_CONFIG_ID')
+        config_filename = os.environ.get('CYST_CONFIG_FILENAME')
+
+        # Command line (only parsing)
+        cmdline_parser = argparse.ArgumentParser(description="CYST runtime configuration")
+
+        cmdline_parser.add_argument("-c", "--config_file", type=str, help="Path to a file storing the configuration. Commandline overrides the items in configuration file.")
+        cmdline_parser.add_argument("-b", "--data_backend", type=str, help="The type of a backend to use. Currently supported are: REDIS")
+        cmdline_parser.add_argument("-p", "--data_backend_parameter", action="append", nargs=2, type=str, metavar=('NAME', 'VALUE'), help="Parameters to be passed to data backend.")
+        cmdline_parser.add_argument("-r", "--run_id", type=str, help="A unique identifier of a simulation run. If not specified, a UUID will be generated instead.")
+        cmdline_parser.add_argument("-i", "--config_id", type=str, help="A unique identifier of simulation run configuration, which can be obtained from the data store.")
+
+        args = cmdline_parser.parse_args()
+        if args.config_file:
+            config_filename = args.config_file
+
+        # --------------------------------------------------------------------------------------------------------------
+        # Config file TODO
+        if config_filename:
+            pass
+        # --------------------------------------------------------------------------------------------------------------
+
+        # Command line argument override
+        if args.data_backend:
+            data_backend = args.data_backend
+
+        if args.data_backend_parameter:
+            # Convert from list of lists into a list of tuples
+            data_backend_params = dict(tuple(x) for x in args.data_backend_parameter)
+
+        if args.run_id:
+            run_id = args.run_id
+
+        if args.config_id:
+            config_id = args.config_id
+
+        # --------------------------------------------------------------------------------------------------------------
+        if data_backend:  # Fuck, I miss oneliners
+            self._runtime_configuration.data_backend = data_backend
+        if data_backend_params:
+            self._runtime_configuration.data_backend_params = data_backend_params
+        if config_filename:
+            self._runtime_configuration.config_filename = config_filename
+        if run_id:
+            self._runtime_configuration.run_id = run_id
+        if config_id:
+            self._runtime_configuration.config_id = config_id
 
     # ------------------------------------------------------------------------------------------------------------------
     # Environment. Currently everything points back to self
@@ -239,6 +312,11 @@ class _Environment(Environment, EnvironmentControl, EnvironmentMessaging, Enviro
 
         self._establish_sessions()
 
+        # Set basic statistics
+        self._statistics.run_id = self._runtime_configuration.run_id if self._runtime_configuration.run_id else self._run_id
+        self._statistics.configuration_id = self._runtime_configuration.config_id
+        self._statistics.start_time_real = time.time()
+
         self._initialized = True
 
         return True, self._state
@@ -277,7 +355,10 @@ class _Environment(Environment, EnvironmentControl, EnvironmentMessaging, Enviro
         return True, self._state
 
     def commit(self) -> None:
-        pass
+        self._statistics.end_time_real = time.time()
+        self._statistics.end_time_virtual = self._time
+
+        self._data_store.set(self._run_id, self._statistics, Statistics)
 
     def add_pause_on_request(self, id: str) -> None:
         self._pause_on_request.append(id)
@@ -788,6 +869,9 @@ class _Environment(Environment, EnvironmentControl, EnvironmentMessaging, Enviro
         if message.type == MessageType.TIMEOUT:
             self._network.get_node_by_id(message.origin.id).process_message(message)
             return
+
+        # Store it into the history
+        self._data_store.set(self._run_id, message, Message)
 
         # Move message to a next hop
         message.hop()

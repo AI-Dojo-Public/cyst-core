@@ -216,6 +216,11 @@ class TestAIFIntegration(unittest.TestCase):
 
         cls._env.control.add_pause_on_response("attacker_node.scripted_attacker")
 
+    @classmethod
+    def tearDownClass(cls) -> None:
+        # Disregard the warning, the variable is there
+        cls._env.control.commit()
+
     # Test correct handling of active scans, namely:
     # - successful scanning of a live machine
     # - unsuccessful scanning of non-existing machine
