@@ -1,6 +1,6 @@
 from typing import Any, Type
 
-from cyst.core.environment.data_store_backend import DataStoreBackend, append_only_data
+from cyst.core.environment.data_store_backend import DataStoreBackend, append_only_data, to_dict
 
 
 class DataStoreMemoryBackend(DataStoreBackend):
@@ -17,11 +17,11 @@ class DataStoreMemoryBackend(DataStoreBackend):
         if item_type in append_only_data:
             if item_name not in self._store[run_id]:
                 self._store[run_id][item_name] = []
-            self._store[run_id][item_name].append(item)
+            self._store[run_id][item_name].append(to_dict(item))
         else:
             if item_name in self._store[run_id]:
                 raise RuntimeError("Object with name {} already in the data store. Use update if you want to overwrite it".format(item_name))
-            self._store[run_id][item_name] = item
+            self._store[run_id][item_name] = to_dict(item)
 
     def get(self, run_id: str, item: Any, item_type: Type) -> Any:
         if run_id not in self._store:
@@ -44,7 +44,7 @@ class DataStoreMemoryBackend(DataStoreBackend):
         if item_name not in self._store[run_id]:
             raise RuntimeError("Can't update object with name {} - not in the data store.".format(item_name))
 
-        self._store[run_id][item_name] = item
+        self._store[run_id][item_name] = to_dict(item)
 
     def remove(self, run_id: str, item: Any, item_type: Type) -> None:
         if run_id not in self._store:
@@ -61,3 +61,7 @@ class DataStoreMemoryBackend(DataStoreBackend):
             raise RuntimeError("Cannot clear non-existent run with ID: {}".format(run_id))
 
         del self._store[run_id]
+
+    def commit(self, run_id: str) -> None:
+        # For in-memory store, commit is NoOp
+        return

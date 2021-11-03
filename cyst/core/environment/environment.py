@@ -115,7 +115,8 @@ class _Environment(Environment, EnvironmentControl, EnvironmentMessaging, Enviro
         if data_backend:
             data_backend_params_serialized = os.environ.get('CYST_DATA_BACKEND_PARAMS')
             # we expect parameters to be given in the form "param1_name","param1_value","param2_name","param2_value",...
-            data_backend_params = dict(tuple(x) for x in data_backend_params_serialized.split(',').islice(2))
+            if data_backend_params_serialized:
+                data_backend_params = dict(tuple(x) for x in data_backend_params_serialized.split(',').islice(2))
         run_id = os.environ.get('CYST_RUN_ID')
         config_id = os.environ.get('CYST_CONFIG_ID')
         config_filename = os.environ.get('CYST_CONFIG_FILENAME')
@@ -868,6 +869,9 @@ class _Environment(Environment, EnvironmentControl, EnvironmentMessaging, Enviro
         if message.type == MessageType.TIMEOUT:
             self._network.get_node_by_id(message.origin.id).process_message(message)
             return
+
+        # Store it into the history
+        self._data_store.set(self._run_id, message, Message)
 
         # Move message to a next hop
         message.hop()

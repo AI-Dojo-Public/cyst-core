@@ -9,17 +9,17 @@ from cyst.core.environment.data_store_memory_backend import DataStoreMemoryBacke
 # artifacts storage
 
 
-class DataStoreBackendType(Enum):
-    MEMORY = 0,
-    REDIS = 1
-
-
 class DataStore:
 
     def __init__(self, backend_type: str, backend_params: Dict[str, str]) -> None:
-        self._backend_type = backend_type
+        self._backend_type = backend_type.lower()
 
-        fn = getattr(self, "configure_" + backend_type.lower(), self.configure_default)
+        self._no_data_store = False
+        if self._backend_type == "none":
+            self._no_data_store = True
+            return
+
+        fn = getattr(self, "configure_" + self._backend_type, self.configure_default)
         self._backend: DataStoreBackend = fn(backend_params)
 
     def configure_default(self) -> None:
@@ -37,6 +37,9 @@ class DataStore:
         return DataStoreMemoryBackend()
 
     def set(self, run_id: str, item: Any, item_type: Type) -> None:
+        if self._no_data_store:
+            return
+
         if not self._backend:
             raise RuntimeError("Data store backend not configured")
 
@@ -46,12 +49,18 @@ class DataStore:
         self._backend.set(run_id, item, item_type)
 
     def get(self, run_id: str, item: Any, item_type: Type) -> Any:
+        if self._no_data_store:
+            return None
+
         if not self._backend:
             raise RuntimeError("Data store backend not configured")
 
         return self._backend.get(run_id, item, item_type)
 
     def update(self, run_id: str, item: Any, item_type: Type) -> None:
+        if self._no_data_store:
+            return
+
         if not self._backend:
             raise RuntimeError("Data store backend not configured")
 
@@ -61,13 +70,28 @@ class DataStore:
         self._backend.update(run_id, item, item_type)
 
     def remove(self, run_id: str, item: Any, item_type: Type) -> None:
+        if self._no_data_store:
+            return
+
         if not self._backend:
             raise RuntimeError("Data store backend not configured")
 
         self._backend.remove(run_id, item, item_type)
 
     def clear(self, run_id: str) -> None:
+        if self._no_data_store:
+            return
+
         if not self._backend:
             raise RuntimeError("Data store backend not configured")
 
         self._backend.clear(run_id)
+
+    def commit(self, run_id: str) -> None:
+        if self._no_data_store:
+            return
+
+        if not self._backend:
+            raise RuntimeError("Data store backend not configured")
+
+        self._backend.commit(run_id)

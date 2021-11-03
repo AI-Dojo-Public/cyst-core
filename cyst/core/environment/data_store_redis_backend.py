@@ -25,4 +25,5 @@ class DataStoreRedisBackend(DataStoreBackend):
     def clear(self, run_id: str) -> None:
         pass
 
-
+    def commit(self, run_id: str) -> None:
+        pass
