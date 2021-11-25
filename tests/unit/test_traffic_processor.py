@@ -31,7 +31,7 @@ class ActionTests(unittest.TestCase):
         sessions = env.configuration.service.sessions
         create_data = env.configuration.service.create_data
         create_authorization = env.policy.create_authorization
-        add_authorization = env.policy.add_authorization
+        #add_authorization = env.policy.add_authorization
         private_authorizations = env.configuration.service.private_authorizations
         add_exploit = env.configuration.exploit.add_exploit
         create_exploit = env.configuration.exploit.create_exploit

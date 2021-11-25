@@ -1,13 +1,25 @@
+import dataclasses
 import unittest
+import uuid
 
 from netaddr import IPAddress, IPNetwork
 
-from cyst.api.logic.access import AccessLevel
+from cyst.api.configuration import AuthenticationProviderConfig, PassiveServiceConfig, AccessSchemeConfig, \
+    AuthorizationDomainConfig, AuthorizationDomainType, AuthorizationConfig, NodeConfig, InterfaceConfig, \
+    ActiveServiceConfig, RouterConfig, ConnectionConfig
+from cyst.api.configuration.configuration import ConfigItemCloner
+from cyst.api.configuration.network.elements import RouteConfig
+from cyst.api.host.service import Service
+from cyst.api.logic.access import AccessLevel, AuthenticationProviderType, AuthenticationTokenType, \
+    AuthenticationTokenSecurity, AuthenticationProvider
 from cyst.api.environment.environment import Environment
 from cyst.api.environment.message import StatusOrigin, StatusValue, Status
 from cyst.api.environment.configuration import ServiceParameter
 from cyst.api.network.elements import Route
 from cyst.api.network.firewall import FirewallRule, FirewallPolicy
+from cyst.api.network.node import Node
+
+from cyst.core.logic.access import AuthenticationProviderImpl, AuthenticationTokenImpl
 
 from cyst.services.scripted_attacker.main import ScriptedAttacker
 
@@ -186,84 +198,292 @@ class TestSessions(unittest.TestCase):
         # from this one sends a message to T3.
         # An entire environment must be constructed for this to test, because the environment shuffles around
         # messages.
-        env = Environment.create()
-        env.control.init()
+
+        local_password_auth = AuthenticationProviderConfig \
+                (
+                provider_type=AuthenticationProviderType.LOCAL,
+                token_type=AuthenticationTokenType.PASSWORD,
+                token_security=AuthenticationTokenSecurity.SEALED,
+                timeout=30
+            )
+
+        ssh_service = PassiveServiceConfig \
+                (
+                type="ssh",
+                owner="ssh",
+                version="8.0.0",
+                local=False,
+                access_level=AccessLevel.LIMITED,
+                authentication_providers=["ssh_pwd_auth"],
+                parameters=[
+                    (ServiceParameter.ENABLE_SESSION, True),
+                    (ServiceParameter.SESSION_ACCESS_LEVEL, AccessLevel.LIMITED)
+                ],
+                access_schemes=[AccessSchemeConfig(
+                    authentication_providers=["ssh_pwd_auth"],
+                    authorization_domain=AuthorizationDomainConfig(
+                        type=AuthorizationDomainType.LOCAL,
+                        authorizations=[
+                            AuthorizationConfig("root", AccessLevel.ELEVATED)
+                        ]
+                    )
+                )]
+            )
+
+        bash = PassiveServiceConfig(
+            type="bash",
+            owner="bash",
+            version="5.0.0",
+            local=True,
+            access_level=AccessLevel.LIMITED,
+            authentication_providers=["bash_login"],
+            access_schemes=[AccessSchemeConfig(
+                authentication_providers=["bash_login"],
+                authorization_domain=AuthorizationDomainConfig(
+                    type=AuthorizationDomainType.LOCAL,
+                    authorizations=[
+                        AuthorizationConfig("root", AccessLevel.ELEVATED)
+                    ]
+                )
+            )]
+        )
+
+        target1 = NodeConfig(
+            id="target1",
+            active_services=[],
+            passive_services=[
+                PassiveServiceConfig \
+                        (
+                        type="ssh",
+                        owner="ssh",
+                        version="8.0.0",
+                        local=False,
+                        access_level=AccessLevel.LIMITED,
+                        authentication_providers=[local_password_auth("t1_ssh_pwd_auth")],
+                        parameters=[
+                            (ServiceParameter.ENABLE_SESSION, True),
+                            (ServiceParameter.SESSION_ACCESS_LEVEL, AccessLevel.LIMITED)
+                        ],
+                        access_schemes=[AccessSchemeConfig(
+                            authentication_providers=["t1_ssh_pwd_auth"],
+                            authorization_domain=AuthorizationDomainConfig(
+                                type=AuthorizationDomainType.LOCAL,
+                                authorizations=[
+                                    AuthorizationConfig("root", AccessLevel.ELEVATED)
+                                ]
+                            )
+                        )]
+                    ),
+
+                PassiveServiceConfig(
+                    type="bash",
+                    owner="bash",
+                    version="5.0.0",
+                    local=True,
+                    access_level=AccessLevel.LIMITED,
+                    authentication_providers=[local_password_auth("t1_bash_login")],
+                    access_schemes=[AccessSchemeConfig(
+                        authentication_providers=["t1_bash_login"],
+                        authorization_domain=AuthorizationDomainConfig(
+                            type=AuthorizationDomainType.LOCAL,
+                            authorizations=[
+                                AuthorizationConfig("root", AccessLevel.ELEVATED)
+                            ]
+                        )
+                    )]
+                )
+
+            ],
+            shell="bash",
+            interfaces=[InterfaceConfig(IPAddress("192.168.1.2"), IPNetwork("192.168.1.0/24")),
+                        InterfaceConfig(IPAddress("192.168.2.2"), IPNetwork("192.168.2.0/24"))])
+
+        target2 = NodeConfig(
+            id="target2",
+            active_services=[],
+            passive_services=[
+                PassiveServiceConfig \
+                        (
+                        type="ssh",
+                        owner="ssh",
+                        version="8.0.0",
+                        local=False,
+                        access_level=AccessLevel.LIMITED,
+                        authentication_providers=[local_password_auth("t2_ssh_pwd_auth")],
+                        parameters=[
+                            (ServiceParameter.ENABLE_SESSION, True),
+                            (ServiceParameter.SESSION_ACCESS_LEVEL, AccessLevel.LIMITED)
+                        ],
+                        access_schemes=[AccessSchemeConfig(
+                            authentication_providers=["t2_ssh_pwd_auth"],
+                            authorization_domain=AuthorizationDomainConfig(
+                                type=AuthorizationDomainType.LOCAL,
+                                authorizations=[
+                                    AuthorizationConfig("root", AccessLevel.ELEVATED)
+                                ]
+                            )
+                        )]
+                    ),
+
+                PassiveServiceConfig(
+                    type="bash",
+                    owner="bash",
+                    version="5.0.0",
+                    local=True,
+                    access_level=AccessLevel.LIMITED,
+                    authentication_providers=[local_password_auth("t2_bash_login")],
+                    access_schemes=[AccessSchemeConfig(
+                        authentication_providers=["t2_bash_login"],
+                        authorization_domain=AuthorizationDomainConfig(
+                            type=AuthorizationDomainType.LOCAL,
+                            authorizations=[
+                                AuthorizationConfig("root", AccessLevel.ELEVATED)
+                            ]
+                        )
+                    )]
+                )
+            ],
+            shell="bash",
+            interfaces=[InterfaceConfig(IPAddress("192.168.2.3"), IPNetwork("192.168.2.0/24")),
+                        InterfaceConfig(IPAddress("192.168.3.3"), IPNetwork("192.168.3.0/24"))])
+
+        target3 = NodeConfig(
+            id="target3",
+            active_services=[],
+            passive_services=[
+                PassiveServiceConfig \
+                        (
+                        type="ssh",
+                        owner="ssh",
+                        version="8.0.0",
+                        local=False,
+                        access_level=AccessLevel.LIMITED,
+                        authentication_providers=[local_password_auth("t3_ssh_pwd_auth")],
+                        parameters=[
+                            (ServiceParameter.ENABLE_SESSION, True),
+                            (ServiceParameter.SESSION_ACCESS_LEVEL, AccessLevel.LIMITED)
+                        ],
+                        access_schemes=[AccessSchemeConfig(
+                            authentication_providers=["t3_ssh_pwd_auth"],
+                            authorization_domain=AuthorizationDomainConfig(
+                                type=AuthorizationDomainType.LOCAL,
+                                authorizations=[
+                                    AuthorizationConfig("root", AccessLevel.ELEVATED)
+                                ]
+                            )
+                        )]
+                    ),
+
+                PassiveServiceConfig(
+                    type="bash",
+                    owner="bash",
+                    version="5.0.0",
+                    local=True,
+                    access_level=AccessLevel.LIMITED,
+                    authentication_providers=[local_password_auth("t3_bash_login")],
+                    access_schemes=[AccessSchemeConfig(
+                        authentication_providers=["t3_bash_login"],
+                        authorization_domain=AuthorizationDomainConfig(
+                            type=AuthorizationDomainType.LOCAL,
+                            authorizations=[
+                                AuthorizationConfig("root", AccessLevel.ELEVATED)
+                            ]
+                        )
+                    )]
+                )
+            ],
+            shell="bash",
+            interfaces=[InterfaceConfig(IPAddress("192.168.3.4"), IPNetwork("192.168.3.0/24"))])
+
+        attacker_node = NodeConfig(
+            active_services=[
+                ActiveServiceConfig(
+                    "scripted_attacker",
+                    "scripted_attacker",
+                    "attacker",
+                    AccessLevel.LIMITED,
+                    id="attacker_service"
+                )
+            ],
+            passive_services=[],
+            interfaces=[
+                InterfaceConfig(IPAddress("192.168.0.2"), IPNetwork("192.168.0.0/24"))
+            ],
+            shell="",
+            id="attacker_node"
+        )
+
+        router1 = RouterConfig(
+            interfaces=[
+                InterfaceConfig(IPAddress("192.168.0.1"), IPNetwork("192.168.0.0/24"), index=0),
+                InterfaceConfig(IPAddress("10.0.0.1"), IPNetwork("10.0.0.0/24"), index=1)
+            ],
+            routing_table=[
+                RouteConfig(
+                    network=IPNetwork("192.168.1.0/255.255.255.0"),
+                    port=1
+                ),
+                RouteConfig(
+                    network=IPNetwork("192.168.2.0/255.255.255.0"),
+                    port=1
+                )
+            ],
+            id="router1"
+        )
+
+        router2 = RouterConfig(
+            interfaces=[
+                InterfaceConfig(IPAddress("192.168.1.1"), IPNetwork("192.168.1.0/24"), index=0),
+                InterfaceConfig(IPAddress("192.168.2.1"), IPNetwork("192.168.2.0/24"), index=1),
+                InterfaceConfig(IPAddress("192.168.3.1"), IPNetwork("192.168.3.0/24"), index=2),
+                InterfaceConfig(IPAddress("10.0.0.2"), IPNetwork("10.0.0.0/24"), index=3)
+            ],
+            routing_table=[
+                RouteConfig(
+                    network=IPNetwork("192.168.0.0/255.255.255.0"),
+                    port=3
+                )
+            ],
+            id="router2"
+        )
+
+        connections = [
+            ConnectionConfig("router1", 1, "router2", 3),
+            ConnectionConfig("attacker_node", 0, "router1", 0),
+            ConnectionConfig("target1", 0, "router2", 0),
+            ConnectionConfig("target1", 1, "router2", 1),
+            ConnectionConfig("target2", 0, "router2", 1),
+            ConnectionConfig("target2", 1, "router2", 2),
+            ConnectionConfig("target3", 0, "router2", 2)
+        ]
+
+        env = Environment.create().configure(target1, target2, target3, attacker_node, router1, router2, *connections)
         env.control.add_pause_on_response("attacker_node.scripted_attacker")
 
-        # Function aliases to make it more readable
-        create_node = env.configuration.node.create_node
-        create_router = env.configuration.node.create_router
-        create_active_service = env.configuration.service.create_active_service
-        create_passive_service = env.configuration.service.create_passive_service
-        add_service = env.configuration.node.add_service
-        set_service_parameter = env.configuration.service.set_service_parameter
-        create_interface = env.configuration.node.create_interface
-        add_node = env.configuration.network.add_node
-        add_connection = env.configuration.network.add_connection
-        add_route = env.configuration.node.add_route
-        add_interface = env.configuration.node.add_interface
+        ssh_token_t1 = AuthenticationTokenImpl(AuthenticationTokenType.PASSWORD, AuthenticationTokenSecurity.OPEN, "root", True)._set_content(uuid.uuid4())
+        ssh_token_t2 = AuthenticationTokenImpl(AuthenticationTokenType.PASSWORD, AuthenticationTokenSecurity.OPEN, "root", True)._set_content(uuid.uuid4())
+        ssh_token_t3 = AuthenticationTokenImpl(AuthenticationTokenType.PASSWORD, AuthenticationTokenSecurity.OPEN, "root", True)._set_content(uuid.uuid4())
+
         create_session = env.configuration.network.create_session
 
-        # We discard testing all authorizations for this scenario
-        all_root = env.policy.create_authorization("root", ["*"], ["*"], AccessLevel.ELEVATED)
-        env.policy.add_authorization(all_root)
-
         # Create a simple scripted attacker
-        attacker_node = create_node("attacker_node")
-        attacker_service = create_active_service("scripted_attacker", "attacker", "scripted_attacker", attacker_node)
-        add_service(attacker_node, attacker_service)
-        attacker = ScriptedAttacker.cast_from(attacker_service)
+        attacker = env.configuration.service.get_service_interface(
+            env.configuration.general.get_object_by_id("attacker_service", Service).active_service,
+            ScriptedAttacker)
 
-        # Create three identical passive nodes with ssh enabled
-        target1 = create_node("target1", ip="192.168.1.2", mask="255.255.255.0")
-        add_interface(target1, create_interface(ip="192.168.2.2", mask="255.255.255.0"))
-        target2 = create_node("target2", ip="192.168.2.3", mask="255.255.255.0")
-        add_interface(target2, create_interface(ip="192.168.3.3", mask="255.255.255.0"))
-        target3 = create_node("target3", ip="192.168.3.4", mask="255.255.255.0")
+        router1 = env.configuration.general.get_object_by_id("router1", Node)
+        router2 = env.configuration.general.get_object_by_id("router2", Node)
 
-        ssh_service = create_passive_service("ssh", owner="ssh")
-        set_service_parameter(ssh_service.passive_service, ServiceParameter.ENABLE_SESSION, True)
-        set_service_parameter(ssh_service.passive_service, ServiceParameter.SESSION_ACCESS_LEVEL, AccessLevel.LIMITED)
+        assert None not in [router1, router2]
 
-        add_service(target1, ssh_service)
-        add_service(target2, ssh_service)
-        add_service(target3, ssh_service)
+        env.configuration.node.add_routing_rule(router1,
+                                                FirewallRule(IPNetwork("192.168.1.0/24"), IPNetwork("192.168.0.0/24"),
+                                                             "*", FirewallPolicy.ALLOW))
+        env.configuration.node.add_routing_rule(router2,
+                                                FirewallRule(IPNetwork("192.168.0.0/24"), IPNetwork("192.168.1.0/24"),
+                                                             "*", FirewallPolicy.ALLOW))
 
-        # Create two routers - the explicit declarations on routers specify which network they are willing to route
-        #                       for messages coming from the outside
-        router1 = create_router("router1", env.messaging)
-        router1_port = add_interface(router1, create_interface("192.168.0.1", "255.255.255.0"))
-        router2 = create_router("router2", env.messaging)
-        router2_port = add_interface(router2, create_interface("192.168.1.1", "255.255.255.0"))
-
-        # Add all nodes to the environment
-        add_node(attacker_node)
-        add_node(router1)
-        add_node(router2)
-        add_node(target1)
-        add_node(target2)
-        add_node(target3)
-
-        # Connect routers
-        add_connection(router1, router2, router1_port, router2_port)
-        add_route(router1, Route(IPNetwork("192.168.1.1/255.255.255.0"), router1_port))
-        # TODO rename to explicit routing policy
-        env.configuration.node.add_routing_rule(router1, FirewallRule(IPNetwork("192.168.1.0/24"), IPNetwork("192.168.0.1/24"), "*", FirewallPolicy.ALLOW))
-        add_route(router2, Route(IPNetwork("192.168.0.1/255.255.255.0"), router2_port))
-        env.configuration.node.add_routing_rule(router2, FirewallRule(IPNetwork("192.168.0.0/24"), IPNetwork("192.168.1.1/24"), "*", FirewallPolicy.ALLOW))
-
-        # Route to test dropping of unaccepted packets
-        add_route(router1, Route(IPNetwork("192.168.2.1/255.255.255.0"), router1_port))
-
-        # Connect the nodes to routers
-        add_connection(router1, attacker_node, net="192.168.0.1/24")
-        # Targets 1 and 2 are connected twice using two different ports
-        # It does not have to be specified explicitly, it is here for better readability
-        add_connection(router2, target1, target_port_index=0)
-        add_connection(router2, target1, target_port_index=1)
-        add_connection(router2, target2, target_port_index=0)
-        add_connection(router2, target2, target_port_index=1)
-        add_connection(router2, target3, target_port_index=0)
+        env.control.init()
 
         # Get correct actions
         actions = {}
@@ -274,7 +494,7 @@ class TestSessions(unittest.TestCase):
         action = actions["aif:ensure_access:command_and_control"]
 
         # Test direct connection to an inaccessible node
-        attacker.execute_action("192.168.2.2", "ssh", action, session=None, authorization=all_root)
+        attacker.execute_action("192.168.2.2", "ssh", action, session=None, auth=ssh_token_t1)
 
         env.control.run()
 
@@ -286,7 +506,7 @@ class TestSessions(unittest.TestCase):
 
         # Correct via multiple sessions
 
-        attacker.execute_action("192.168.1.2", "ssh", action, session=None, authorization=all_root)
+        attacker.execute_action("192.168.1.2", "ssh", action, session=None, auth=ssh_token_t1)
 
         env.control.run()
 
@@ -299,7 +519,7 @@ class TestSessions(unittest.TestCase):
         session1 = create_session("root", ["attacker_node", "router1", "router2", "target1"], None)
         self.assertEqual(s, session1)
 
-        attacker.execute_action("192.168.2.3", "ssh", action, session=s, authorization=all_root)
+        attacker.execute_action("192.168.2.3", "ssh", action, session=s, auth=ssh_token_t2)
 
         env.control.run()
 
@@ -314,25 +534,25 @@ class TestSessions(unittest.TestCase):
 
         # Now to just try running an action over two sessions
         action = actions["aif:active_recon:service_discovery"]
-        attacker.execute_action("192.168.3.4", "ssh", action, session=s, authorization=all_root)
+        attacker.execute_action("192.168.3.4", "ssh", action, session=s, auth=ssh_token_t3)
 
         env.control.run()
 
         response = attacker.get_last_response()
-        self.assertEqual(response.content, ["ssh"])
+        self.assertEqual(response.content, ["ssh", "bash"])
 
 
 class TestRouting(unittest.TestCase):
 
     def test_0000_routing(self):
-
         env = Environment.create()
         env.control.init()
 
         add_route = env.configuration.node.add_route
 
         router1 = env.configuration.node.create_router("router1", env.messaging)
-        router1_port = env.configuration.node.add_interface(router1, env.configuration.node.create_interface("10.0.0.0", "255.255.0.0"))
+        router1_port = env.configuration.node.add_interface(router1, env.configuration.node.create_interface("10.0.0.0",
+                                                                                                             "255.255.0.0"))
 
         # Technically, the last route is all tha is needed, but this is to test overlapping and correct ordering
         add_route(router1, Route(IPNetwork("10.1.0.0/30"), router1_port))
@@ -348,7 +568,6 @@ class TestRouting(unittest.TestCase):
         self.assertEqual(routes[5].net.ip, IPAddress("10.1.5.4"), "Correctly ordered IP addresses")
 
     def test_0001_cycle(self):
-
         env = Environment.create()
         env.control.init()
         env.control.add_pause_on_response("attacker_node.scripted_attacker")
@@ -409,7 +628,6 @@ class TestRouting(unittest.TestCase):
         self.assertEqual(response.content, "Message stuck in a cycle")
 
     def test_0002_ttl(self):
-
         env = Environment.create()
         env.control.init()
         env.control.add_pause_on_response("attacker_node.scripted_attacker")
@@ -436,7 +654,7 @@ class TestRouting(unittest.TestCase):
 
         last_router = router1
         # Make a chain of 70 routers
-        for i in range(2,70):
+        for i in range(2, 70):
             router = create_router("router{}".format(i), env.messaging)
             add_interface(router, create_interface())  # port 0
             add_interface(router, create_interface())  # port 1
@@ -472,4 +690,3 @@ class TestRouting(unittest.TestCase):
 
 if __name__ == '__main__':
     unittest.main()
-

@@ -1,6 +1,6 @@
-from typing import List, Optional, Any, Dict
+from typing import List, Optional, Tuple, Any, Dict
 
-from cyst.api.logic.action import Action, ActionDescription, ActionParameter, ActionParameterDomain, ActionParameterDomainType
+from cyst.api.logic.action import Action, ActionDescription, ActionParameter, ActionToken, ActionParameterDomain, ActionParameterDomainType
 from cyst.api.logic.exploit import Exploit
 
 
@@ -140,9 +140,16 @@ class ActionImpl(Action):
         for p in params:
             self._parameters[p.name] = p
 
+    @property
+    def tokens(self) -> List[Tuple[ActionToken, ActionToken]]:
+        return self._tokens
+
     @staticmethod
     def cast_from(o: Action) -> 'ActionImpl':
         if isinstance(o, ActionImpl):
             return o
         else:
             raise ValueError("Malformed underlying object passed with the Action interface")
+
+    def copy(self):
+        return ActionImpl(ActionDescription(self.id, self._description, list(self._parameters.values()), self._tokens))

@@ -191,7 +191,7 @@ class Router(NodeImpl):
         if message.decrease_ttl() == 0:
             m = ResponseImpl(message, status=Status(StatusOrigin.NETWORK, StatusValue.FAILURE), content="TTL expired", session=message.session)
             m.set_next_hop()
-            self._env.send_message(m)
+            self._env.send_message(m, 1)
             return False, 1
 
         # If message is still going through a session then pass it along where it should go...
@@ -216,7 +216,7 @@ class Router(NodeImpl):
                                  content="Message stuck in a cycle", session=message.session)
                 # The next hop is automatically calculated because it is a response
                 m.set_next_hop(Endpoint(self.id, port, self._ports[port].ip), self._ports[port].endpoint)
-                self._env.send_message(m)
+                self._env.send_message(m, 1)
                 return False, 1
 
         # TODO evaluate permeability between networks!
@@ -248,7 +248,7 @@ class Router(NodeImpl):
                              content="Host unreachable", session=message.session)
                 # The next hop is automatically calculated because it is a response
                 m.set_next_hop()
-                self._env.send_message(m)
+                self._env.send_message(m, 1)
                 return False, 1
 
         # It is not, but belongs to router's constituency
@@ -256,7 +256,7 @@ class Router(NodeImpl):
             m = ResponseImpl(message, status=Status(StatusOrigin.NETWORK, StatusValue.FAILURE), content="Host unreachable", session=message.session)
             # The next hop is automatically calculated because it is a response
             m.set_next_hop()
-            self._env.send_message(m)
+            self._env.send_message(m, 1)
             return False, 1
         # Try to send it somewhere
         else:
@@ -270,7 +270,7 @@ class Router(NodeImpl):
 
             m = ResponseImpl(message, status=Status(StatusOrigin.NETWORK, StatusValue.FAILURE), content="Network address {} not routable".format(message.dst_ip), session=message.session)
             m.set_next_hop()
-            self._env.send_message(m)
+            self._env.send_message(m, 1)
             return False, 1
 
     @staticmethod

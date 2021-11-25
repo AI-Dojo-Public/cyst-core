@@ -541,7 +541,7 @@ class RandomAttacker(ActiveService, RandomAttackerControl):
             self._action_count += 1
 
     def execute_action(self, target: str, service: str, action: Action, session: Session = None, authorization: Authorization = None) -> None:
-        request = self._messaging.create_request(target, service, action, session=session, authorization=authorization)
+        request = self._messaging.create_request(target, service, action, session=session, auth=authorization)
         self._last_action = action
         self._messaging.send_message(request)
 

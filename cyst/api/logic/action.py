@@ -5,6 +5,7 @@ from enum import Enum
 from flags import Flags
 from typing import NamedTuple, List, Tuple, Optional, Any, Dict, Union
 
+from cyst.api.logic.access import AuthenticationToken
 from cyst.api.logic.exploit import Exploit
 
 
@@ -62,7 +63,8 @@ class ActionParameterType(Enum):
     NONE = 0,
     IDENTITY = 1,
     IDENTIFIER = 2,
-    DURATION = 3
+    DURATION = 3,
+    TOKEN = 4
 
 
 @dataclass
@@ -120,4 +122,13 @@ class Action(ABC):
 
     @abstractmethod
     def add_parameters(self, *params: ActionParameter):
+        pass
+
+    @property
+    @abstractmethod
+    def tokens(self) -> List[Tuple[ActionToken, ActionToken]]:
+        pass
+
+    @abstractmethod
+    def copy(self):
         pass

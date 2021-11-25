@@ -37,7 +37,7 @@ class EventDrivenHostIDS(ActiveService):
         # alert:data_manipulation
 
         # This IDS works only on messages, which provide metadata
-        if not message.metadata or "src_ip" not in message.metadata or "event" not in message.metadata:
+        if not message.metadata or not message.metadata.src_ip or not message.metadata.event:
             return True, 1
 
         src = message.metadata.src_ip

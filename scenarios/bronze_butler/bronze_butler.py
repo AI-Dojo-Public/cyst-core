@@ -446,7 +446,7 @@ class BronzeButlerScenarios(unittest.TestCase):
         # Data exfiltration
         action = self._actions["aif:disclosure:data_exfiltration"]
 
-        self._attacker.execute_action(str(mssql_ip), "mssql", action, session=s, authorization=cto_auth)
+        self._attacker.execute_action(str(mssql_ip), "mssql", action, session=s, auth=cto_auth)
 
         result, _ = self._env.control.run()
 
@@ -725,7 +725,7 @@ class BronzeButlerScenarios(unittest.TestCase):
         # Connection to the DC using employee authentication
         action = self._actions["aif:ensure_access:command_and_control"]
 
-        self._attacker.execute_action(str(dc_ip), "rdp", action, authorization=dc_auth, session=api_session)
+        self._attacker.execute_action(str(dc_ip), "rdp", action, auth=dc_auth, session=api_session)
 
         result, _ = self._env.control.run()
         self.assertTrue(result, "Environment correctly processed the request")
@@ -753,7 +753,7 @@ class BronzeButlerScenarios(unittest.TestCase):
         self.assertIsNotNone(exploit, "Found an exploit which enables elevation to root privileges")
 
         action.set_exploit(exploit)
-        self._attacker.execute_action(str(dc_ip), "powershell", action, authorization=dc_auth, session=dc_session)
+        self._attacker.execute_action(str(dc_ip), "powershell", action, auth=dc_auth, session=dc_session)
 
         result, _ = self._env.control.run()
         self.assertTrue(result, "Environment correctly processed the request")
@@ -771,7 +771,7 @@ class BronzeButlerScenarios(unittest.TestCase):
         e = self._env.resources.exploit_store.get_exploit(service="windows_server_2019", category=ExploitCategory.AUTH_MANIPULATION)[0]
         action.set_exploit(e)
 
-        self._attacker.execute_action(str(dc_ip), "windows_server_2019", action, authorization=dc_root_auth,
+        self._attacker.execute_action(str(dc_ip), "windows_server_2019", action, auth=dc_root_auth,
                                       session=dc_session)
 
         result, _ = self._env.control.run()
@@ -788,7 +788,7 @@ class BronzeButlerScenarios(unittest.TestCase):
         action = self._actions["aif:disclosure:data_exfiltration"]
 
         self._attacker.execute_action(str(mssql_ip), "mssql", action, session=api_session,
-                                      authorization=infrastructure_root_auth)
+                                      auth=infrastructure_root_auth)
 
         result, _ = self._env.control.run()
 
@@ -1047,7 +1047,7 @@ class BronzeButlerScenarios(unittest.TestCase):
         # Connection to the web server using employee authentication
         action = self._actions["aif:ensure_access:command_and_control"]
 
-        self._attacker.execute_action(str(websrv_ip), "rdp", action, authorization=emp_auth, session=s)
+        self._attacker.execute_action(str(websrv_ip), "rdp", action, auth=emp_auth, session=s)
 
         result, _ = self._env.control.run()
         self.assertTrue(result, "Environment correctly processed the request")
@@ -1130,7 +1130,7 @@ class BronzeButlerScenarios(unittest.TestCase):
         # Connection to the web server using employee authentication
         action = self._actions["aif:ensure_access:command_and_control"]
 
-        self._attacker.execute_action(str(dc_ip), "rdp", action, authorization=dc_auth, session=web_session)
+        self._attacker.execute_action(str(dc_ip), "rdp", action, auth=dc_auth, session=web_session)
 
         result, _ = self._env.control.run()
         self.assertTrue(result, "Environment correctly processed the request")
@@ -1158,7 +1158,7 @@ class BronzeButlerScenarios(unittest.TestCase):
         self.assertIsNotNone(exploit, "Found an exploit which enables elevation to root privileges")
 
         action.set_exploit(exploit)
-        self._attacker.execute_action(str(dc_ip), "powershell", action, authorization=dc_auth, session=dc_session)
+        self._attacker.execute_action(str(dc_ip), "powershell", action, auth=dc_auth, session=dc_session)
 
         result, _ = self._env.control.run()
         self.assertTrue(result, "Environment correctly processed the request")
@@ -1176,7 +1176,7 @@ class BronzeButlerScenarios(unittest.TestCase):
         e = self._env.resources.exploit_store.get_exploit(service="windows_server_2019", category=ExploitCategory.AUTH_MANIPULATION)[0]
         action.set_exploit(e)
 
-        self._attacker.execute_action(str(dc_ip), "windows_server_2019", action, authorization=dc_root_auth, session=dc_session)
+        self._attacker.execute_action(str(dc_ip), "windows_server_2019", action, auth=dc_root_auth, session=dc_session)
 
         result, _ = self._env.control.run()
         self.assertTrue(result, "Environment correctly processed the request")
@@ -1191,7 +1191,7 @@ class BronzeButlerScenarios(unittest.TestCase):
         # Data exfiltration
         action = self._actions["aif:disclosure:data_exfiltration"]
 
-        self._attacker.execute_action(str(mssql_ip), "mssql", action, session=web_session, authorization=infrastructure_root_auth)
+        self._attacker.execute_action(str(mssql_ip), "mssql", action, session=web_session, auth=infrastructure_root_auth)
 
         result, _ = self._env.control.run()
 

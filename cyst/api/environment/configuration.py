@@ -1,13 +1,14 @@
 from abc import ABC, abstractmethod
 from typing import Any, List, Optional, Union, Dict, TypeVar, Type
-from netaddr import IPAddress
+from netaddr import IPAddress, IPNetwork
 from flags import Flags
 
 from cyst.api.environment.messaging import EnvironmentMessaging
 from cyst.api.environment.message import Message
 from cyst.api.host.service import Service, PassiveService, ActiveService
-from cyst.api.logic.access import Authorization, AccessLevel
 from cyst.api.logic.action import ActionParameterDomain
+from cyst.api.logic.access import Authorization, AccessLevel, AuthenticationTokenType, AuthenticationTokenSecurity,\
+    AuthenticationToken, AuthenticationProviderType, AuthenticationProvider, AccessScheme, AuthenticationTarget
 from cyst.api.logic.data import Data
 from cyst.api.logic.exploit import VulnerableService, ExploitCategory, ExploitLocality, ExploitParameter, ExploitParameterType, Exploit
 from cyst.api.network.elements import Connection, Interface, Route
@@ -17,6 +18,18 @@ from cyst.api.network.node import Node
 
 
 ActiveServiceInterfaceType = TypeVar('ActiveServiceInterfaceType')
+ConfigurationObjectType = TypeVar('ConfigurationObjectType')
+ObjectType = TypeVar('ObjectType')
+
+
+class GeneralConfiguration(ABC):
+    @abstractmethod
+    def get_configuration_by_id(self, id: str, configuration_type: Type[ConfigurationObjectType]) -> ConfigurationObjectType:
+        pass
+
+    @abstractmethod
+    def get_object_by_id(self, id: str, object_type: Type[ObjectType]) -> ObjectType:
+        pass
 
 
 class NodeConfiguration(ABC):
@@ -30,6 +43,10 @@ class NodeConfiguration(ABC):
 
     @abstractmethod
     def create_interface(self, ip: Union[str, IPAddress] = "", mask: str = "", index: int = 0) -> Interface:
+        pass
+
+    @abstractmethod
+    def create_route(self, net: IPNetwork, port: int, metric: int) -> Route:
         pass
 
     @abstractmethod
@@ -56,7 +73,7 @@ class NodeConfiguration(ABC):
     def add_route(self, node: Node, *route: Route) -> None:
         pass
 
-    # TODO: This is only temporary - first, it is leaking implementation detail to outside and second, it is
+    # TODO: This is only temporary - first, it is leaking   implementation detail to outside and second, it is
     #       completely stupid, as router should be a designated active service and should provide configuration
     #       interface
     @abstractmethod
@@ -119,6 +136,14 @@ class ServiceConfiguration(ABC):
 
     @abstractmethod
     def sessions(self, service: PassiveService) -> List[Session]:
+        pass
+
+    @abstractmethod
+    def provides_auth(self, service: Service, auth_provider: AuthenticationProvider):
+        pass
+
+    @abstractmethod
+    def set_scheme(self, service: PassiveService, scheme: AccessScheme):
         pass
 
 
@@ -184,7 +209,56 @@ class ActionConfiguration(ABC):
         pass
 
 
+class AccessConfiguration(ABC):
+
+    @abstractmethod
+    def create_authentication_provider(self, provider_type: AuthenticationProviderType,
+                                       token_type: AuthenticationTokenType, security: AuthenticationTokenSecurity,
+                                       ip: Optional[IPAddress], timeout: int) -> AuthenticationProvider:
+        pass
+
+    @abstractmethod
+    def create_authentication_token(self, type: AuthenticationTokenType, security: AuthenticationTokenSecurity,
+                                    identity: str, is_local: bool) -> AuthenticationToken:
+        pass
+
+    @abstractmethod
+    def register_authentication_token(self, provider: AuthenticationProvider, token: AuthenticationToken) -> bool:
+        pass
+
+    @abstractmethod
+    def create_and_register_authentication_token(self, provider: AuthenticationProvider, identity: str) -> Optional[AuthenticationToken]:
+        pass
+
+    @abstractmethod
+    def create_authorization(self, identity: str, access_level: AccessLevel, id: str, nodes: Optional[List[str]] = None, services: Optional[List[str]] = None):
+        pass
+
+    @abstractmethod
+    def create_access_scheme(self) -> AccessScheme:
+        pass
+
+    @abstractmethod
+    def add_provider_to_scheme(self, provider : AuthenticationProvider, scheme: AccessScheme):
+        pass
+
+    @abstractmethod
+    def add_authorization_to_scheme(self, auth: Authorization, scheme: AccessScheme):
+        pass
+
+    @abstractmethod
+    def evaluate_token_for_service(self, service: Service, token: AuthenticationToken, node: Node,
+                                   fallback_ip: Optional[IPAddress])\
+            -> Optional[Union[Authorization, AuthenticationTarget]]:
+        pass
+
+
 class EnvironmentConfiguration(ABC):
+
+    @property
+    @abstractmethod
+    def general(self) -> GeneralConfiguration:
+        pass
 
     @property
     @abstractmethod
@@ -209,4 +283,9 @@ class EnvironmentConfiguration(ABC):
     @property
     @abstractmethod
     def action(self) -> ActionConfiguration:
+        pass
+
+    @property
+    @abstractmethod
+    def access(self) -> AccessConfiguration:
         pass

@@ -136,12 +136,12 @@ class AIFInterpreter(ActionInterpreter):
 
     def process_active_recon_host_discovery(self, message: Request, node: Node) -> Tuple[int, Response]:
         return 1, self._messaging.create_response(message, Status(StatusOrigin.NODE, StatusValue.SUCCESS),
-                                                  None, session=message.session, authorization=message.authorization)
+                                                  None, session=message.session, auth=message.auth)
 
     def process_active_recon_service_discovery(self, message: Request, node: Node) -> Tuple[int, Response]:
         # TODO Only show services, which are opened to outside
         return 1, self._messaging.create_response(message, Status(StatusOrigin.NODE, StatusValue.SUCCESS),
-                                                  [x for x in node.services], session=message.session, authorization=message.authorization)
+                                                  [x for x in node.services], session=message.session, auth=message.auth)
 
     def process_active_recon_vulnerability_discovery(self, message: Request, node: Node) -> Tuple[int, Response]:
         # TODO Only works on services, which are opened to outside
@@ -149,11 +149,11 @@ class AIFInterpreter(ActionInterpreter):
             service_tags = [message.dst_service + "-" + str(node.services[message.dst_service].version)]
             service_tags.extend(node.services[message.dst_service].tags)
             return 1, self._messaging.create_response(message, Status(StatusOrigin.SERVICE, StatusValue.SUCCESS),
-                                                      service_tags, session=message.session, authorization=message.authorization)
+                                                      service_tags, session=message.session, auth=message.auth)
         else:
             return 1, self._messaging.create_response(message, Status(StatusOrigin.NODE, StatusValue.ERROR),
                                                       "No/wrong service specified for vulnerability discovery", session=message.session,
-                                                      authorization=message.authorization)
+                                                      auth=message.auth)
 
     def process_active_recon_information_discovery(self, message: Request, node: Node) -> Tuple[int, Response]:
         # TODO Only works on services, which are opened to outside
@@ -176,15 +176,15 @@ class AIFInterpreter(ActionInterpreter):
             if public_authorizations or public_data or private_authorizations:
                 return 1, self._messaging.create_response(message, Status(StatusOrigin.SERVICE, StatusValue.SUCCESS),
                                                           public_data + public_authorizations + private_authorizations, session=message.session,
-                                                          authorization=message.authorization)
+                                                          auth=message.auth)
             else:
                 return 1, self._messaging.create_response(message, Status(StatusOrigin.SERVICE, StatusValue.SUCCESS),
                                                           None, session=message.session,
-                                                          authorization=message.authorization)
+                                                          auth=message.auth)
 
         return 1, self._messaging.create_response(message, Status(StatusOrigin.NODE, StatusValue.ERROR),
                                                   "No/wrong service specified for vulnerability discovery", session=message.session,
-                                                  authorization=message.authorization)
+                                                  auth=message.auth)
 
     def process_ensure_access_command_and_control(self, message: Request, node: Node) -> Tuple[int, Response]:
         # TODO Only works on services, which are opened to outside
@@ -194,7 +194,7 @@ class AIFInterpreter(ActionInterpreter):
         if not message.dst_service:
             error = "Service for session creation not specified"
         # ... and if the attacker provided either an authorization, or an exploit
-        elif not message.authorization and not message.action.exploit:
+        elif not message.auth and not message.action.exploit:
             error = "Neither authorization token nor exploit specified to ensure command and control"
 
         if error:
@@ -202,17 +202,17 @@ class AIFInterpreter(ActionInterpreter):
 
         # First of all, if the attacker provided an authorization token, it is tried first as it should not trigger
         # a defensive reaction
-        if message.authorization:
+        if message.auth:
             # Authorization without enabled session creation does not work
             if not node.services[message.dst_service].passive_service.enable_session:
                 error = "Service {} at node {} does not enable session creation.".format(message.dst_service, message.dst_ip)
 
             # check authorization and eventually create a session object to return
             # TODO: decide on session creation via configuration and via interpreters
-            elif self._policy.decide(node, message.dst_service, node.services[message.dst_service].passive_service.session_access_level, message.authorization)[0]:
+            elif self._policy.decide(node, message.dst_service, node.services[message.dst_service].passive_service.session_access_level, message.auth)[0]:
                 return 1, self._messaging.create_response(message, Status(StatusOrigin.SERVICE, StatusValue.SUCCESS),
                                                           node, session=self._configuration.network.create_session_from_message(message),
-                                                          authorization=message.authorization)
+                                                          auth=message.auth)
         if message.action.exploit:
             # Successful exploit creates a new authorization, which has a service_access_level and user = service name
             if self._exploit_store.evaluate_exploit(message.action.exploit, message, node)[0]:
@@ -220,14 +220,15 @@ class AIFInterpreter(ActionInterpreter):
                 param = message.action.exploit.parameters.get(ExploitParameterType.ENABLE_ELEVATED_ACCESS, None)
                 if param and param.value == "TRUE":
                     access_level = AccessLevel.ELEVATED
-                auth = self._policy.create_authorization(message.dst_service, [node], [message.dst_service, node.shell], access_level)
+                auth = self._policy.create_authorization(message.dst_service, [node], [message.dst_service, node.shell],
+                                                         access_level, "evil_one")
                 return 1, self._messaging.create_response(message, Status(StatusOrigin.SERVICE, StatusValue.SUCCESS),
                                                           node, session=self._configuration.network.create_session_from_message(message),
-                                                          authorization=auth)
+                                                          auth=auth)
             else:
                 error = "Service {} not exploitable using the exploit {}".format(message.dst_service, message.action.exploit.id)
 
-        return 1, self._messaging.create_response(message, Status(StatusOrigin.SERVICE, StatusValue.FAILURE), error, session=message.session, authorization=message.authorization)
+        return 1, self._messaging.create_response(message, Status(StatusOrigin.SERVICE, StatusValue.FAILURE), error, session=message.session, auth=message.auth)
 
     def process_privilege_escalation(self, message: Request, node: Node, mode: str) -> Tuple[int, Response]:
         # To successfully manage a user privilege escalation, the attacker must already have an active session on the
@@ -239,7 +240,7 @@ class AIFInterpreter(ActionInterpreter):
             error = "Service for session creation not specified"
 
         if error:
-            return 1, self._messaging.create_response(message, Status(StatusOrigin.NODE, StatusValue.ERROR), error, session=message.session, authorization=message.authorization)
+            return 1, self._messaging.create_response(message, Status(StatusOrigin.NODE, StatusValue.ERROR), error, session=message.session, auth=message.auth)
 
         # Check if exploit is correctly provided
         error = ""
@@ -290,7 +291,7 @@ class AIFInterpreter(ActionInterpreter):
             return 1, self._messaging.create_response(message, Status(StatusOrigin.SERVICE, StatusValue.ERROR), error,
                                                       session=message.session)
 
-        if not message.authorization or (message.dst_service not in self._policy.get_services(message.authorization) and self._policy.get_services(message.authorization) != ["*"]):
+        if not message.auth or (message.dst_service not in self._policy.get_services(message.auth) and self._policy.get_services(message.auth) != ["*"]):
             error = "No proper authorization for service {} available".format(message.dst_service)
             return 1, self._messaging.create_response(message, Status(StatusOrigin.SERVICE, StatusValue.FAILURE), error,
                                                       session=message.session)
@@ -318,10 +319,12 @@ class AIFInterpreter(ActionInterpreter):
             user_required = "*"
 
         # Root exploit adds a new root user even if the user was not pre-existing
-        new_auth = self._policy.create_authorization(user_required, nodes, services, access_level=AccessLevel.LIMITED if mode == "user" else AccessLevel.ELEVATED)
+        new_auth = self._policy.create_authorization(user_required, nodes, services,
+                                                     access_level=AccessLevel.LIMITED if mode == "user" else AccessLevel.ELEVATED,
+                                                     id="evil_one")
 
         return 1, self._messaging.create_response(message, Status(StatusOrigin.SERVICE, StatusValue.SUCCESS), "",
-                                                  session=message.session, authorization=new_auth)
+                                                  session=message.session, auth=new_auth)
 
     def process_privilege_escalation_root_privilege_escalation(self, message: Request, node: Node) -> Tuple[int, Response]:
         return self.process_privilege_escalation(message, node, "root")
@@ -352,13 +355,13 @@ class AIFInterpreter(ActionInterpreter):
         # Go through the private data
         # Made them accessible only if the attacker has a valid authorization for given service and the authorization
         # lists them as an owner of the data
-        if message.authorization:
-            authorized_services = self._policy.get_services(message.authorization)
-            if (message.authorization and
+        if message.auth:
+            authorized_services = self._policy.get_services(message.auth)
+            if (message.auth and
                 ("*" in authorized_services or message.dst_service in authorized_services)):
 
                 for datum in self._configuration.service.private_data(service):
-                    if message.authorization.identity == '*' or message.authorization.identity == datum.owner:
+                    if message.auth.identity == '*' or message.auth.identity == datum.owner:
                         result.append(datum)
 
         return 1, self._messaging.create_response(message, Status(StatusOrigin.SERVICE, StatusValue.SUCCESS), result, session=message.session)
@@ -377,10 +380,10 @@ class AIFInterpreter(ActionInterpreter):
         service = node.services[message.dst_service].passive_service
 
         # Data destruction only with authorization
-        if (not message.authorization or
-            message.dst_service not in self._policy.get_services(message.authorization) or
+        if (not message.auth or
+            message.dst_service not in self._policy.get_services(message.auth) or
             # TODO Replace this check with some sane policy decision
-            node.id not in self._policy.get_nodes(message.authorization)):
+            node.id not in self._policy.get_nodes(message.auth)):
 
             return 1, self._messaging.create_response(message, Status(StatusOrigin.SERVICE, StatusValue.FAILURE),
                                                       "Unauthorized attempt to delete data", session=message.session)
@@ -401,7 +404,7 @@ class AIFInterpreter(ActionInterpreter):
 
             # Check public data
             for datum in self._configuration.service.public_data(service):
-                if datum.id not in delete_ids or datum.owner != message.authorization.identity:
+                if datum.id not in map(str, delete_ids) or datum.owner != message.auth.identity:
                     new_data.append(datum)
 
             self._configuration.service.public_data(service).clear()
@@ -411,7 +414,7 @@ class AIFInterpreter(ActionInterpreter):
             new_data.clear()
 
             for datum in self._configuration.service.private_data(service):
-                if datum.id not in delete_ids or datum.owner != message.authorization.identity:
+                if datum.id not in map(str, delete_ids) or datum.owner != message.auth.identity:
                     new_data.append(datum)
 
             self._configuration.service.private_data(service).clear()
@@ -445,7 +448,7 @@ class AIFInterpreter(ActionInterpreter):
                                                       "Could not find attacker with name {}".format(attacker_id), session=message.session)
 
         # Check if the permissions are ok
-        if attacker_service.service_access_level > self._policy.get_access_level(message.authorization):
+        if attacker_service.service_access_level > self._policy.get_access_level(message.auth):
             return 1, self._messaging.create_response(message, Status(StatusOrigin.NODE, StatusValue.FAILURE),
                                                       "Insufficient privileges to run attacker {}".format(attacker_id), session=message.session)
 
@@ -471,13 +474,13 @@ class AIFInterpreter(ActionInterpreter):
 
         if error:
             return 1, self._messaging.create_response(message, Status(StatusOrigin.NODE, StatusValue.ERROR), error,
-                                                      session=message.session, authorization=message.authorization)
+                                                      session=message.session, auth=message.auth)
 
         result, error = self._exploit_store.evaluate_exploit(message.action.exploit, message, node)
 
         if not result:
             return 1, self._messaging.create_response(message, Status(StatusOrigin.SERVICE, StatusValue.FAILURE), error,
-                                                      session=message.session, authorization=message.authorization)
+                                                      session=message.session, auth=message.auth)
 
         result_sessions = []
         for s in self._configuration.service.sessions(node.services[message.dst_service].passive_service):
@@ -487,7 +490,7 @@ class AIFInterpreter(ActionInterpreter):
                 result_sessions.append(new_session)
 
         return 1, self._messaging.create_response(message, Status(StatusOrigin.SERVICE, StatusValue.SUCCESS), result_sessions,
-                                                  session=message.session, authorization=message.authorization)
+                                                  session=message.session, auth=message.auth)
 
 
 def create_aif_interpreter(configuration: EnvironmentConfiguration, resources: EnvironmentResources,

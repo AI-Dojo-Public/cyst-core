@@ -1,10 +1,13 @@
 from semver import VersionInfo
-from typing import List, Set, Union
+from typing import List, Set, Union, Tuple
 
+import cyst
 from cyst.api.host.service import Service, ActiveService, PassiveService
-from cyst.api.logic.access import AccessLevel, Authorization
+from cyst.api.logic.access import AccessLevel, Authorization, AuthenticationProvider, AccessScheme
 from cyst.api.logic.data import Data
+from cyst.api.network.node import Node
 from cyst.api.network.session import Session
+from cyst.core.logic.access import AuthorizationImpl
 
 from cyst.core.logic.data import DataImpl
 
@@ -73,7 +76,8 @@ class ServiceImpl(Service):
 
 
 class PassiveServiceImpl(ServiceImpl, PassiveService):
-    def __init__(self, id: str, owner: str, version: str = "0.0.0", local: bool = False, service_access_level: AccessLevel = AccessLevel.LIMITED) -> None:
+    def __init__(self, id: str, owner: str, version: str = "0.0.0", local: bool = False,
+                 service_access_level: AccessLevel = AccessLevel.LIMITED) -> None:
         super(PassiveServiceImpl, self).__init__(id, self, id, owner, service_access_level)
 
         self._version = VersionInfo.parse(version)
@@ -85,6 +89,9 @@ class PassiveServiceImpl(ServiceImpl, PassiveService):
         self._enable_session = False
         self._session_access_level = AccessLevel.NONE
         self._local = local
+        self._provided_auths = []
+        self._access_schemes = []
+        self._active_authorizations = []
 
     # ------------------------------------------------------------------------------------------------------------------
     # PassiveService
@@ -99,6 +106,7 @@ class PassiveServiceImpl(ServiceImpl, PassiveService):
     @property
     def local(self) -> bool:
         return self._local
+
     # ------------------------------------------------------------------------------------------------------------------
 
     def add_public_data(self, data: DataImpl):
@@ -119,6 +127,26 @@ class PassiveServiceImpl(ServiceImpl, PassiveService):
         for tag in tags:
             self._tags.add(tag)
 
+    def add_provider(self, provider: AuthenticationProvider):
+        self._provided_auths.append(provider)
+        if isinstance(provider, cyst.core.logic.access.AuthenticationProviderImpl):
+            provider.set_service(self._id)
+
+    def add_access_scheme(self, scheme: AccessScheme):
+        self._access_schemes.append(scheme)
+
+    def add_active_authorization(self, auth: Authorization):
+        self._active_authorizations.append(auth)
+
+    def assess_authorization(self, auth: Authorization, access_level: AccessLevel, node: str,
+                             service: str) -> Tuple[bool, str]:
+        auth = AuthorizationImpl.cast_from(auth)
+        for active_auth in map(AuthorizationImpl.cast_from, self._active_authorizations):
+            if auth.matching_id(active_auth) and access_level <= active_auth.access_level and \
+                    node in active_auth.nodes and service in active_auth.services:
+                return True, "Authorization is valid."
+        return False, "Invalid authorization."
+
     @property
     def private_data(self) -> List[Data]:
         return self._private_data
@@ -138,6 +166,10 @@ class PassiveServiceImpl(ServiceImpl, PassiveService):
     @property
     def enable_session(self) -> bool:
         return self._enable_session
+
+    @property
+    def access_schemes(self) -> List[AccessScheme]:
+        return self._access_schemes
 
     def set_enable_session(self, value: bool) -> None:
         self._enable_session = value
