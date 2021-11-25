@@ -111,6 +111,10 @@ class ServiceConfiguration(ABC):
         pass
 
     @abstractmethod
+    def update_service_version(self, service: PassiveService, version: str = "0.0.0") -> None:
+        pass
+
+    @abstractmethod
     def set_service_parameter(self, service: PassiveService, parameter: ServiceParameter, value: Any) -> None:
         pass
 

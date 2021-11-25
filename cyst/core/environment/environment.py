@@ -526,6 +526,10 @@ class _Environment(Environment, EnvironmentControl, EnvironmentMessaging, Enviro
                                service_access_level: AccessLevel = AccessLevel.LIMITED) -> Service:
         return PassiveServiceImpl(id, owner, version, local, service_access_level)
 
+    def update_service_version(self, service: PassiveService, version: str = "0.0.0") -> None:
+        service = PassiveServiceImpl.cast_from(service)
+        service.version = version
+
     def set_service_parameter(self, service: PassiveService, parameter: ServiceParameter, value: Any) -> None:
         service = PassiveServiceImpl.cast_from(service)
         if parameter == ServiceParameter.ENABLE_SESSION:

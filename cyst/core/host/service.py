@@ -99,6 +99,10 @@ class PassiveServiceImpl(ServiceImpl, PassiveService):
     def version(self) -> VersionInfo:
         return self._version
 
+    @version.setter
+    def version(self, value: str) -> None:
+        self._version = VersionInfo.parse(value)
+
     @property
     def tags(self):
         return self._tags
