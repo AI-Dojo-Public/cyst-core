@@ -2,7 +2,7 @@ from dataclasses import dataclass
 from typing import Tuple, Dict
 
 from cyst.api.logic.access import AuthenticationToken, AuthenticationTarget, Authorization
-from cyst.api.logic.action import ActionDescription, ActionToken, ActionParameterType
+from cyst.api.logic.action import ActionDescription, ActionToken, ActionParameterType, ActionParameter
 from cyst.api.environment.messaging import EnvironmentMessaging
 from cyst.api.environment.resources import EnvironmentResources
 from cyst.api.environment.configuration import EnvironmentConfiguration
@@ -36,10 +36,12 @@ class METAInterpreter(ActionInterpreter):
 
         self._action_store.add(ActionDescription("meta:inspect:node",
                                                  "Discovery of hosts in a network. Equivalent to ping scanning.",
+                                                 [],
                                                  [(ActionToken.SESSION, ActionToken.NONE)]))
 
         self._action_store.add(ActionDescription("meta:authenticate",
                                                  "Authentication against a service.",
+                                                 [ActionParameter(ActionParameterType.TOKEN, "auth_token", configuration.action.create_action_parameter_domain_any())],
                                                  [(ActionToken.NONE, ActionToken.NONE)])) # Tokens are wrong, I know that
 
     def evaluate(self, message: Request, node: Node) -> Tuple[int, Response]:
@@ -83,11 +85,14 @@ class METAInterpreter(ActionInterpreter):
         # First of all, check if the message contains authentication token
         token_found = False
         token = None
-        for parameter in message.action.parameters:
-            if parameter.action_type == ActionParameterType.TOKEN and isinstance(parameter.value, AuthenticationToken):
-                token_found = True
-                token = parameter.value
+        t = message.action.parameters.get("auth_token", None)
+        if t:
+            if not isinstance(t, ActionParameter):
+                raise RuntimeError("Wrong object type supplied as action parameter. Type: " + str(type(t)))
 
+            if t.type == ActionParameterType.TOKEN and t.value:
+                token_found = True
+                token = t.value
 
         if not token_found:
             return 0, self._messaging.create_response(message, Status(StatusOrigin.SERVICE, StatusValue.FAILURE, StatusDetail.AUTHENTICATION_NOT_PROVIDED),

@@ -2,7 +2,8 @@ from abc import ABC, abstractmethod
 from semver import VersionInfo
 from typing import Set, Tuple, NamedTuple, Callable, Dict, Any, Optional
 
-from cyst.api.logic.access import AccessLevel, AuthenticationProvider
+from cyst.api.environment.message import Message
+from cyst.api.logic.access import AccessLevel
 from cyst.api.utils.tag import Tag
 
 
@@ -41,7 +42,7 @@ class ActiveService(ABC):
         pass
 
     @abstractmethod
-    def process_message(self, message) -> Tuple[bool, int]:
+    def process_message(self, message: Message) -> Tuple[bool, int]:
         pass
 
 

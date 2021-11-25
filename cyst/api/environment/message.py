@@ -1,11 +1,12 @@
 from abc import ABC, abstractmethod
 from enum import Enum, auto
 from netaddr import IPAddress
-from typing import Any, Optional, Union, NamedTuple
+from typing import Any, Optional, Union, NamedTuple, TypeVar, Type
 
 from cyst.api.network.session import Session
 from cyst.api.logic.access import Authorization, AuthenticationToken, AuthenticationTarget
 from cyst.api.logic.action import Action
+from cyst.api.logic.metadata import Metadata
 
 
 class MessageType(Enum):
@@ -80,6 +81,9 @@ class Status(NamedTuple):
         return result
 
 
+T = TypeVar('T', bound=Union['Request', 'Response', 'Timeout'])
+
+
 class Message(ABC):
 
     @property
@@ -127,6 +131,19 @@ class Message(ABC):
     def ttl(self):
         pass
 
+    @property
+    @abstractmethod
+    def metadata(self) -> Metadata:
+        pass
+
+    @abstractmethod
+    def set_metadata(self, metadata: Metadata) -> None:
+        pass
+
+    @abstractmethod
+    def cast_to(self, type: Type[T]) -> T:
+        pass
+
 
 class Request(Message, ABC):
 
@@ -146,4 +163,22 @@ class Response(Message, ABC):
     @property
     @abstractmethod
     def content(self):
+        pass
+
+
+class Timeout(Message, ABC):
+
+    @property
+    @abstractmethod
+    def start_time(self) -> int:
+        pass
+
+    @property
+    @abstractmethod
+    def duration(self) -> int:
+        pass
+
+    @property
+    @abstractmethod
+    def parameter(self) -> Any:
         pass

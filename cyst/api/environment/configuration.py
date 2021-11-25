@@ -6,6 +6,7 @@ from flags import Flags
 from cyst.api.environment.messaging import EnvironmentMessaging
 from cyst.api.environment.message import Message
 from cyst.api.host.service import Service, PassiveService, ActiveService
+from cyst.api.logic.action import ActionParameterDomain
 from cyst.api.logic.access import Authorization, AccessLevel, AuthenticationTokenType, AuthenticationTokenSecurity,\
     AuthenticationToken, AuthenticationProviderType, AuthenticationProvider, AccessScheme, AuthenticationTarget
 from cyst.api.logic.data import Data
@@ -62,6 +63,10 @@ class NodeConfiguration(ABC):
 
     @abstractmethod
     def set_shell(self, node: Node, service: Service) -> None:
+        pass
+
+    @abstractmethod
+    def add_traffic_processor(self, node: Node, processor: ActiveService) -> None:
         pass
 
     @abstractmethod
@@ -190,6 +195,20 @@ class ExploitConfiguration(ABC):
         pass
 
 
+class ActionConfiguration(ABC):
+    @abstractmethod
+    def create_action_parameter_domain_any(self) -> ActionParameterDomain:
+        pass
+
+    @abstractmethod
+    def create_action_parameter_domain_range(self, default: int, min: int, max: int, step: int = 1) -> ActionParameterDomain:
+        pass
+
+    @abstractmethod
+    def create_action_parameter_domain_options(self, default: Any, options: List[Any]) -> ActionParameterDomain:
+        pass
+
+
 class AccessConfiguration(ABC):
 
     @abstractmethod
@@ -216,7 +235,7 @@ class AccessConfiguration(ABC):
         pass
 
     @abstractmethod
-    def create_access_scheme(self, id: str) -> AccessScheme:
+    def create_access_scheme(self) -> AccessScheme:
         pass
 
     @abstractmethod
@@ -259,6 +278,11 @@ class EnvironmentConfiguration(ABC):
     @property
     @abstractmethod
     def exploit(self) -> ExploitConfiguration:
+        pass
+
+    @property
+    @abstractmethod
+    def action(self) -> ActionConfiguration:
         pass
 
     @property

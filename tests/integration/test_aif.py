@@ -738,8 +738,11 @@ class TestAIFIntegration(unittest.TestCase):
         sess = message.session
 
         # Get IDs of public data
+        ids = []
         for datum in view.services[message.src_service].public_data:
-            action_destruction.add_parameters(ActionParameter(ActionParameterType.ID, str(datum.id)))
+            ids.append(str(datum.id))
+
+        action_destruction.parameters["id"].value = ids
 
         self._attacker.execute_action("192.168.0.2", "lighttpd", action_destruction, sess, auth)
 
@@ -790,9 +793,11 @@ class TestAIFIntegration(unittest.TestCase):
 
         self.assertEqual(message.status, Status(StatusOrigin.SERVICE, StatusValue.SUCCESS), "Got data")
 
-        action_destruction.parameters.clear()
+        ids = []
         for datum in message.content:
-            action_destruction.add_parameters(ActionParameter(ActionParameterType.ID, str(datum.id)))
+            ids.append(datum.id)
+
+        action_destruction.parameters["id"].value = ids
 
         # Delete the data
         self._attacker.execute_action("192.168.0.2", "bash", action_destruction, sess, user_auth)
@@ -845,7 +850,7 @@ class TestAIFIntegration(unittest.TestCase):
         self.assertEqual(message.status, Status(StatusOrigin.NODE, StatusValue.ERROR), "No ID of an attacker to instantiate specified")
 
         # Set the wrong ID
-        action_lm.add_parameters(ActionParameter(ActionParameterType.ID, "NonexistentAttacker"))
+        action_lm.parameters["id"].value = "NonexistentAttacker"
 
         self._attacker.execute_action("192.168.0.2", "", action_lm, sess, auth)
 
@@ -855,8 +860,7 @@ class TestAIFIntegration(unittest.TestCase):
         self.assertEqual(message.status, Status(StatusOrigin.NODE, StatusValue.ERROR), "Wrong attacker ID specified")
 
         # Set the correct ID but don't have adequate privileges
-        action_lm.parameters.clear()
-        action_lm.add_parameters(ActionParameter(ActionParameterType.ID, "scripted_attacker"))
+        action_lm.parameters["id"].value = "scripted_attacker"
 
         self._attacker.execute_action("192.168.0.2", "", action_lm, sess, auth)
 

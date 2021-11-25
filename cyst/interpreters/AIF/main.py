@@ -4,7 +4,7 @@ import uuid
 from typing import List, Tuple
 
 from cyst.api.logic.access import Authorization, AccessLevel
-from cyst.api.logic.action import ActionDescription, ActionToken, ActionParameterType
+from cyst.api.logic.action import ActionDescription, ActionToken, ActionParameterType, ActionParameter
 from cyst.api.logic.exploit import ExploitParameterType, ExploitLocality, ExploitCategory
 from cyst.api.host.service import PassiveService
 from cyst.api.environment.messaging import EnvironmentMessaging
@@ -54,18 +54,22 @@ class AIFInterpreter(ActionInterpreter):
 
         self._action_store.add(ActionDescription("aif:active_recon:host_discovery",
                                                  "Discovery of hosts in a network. Equivalent to ping scanning.",
+                                                 [],
                                                  [(ActionToken.NONE, ActionToken.NONE)]))
 
         self._action_store.add(ActionDescription("aif:active_recon:service_discovery",
                                                  "Discovery of services on a host. Equivalent to TCP/SYN scanning.",
+                                                 [],
                                                  [(ActionToken.NONE, ActionToken.NONE)]))
 
         self._action_store.add(ActionDescription("aif:active_recon:vulnerability_discovery",
                                                  "Discovery of information pertaining to a chosen service. Can be used as a base for exploit selection",
+                                                 [],
                                                  [(ActionToken.NONE, ActionToken.NONE)]))
 
         self._action_store.add(ActionDescription("aif:active_recon:information_discovery",
                                                  "Discovery of publicly available information. Can be used to get data or auth.",
+                                                 [],
                                                  # The auth tokens can be only partial - this is another can of worms...
                                                  [(ActionToken.NONE, ActionToken.NONE),
                                                   (ActionToken.NONE, ActionToken.AUTH),
@@ -74,39 +78,48 @@ class AIFInterpreter(ActionInterpreter):
 
         self._action_store.add(ActionDescription("aif:privilege_escalation:user_privilege_escalation",
                                                  "Obtain privileges of another user of the same access level.",
+                                                 [],
                                                  [(ActionToken.SESSION, ActionToken.AUTH),
                                                   (ActionToken.EXPLOIT | ActionToken.SESSION, ActionToken.AUTH)]))
 
         self._action_store.add(ActionDescription("aif:privilege_escalation:root_privilege_escalation",
                                                  "Obtain privileges of another user with elevated access level.",
+                                                 [],
                                                  [(ActionToken.SESSION, ActionToken.AUTH),
                                                   (ActionToken.EXPLOIT | ActionToken.SESSION, ActionToken.AUTH)]))
 
         self._action_store.add(ActionDescription("aif:ensure_access:command_and_control",
                                                  "Get session to the target service.",
+                                                 [],
                                                  [(ActionToken.AUTH, ActionToken.SESSION),
                                                   (ActionToken.EXPLOIT, ActionToken.SESSION)]))
 
         self._action_store.add(ActionDescription("aif:disclosure:data_exfiltration",
                                                  "Gather data from the target.",
+                                                 [],
                                                  [(ActionToken.AUTH, ActionToken.DATA),
                                                   (ActionToken.AUTH | ActionToken.SESSION, ActionToken.DATA),
                                                   (ActionToken.EXPLOIT | ActionToken.SESSION, ActionToken.DATA)]))
 
         self._action_store.add(ActionDescription("aif:destroy:data_destruction",
                                                  "Destroy data at the target.",
+                                                 [ActionParameter(ActionParameterType.IDENTIFIER, "id",
+                                                                  self._configuration.action.create_action_parameter_domain_any())],
                                                  [(ActionToken.AUTH, ActionToken.NONE),
                                                   (ActionToken.AUTH | ActionToken.SESSION, ActionToken.NONE),
                                                   (ActionToken.EXPLOIT | ActionToken.SESSION, ActionToken.NONE)]))
 
         self._action_store.add(ActionDescription("aif:ensure_access:lateral_movement",
                                                  "Spawn an instance of active service on a target host",
+                                                 [ActionParameter(ActionParameterType.IDENTIFIER, "id",
+                                                                  self._configuration.action.create_action_parameter_domain_any())],
                                                  [(ActionToken.AUTH | ActionToken.SESSION, ActionToken.NONE),
                                                   (ActionToken.EXPLOIT | ActionToken.SESSION, ActionToken.NONE),
                                                   (ActionToken.EXPLOIT, ActionToken.NONE)]))
 
         self._action_store.add(ActionDescription("aif:targeted_exploits:exploit_remote_services",
                                                  "Get access to session provided by an exploitable service",
+                                                 [],
                                                  [(ActionToken.EXPLOIT | ActionToken.SESSION, ActionToken.SESSION)]))
 
     def evaluate(self, message: Request, node: Node) -> Tuple[int, Response]:
@@ -380,10 +393,13 @@ class AIFInterpreter(ActionInterpreter):
         if message.action.parameters:
             delete_ids = []
             new_data = []
-            for param in message.action.parameters:
-                if param.action_type == ActionParameterType.ID:
+
+            if "id" in message.action.parameters:
+                for item in message.action.parameters["id"].value:
                     # There is no checking...
-                    temp = uuid.UUID(param.value)
+                    temp = item
+                    if not isinstance(temp, uuid.UUID):
+                        temp = uuid.UUID(item)
                     delete_ids.append(temp)
 
             # Check public data
@@ -414,10 +430,8 @@ class AIFInterpreter(ActionInterpreter):
 
         # Should we reuse the ID for a name?
         attacker_name = ""
-        for param in message.action.parameters:
-            if param.action_type == ActionParameterType.ID:
-                attacker_name = param.value
-                break
+        if "id" in message.action.parameters:
+            attacker_name = message.action.parameters["id"].value
 
         if not attacker_name:
             error = "Name of attacker not specified"

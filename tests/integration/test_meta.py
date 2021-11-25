@@ -119,7 +119,7 @@ class TestMETAIntegration(unittest.TestCase):
         # Connect the attacker to the target
 
         action = self._actions["meta:authenticate"]
-        action.add_parameters(ActionParameter(ActionParameterType.TOKEN, self._ssh_token))
+        action.parameters["auth_token"].value = self._ssh_token
         target = self._target.interfaces[0].ip
 
         self._attacker.execute_action(str(target), "openssh", action, auth=self._ssh_token)

@@ -3,6 +3,7 @@ from typing import Tuple, Optional, Dict, Any, List
 from queue import SimpleQueue
 from netaddr import IPNetwork
 
+from cyst.api.environment.message import Message
 from cyst.api.utils.logger import *  # pylint: disable=unused-wildcard-import
 from cyst.api.logic.access import AccessLevel
 from cyst.api.host.service import ActiveService, ActiveServiceDescription

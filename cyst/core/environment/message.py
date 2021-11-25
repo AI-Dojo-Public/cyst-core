@@ -1,9 +1,11 @@
-from typing import Any, List, Optional, Union
+from typing import Any, List, Optional, Union, Type
 from netaddr import *
 
-from cyst.api.environment.message import MessageType, Message, Request, Response, Status
-from cyst.api.logic.action import Action
+from cyst.api.environment.message import MessageType, Message, Request, Response, Status, Timeout, T
+from cyst.api.host.service import ActiveService
 from cyst.api.logic.access import Authorization, AuthenticationToken, AuthenticationTarget
+from cyst.api.logic.action import Action
+from cyst.api.logic.metadata import Metadata
 from cyst.api.network.session import Session
 
 from cyst.api.utils.counter import Counter
@@ -52,6 +54,8 @@ class MessageImpl(Message):
         self._in_session = False
 
         self._ttl = ttl
+
+        self._metadata = None
 
     @property
     def id(self) -> int:
@@ -197,12 +201,25 @@ class MessageImpl(Message):
         self._ttl -= 1
         return self._ttl
 
+    @property
+    def metadata(self) -> Metadata:
+        return self._metadata
+
+    def set_metadata(self, metadata: Metadata) -> None:
+        self._metadata = metadata
+
     @staticmethod
     def cast_from(o: Message) -> 'MessageImpl':
         if isinstance(o, MessageImpl):
             return o
         else:
             raise ValueError("Malformed underlying object passed with the Message interface")
+
+    def cast_to(self, type: Type[T]) -> T:
+        if isinstance(self, type):
+            return self
+        else:
+            raise ValueError("Casting to a wrong derived type")
 
 
 class RequestImpl(MessageImpl, Request):
@@ -287,3 +304,40 @@ class ResponseImpl(MessageImpl, Response):
             return o
         else:
             raise ValueError("Malformed underlying object passed with the Response interface")
+
+
+class TimeoutImpl(MessageImpl, Timeout):
+
+    def __init__(self, service: ActiveService, start_time: int, duration: int, parameter: Optional[Any]):
+        super(TimeoutImpl, self).__init__(MessageType.TIMEOUT)
+
+        self._start_time = start_time
+        self._duration = duration
+        self._parameter = parameter
+        self._service = service
+
+    @property
+    def start_time(self) -> int:
+        return self._start_time
+
+    @property
+    def duration(self) -> int:
+        return self._duration
+
+    @property
+    def parameter(self) -> Any:
+        return self._parameter
+
+    @property
+    def service(self) -> ActiveService:
+        return self._service
+
+    def __str__(self) -> str:
+        return "Timeout: [Start: {}, Duration: {}, Parameter: {}]".format(self._start_time, self._duration, self._parameter)
+
+    @staticmethod
+    def cast_from(o: Timeout) -> 'TimeoutImpl':
+        if isinstance(o, TimeoutImpl):
+            return o
+        else:
+            raise ValueError("Malformed underlying object passed with the Request interface")

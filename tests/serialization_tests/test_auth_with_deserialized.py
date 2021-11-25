@@ -279,15 +279,12 @@ class SerializeTest(unittest.TestCase):
         action = self._actions["meta:authenticate"].copy()
 
         self.assertIsNotNone(action, "Authentication action unavailable")
-        action.add_parameters(ActionParameter(ActionParameterType.TOKEN,
-                                              AuthenticationTokenImpl(
+        action.parameters["auth_token"].value = AuthenticationTokenImpl(
                                                   AuthenticationTokenType.PASSWORD,
                                                   AuthenticationTokenSecurity.OPEN,
                                                   identity="user1",
                                                   is_local=True
                                               )
-                                              )
-                              )
 
         self._attacker.execute_action(
             "192.168.0.4",
@@ -310,7 +307,7 @@ class SerializeTest(unittest.TestCase):
 
         action = self._actions["meta:authenticate"].copy()
         self.assertIsNotNone(action, "Authentication action unavailable")
-        action.add_parameters(ActionParameter(ActionParameterType.TOKEN, self._ssh_token))
+        action.parameters["auth_token"].value = self._ssh_token
 
         self._attacker.execute_action(
             "192.168.0.4",
@@ -334,7 +331,7 @@ class SerializeTest(unittest.TestCase):
 
         action = self._actions["meta:authenticate"].copy()
         self.assertIsNotNone(action, "Authentication action unavailable")
-        action.add_parameters(ActionParameter(ActionParameterType.TOKEN, self._custom_token))
+        action.parameters["auth_token"].value = self._custom_token
 
         self._attacker.execute_action(
             "192.168.0.4",
