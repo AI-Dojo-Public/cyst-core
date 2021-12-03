@@ -241,17 +241,25 @@ class _Environment(Environment, EnvironmentControl, EnvironmentMessaging, Enviro
             # Others go to a gateway
             else:
                 target = message.dst_ip
-                gateway, port = source.gateway(target)
-                if not gateway:
-                    raise Exception("Could not send a message, no gateway to route it through.")
+                localhost = IPAddress("127.0.0.1")
 
-                iface = InterfaceImpl.cast_from(source.interfaces[port])
-                message.set_src_ip(iface.ip)
+                # Shortcut for localhost request
+                if target == localhost:
+                    message.set_src_ip(localhost)
+                    message.set_next_hop(Endpoint(message.origin.id, 0, localhost), Endpoint(message.origin.id, 0, localhost))
 
-                message.set_origin(Endpoint(source.id, port, iface.ip))
+                else:
+                    gateway, port = source.gateway(target)
+                    if not gateway:
+                        raise Exception("Could not send a message, no gateway to route it through.")
 
-                # First sending is specific, because the current value is set to origin
-                message.set_next_hop(message.origin, iface.endpoint)
+                    iface = InterfaceImpl.cast_from(source.interfaces[port])
+                    message.set_src_ip(iface.ip)
+
+                    message.set_origin(Endpoint(source.id, port, iface.ip))
+
+                    # First sending is specific, because the current value is set to origin
+                    message.set_next_hop(message.origin, iface.endpoint)
 
         # metadata are appended only for requests ATM. This is to test waters, as there are many different design
         # holes and things which need clarification
