@@ -365,6 +365,13 @@ class _Environment(Environment, EnvironmentControl, EnvironmentMessaging, Enviro
         if self._state == EnvironmentState.PAUSED:
             self._pause = False
 
+        # if this is the first run() after init, call all run() methods of active services
+        if self._state == EnvironmentState.INIT:
+            for n in self._network.get_nodes_by_type("Node"):
+                for s in n.services.values():
+                    if isinstance(s, ServiceImpl) and not s.passive:
+                        s.active_service.run()
+
         # Run
         self._state = EnvironmentState.RUNNING
         self._process()
