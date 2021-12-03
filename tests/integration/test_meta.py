@@ -114,10 +114,20 @@ class TestMETAIntegration(unittest.TestCase):
         cls._ssh_token = AuthenticationTokenImpl(AuthenticationTokenType.PASSWORD,
                                                  AuthenticationTokenSecurity.OPEN, "root", True)._set_content(uuid.uuid4())
 
-
     def test_0000_inspect_node(self) -> None:
-        # Connect the attacker to the target
 
+        # Local inspection
+        self._attacker.execute_action("127.0.0.1", "", self._actions["meta:inspect:node"])
+
+        result, state = self._env.control.run()
+        message = self._attacker.get_last_response()
+
+        self.assertEqual((result, state), (True, EnvironmentState.PAUSED), "Task ran and was successfully paused.")
+        self.assertEqual(message.status, Status(StatusOrigin.NODE, StatusValue.SUCCESS), "Acction was successful")
+        self.assertTrue(message.content and isinstance(message.content, Node), "Received a node description back")
+
+        # Remote inspection
+        # Connect the attacker to the target
         action = self._actions["meta:authenticate"]
         action.parameters["auth_token"].value = self._ssh_token
         target = self._target.interfaces[0].ip

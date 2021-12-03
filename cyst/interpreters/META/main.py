@@ -1,5 +1,6 @@
 from dataclasses import dataclass
 from typing import Tuple, Dict
+from netaddr import IPAddress
 
 from cyst.api.logic.access import AuthenticationToken, AuthenticationTarget, Authorization
 from cyst.api.logic.action import ActionDescription, ActionToken, ActionParameterType, ActionParameter
@@ -57,13 +58,12 @@ class METAInterpreter(ActionInterpreter):
         return 0, self._messaging.create_response(message, status=Status(StatusOrigin.SYSTEM, StatusValue.ERROR), session=message.session)
 
     def process_inspect_node(self, message: Request, node: Node) -> Tuple[int, Response]:
-        # TODO Need to find a way to enable inspection of local machine (i.e. without session). We could use
-        #      message.origin and node.id, but these are not available with this interface
         error = ""
-        if not message.session:
-            error = "Session not provided"
-        elif message.session.end not in [x.ip for x in node.interfaces]:
-            error = "Session does not end in required node"
+        if message.src_ip != IPAddress("127.0.0.1"):  # Local IP has a free pass
+            if not message.session:
+                error = "Session not provided"
+            elif message.session.end not in [x.ip for x in node.interfaces]:
+                error = "Session does not end in required node"
 
         if error:
             return 0, self._messaging.create_response(message, Status(StatusOrigin.NETWORK, StatusValue.FAILURE), error, session=message.session)
