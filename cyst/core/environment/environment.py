@@ -571,6 +571,7 @@ class _Environment(Environment, EnvironmentControl, EnvironmentMessaging, Enviro
         return PassiveServiceImpl.cast_from(service).sessions
 
     def provides_auth(self, service: Service, auth_provider: AuthenticationProvider):
+        # TODO: This can't work. A passive service is in service.passive_service
         if isinstance(service, PassiveService):
             return PassiveServiceImpl.cast_from(service).add_provider(auth_provider)
 
