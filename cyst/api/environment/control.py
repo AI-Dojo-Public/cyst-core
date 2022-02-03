@@ -7,19 +7,34 @@ from typing import Tuple
 
 class EnvironmentState(Enum):
     """
-    The current state of the environment.
+    State of the environment
 
-                          reset()                 terminate()
-                         ┌────────── TERMINATED ◄───────────┐
-                         │               ▲                  │
-                         │    terminate()│                  │
-                         ▼               │    ──pause()──►  │
-    CREATED ──init()─► INIT ──run()─► RUNNING             PAUSED
-                         ▲               │    ◄──run()───
-                         │               │
-                         │               ▼
-                         └────────── FINISHED
-                          reset()
+    State transition diagram:
+
+    ::
+
+                              reset()                 terminate()
+                             ┌────────── TERMINATED ◄───────────┐
+                             │               ▲                  │
+                             │    terminate()│                  │
+                             ▼               │    ──pause()──►  │
+        CREATED ──init()─► INIT ──run()─► RUNNING             PAUSED
+                             ▲               │    ◄──run()───
+                             │               │
+                             │               ▼
+                             └────────── FINISHED
+                              reset()
+
+    Possible values:
+        :CREATED: The environment was jus created.
+        :INIT: The environment was initialized and is ready to run.
+        :RUNNING: The environment is currently running a simulation.
+        :PAUSED: The environment is paused. If unpaused, the messages on stack will be sent and simulation resumes.
+        :FINISHED: The environment finished a simulation run. This means either no more messages on stack, or running
+            past the specified time.
+        :TERMINATED: The environment was forcefully stopped. It cannot be resumed, but its internal state can be
+            investigated.
+
     """
     CREATED = -1,
     INIT = 0,
@@ -33,14 +48,19 @@ class EnvironmentControl(ABC):
     """
     EnvironmentControl provides mechanisms to control the execution of actions within the simulation environment.
 
-    Available to: creator
-    Hidden from:  agents, models
+    Availability:
+        :Available: creator
+        :Hidden:  agents, models
     """
 
     @property
     @abstractmethod
     def state(self) -> EnvironmentState:
-        """ Provides the current state of the environment. """
+        """ Provides the current state of the environment.
+
+        :return: State of the environment
+        :rtype: EnvironmentState
+        """
         pass
 
     @abstractmethod
@@ -52,8 +72,7 @@ class EnvironmentControl(ABC):
             results when saving the data to a data store.
         :type run_id: str
 
-        :returns A tuple indicating, whether the operation was successful and which state the environment ended in.
-        :rtype Tuple[bool, EnvironmentState]
+        :return: A tuple indicating, whether the operation was successful and which state the environment ended in.
         """
         pass
 
@@ -61,6 +80,8 @@ class EnvironmentControl(ABC):
     def commit(self) -> None:
         """ Stores the information of the currently executed run into the data store. This can only be executed from
         the FINISHED or TERMINATED state.
+
+        :return: None
         """
         pass
 
@@ -72,8 +93,7 @@ class EnvironmentControl(ABC):
             results when saving the data to a data store.
         :type run_id: str
 
-        :returns A tuple indicating, whether the operation was successful and which state the environment ended in.
-        :rtype Tuple[bool, EnvironmentState]
+        :return: A tuple indicating, whether the operation was successful and which state the environment ended in.
         """
         pass
 
@@ -83,8 +103,7 @@ class EnvironmentControl(ABC):
         activates the active services. If it is in INIT or PAUSED state, it begins message processing and transitions
         into the RUNNING state.
 
-        :returns A tuple indicating, whether the operation was successful and which state the environment ended in.
-        :rtype Tuple[bool, EnvironmentState]
+        :return: A tuple indicating, whether the operation was successful and which state the environment ended in.
         """
         pass
 
@@ -93,8 +112,7 @@ class EnvironmentControl(ABC):
         """ Invokes an explicit transition into the PAUSED state and temporarily halts the message processing. Can only
         be applied in the running state.
 
-        :returns A tuple indicating, whether the operation was successful and which state the environment ended in.
-        :rtype Tuple[bool, EnvironmentState]
+        :return: A tuple indicating, whether the operation was successful and which state the environment ended in.
         """
         pass
 
@@ -103,8 +121,7 @@ class EnvironmentControl(ABC):
         """ Halts the message processing and transitions the environment into the TERMINATED state. From this state
         the environment cannot be re-run.
 
-        :returns A tuple indicating, whether the operation was successful and which state the environment ended in.
-        :rtype Tuple[bool, EnvironmentState]
+        :return: A tuple indicating, whether the operation was successful and which state the environment ended in.
         """
         pass
 
@@ -114,6 +131,8 @@ class EnvironmentControl(ABC):
         environment into the PAUSED state. Used mainly in tests to break from the run().
 
         :param id: A fully qualified id of a service, i.e., also containing the node id.
+
+        :return: None
         """
         pass
 
@@ -122,6 +141,8 @@ class EnvironmentControl(ABC):
         """ Removes an explicit interrupt to message processing, whenever a service sends a request.
 
         :param id: A fully qualified id of a service, i.e., also containing the node id.
+
+        :return: None
         """
         pass
 
@@ -131,6 +152,8 @@ class EnvironmentControl(ABC):
         environment into the PAUSED state. Used mainly in tests to break from the run().
 
         :param id: A fully qualified id of a service, i.e., also containing the node id.
+
+        :return: None
         """
         pass
 
@@ -139,5 +162,7 @@ class EnvironmentControl(ABC):
         """ Removes an explicit interrupt to message processing, whenever a service sends a request.
 
         :param id: A fully qualified id of a service, i.e., also containing the node id.
+
+        :return: None
         """
         pass

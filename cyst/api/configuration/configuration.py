@@ -5,9 +5,18 @@ import dataclasses
 import uuid
 from typing import Any
 
+"""
+Provides an API to configure all aspects of the simulation engine.
+
+Available to: creator, models
+Hidden from:  agents
+"""
 
 
 class ConfigItem:
+    """
+    A superclass of a configuration items.
+    """
     id: str
 
 """

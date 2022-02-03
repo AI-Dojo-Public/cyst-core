@@ -1,0 +1,18 @@
+image: python:3.7-slim-buster
+
+pages:
+  stage: deploy
+  script:
+  - apt update
+  - apt install -y rustc
+  - pip install --upgrade pip
+  - pip install -U sphinx
+  - pip install sphinx-rtd-theme
+  - pip install setuptools_rust
+  - pip install -r requirements.txt
+  - sphinx-build -b html docs/source docs/build/html
+  artifacts:
+    paths:
+    - docs/build/html
+  only:
+  - documentation_v2
