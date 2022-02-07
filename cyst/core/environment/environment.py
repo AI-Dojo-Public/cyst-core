@@ -318,20 +318,12 @@ class _Environment(Environment, EnvironmentControl, EnvironmentMessaging, Enviro
         for session in self._sessions_to_add:
             owner = session[0]
             waypoints = session[1]
-            parent = session[2]
-            service = session[3]
-            reverse = session[4]
+            src_service = session[2]
+            dst_service = session[3]
+            parent = session[4]
+            reverse = session[5]
 
-            # It is a questionable thing to create a deferred session and not to pass it to anyone, but in case it
-            # is used/needed later, I will create it anyway
-            session = self._create_session(owner, waypoints, parent, reverse)
-            if service:
-                node: Node
-                if isinstance(waypoints[0], str):
-                    node = self._network.get_node_by_id(waypoints[0])
-                else:
-                    node = waypoints[0]
-                ServiceImpl.cast_from(node.services[service]).add_session(session)
+            self.create_session(owner, waypoints, src_service, dst_service, parent, False, reverse)
 
     def init(self, run_id: str = str(uuid.uuid4())) -> Tuple[bool, EnvironmentState]:
         if self._initialized:
@@ -590,21 +582,33 @@ class _Environment(Environment, EnvironmentControl, EnvironmentMessaging, Enviro
 
     # TODO: Decide if we want to have service association a part of the session creation, or if we rather leave it
     #       to service interface
-    def create_session(self, owner: str, waypoints: List[Union[str, Node]], parent: Optional[Session] = None,
-                       defer: bool = False, service: Optional[str] = None, reverse: bool = False) -> Optional[Session]:
+    def create_session(self, owner: str, waypoints: List[Union[str, Node]], src_service: Optional[str] = None,
+                       dst_service: Optional[str] = None, parent: Optional[Session] = None, defer: bool = False,
+                       reverse: bool = False) -> Optional[Session]:
 
         if defer:
-            self._sessions_to_add.append((owner, waypoints, parent, service, reverse))
+            self._sessions_to_add.append((owner, waypoints, src_service, dst_service, parent, reverse))
             return None
         else:
-            session = self._create_session(owner, waypoints, parent, reverse)
-            if service:
-                node: Node
+            session = self._create_session(owner, waypoints, src_service, dst_service, parent, reverse)
+            if src_service or dst_service:
+                if not src_service and dst_service:
+                    raise RuntimeError("Both or neither services must be specified during session creation.")
+
+                src_node: Node
                 if isinstance(waypoints[0], str):
-                    node = self._network.get_node_by_id(waypoints[0])
+                    src_node = self._network.get_node_by_id(waypoints[0])
                 else:
-                    node = waypoints[0]
-                ServiceImpl.cast_from(node.services[service]).add_session(session)
+                    src_node = waypoints[0]
+
+                dst_node: Node
+                if isinstance(waypoints[-1], str):
+                    dst_node = self._network.get_node_by_id(waypoints[-1])
+                else:
+                    dst_node = waypoints[-1]
+
+                ServiceImpl.cast_from(src_node.services[src_service]).add_session(session)
+                ServiceImpl.cast_from(dst_node.services[dst_service]).add_session(session)
             return session
 
     def create_session_from_message(self, message: Message) -> Session:
@@ -623,7 +627,27 @@ class _Environment(Environment, EnvironmentControl, EnvironmentMessaging, Enviro
         if not path:
             return parent
 
-        return SessionImpl(owner, parent, path, self._network)
+        session = SessionImpl(owner, parent, path, message.src_service, message.dst_service, self._network)
+
+        # Source and destination services are taken from message and the session reference is inserted to both
+        if message.type == MessageType.REQUEST:
+            src_service = message.src_service
+            dst_service = message.dst_service
+        else:
+            src_service = message.dst_service
+            dst_service = message.src_service
+
+        if parent:
+            p = SessionImpl.cast_from(parent)
+            src_node = self._network.get_node_by_id(p.startpoint.id)
+        else:
+            src_node = self._network.get_node_by_id(path[0].src.id)
+        dst_node = self._network.get_node_by_id(path[-1].dst.id)
+
+        ServiceImpl.cast_from(src_node.services[src_service]).add_session(session)
+        ServiceImpl.cast_from(dst_node.services[dst_service]).add_session(session)
+
+        return session
 
     def append_session(self, original_session: Session, appended_session: Session) -> Session:
         original = SessionImpl.cast_from(original_session)
@@ -790,8 +814,8 @@ class _Environment(Environment, EnvironmentControl, EnvironmentMessaging, Enviro
     # go through a router. So correct hops are evaluated either in N-R*-N form or N-N
     # TODO: If one direction fails, session should try constructing itself in reverse order and then restructure hops
     #       so that the origin is always at the first waypoint.
-    def _create_session(self, owner: str, waypoints: List[Union[str, Node]], parent: Optional[Session],
-                        reverse: bool) -> Session:
+    def _create_session(self, owner: str, waypoints: List[Union[str, Node]], src_service: Optional[str],
+                        dst_service: Optional[str], parent: Optional[Session], reverse: bool) -> Session:
         path: List[Hop] = []
         source: NodeImpl
         session_reversed = False
@@ -910,7 +934,7 @@ class _Environment(Environment, EnvironmentControl, EnvironmentMessaging, Enviro
             for i in range(0, len(path)):
                 path[i] = path[i].swap()
 
-        return SessionImpl(owner, parent, path, self._network)
+        return SessionImpl(owner, parent, path, src_service, dst_service, self._network)
 
     def _process_passive(self, message: Request, node: Node):
         time = 0

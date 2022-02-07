@@ -12,7 +12,8 @@ from cyst.core.network.elements import Hop, Endpoint, Resolver
 
 # The session represents an existing chain of connections, which can be traversed without authorization by its owner
 class SessionImpl(Session):
-    def __init__(self, owner: str, parent: Session = None, path: List[Hop] = None, resolver: Optional[Resolver] = None) -> None:
+    def __init__(self, owner: str, parent: Optional[Session] = None, path: Optional[List[Hop]] = None,
+                 src_service: str = "", dst_service: str = "", resolver: Optional[Resolver] = None) -> None:
         self._id = uuid.uuid4()
         # TODO Remove owners. They don't work and the are not needed
         if not owner:
@@ -31,6 +32,9 @@ class SessionImpl(Session):
             raise Exception("Cannot create a session without a path")
 
         self._path: List[Hop] = path
+
+        self._src_service = src_service
+        self._dst_service = dst_service
 
         # Resolve all IP addresses if possible
         for hop in self._path:
@@ -137,15 +141,15 @@ class SessionImpl(Session):
         return [(x.src.ip, x.dst.ip) for x in self._path]
 
     @property
-    def end(self) -> Optional[IPAddress]:
-        return self._path[-1].dst.ip
+    def end(self) -> Tuple[IPAddress, str]:
+        return self._path[-1].dst.ip, self._dst_service
 
     @property
-    def start(self) -> Optional[IPAddress]:
+    def start(self) -> Tuple[IPAddress, str]:
         if self._parent:
             return self._parent.start
         else:
-            return self._path[0].src.ip
+            return self._path[0].src.ip, self._src_service
 
     def terminates_at(self, node: Node) -> bool:
         end_ip = self.end
@@ -189,7 +193,7 @@ class SessionImpl(Session):
 
         path_repr = [str(self.start)]
         path_repr.extend([str(x[1]) for x in full_path])
-        return "[ID: {}, Owner: {}, Path: {}]".format(self.id, self.owner, path_repr)
+        return "[ID: {}, Owner: {}, Path: ({}|{}|{})]".format(self.id, self.owner, self._src_service, path_repr, self._dst_service)
 
     def __repr__(self) -> str:
         full_path = self.path_id
@@ -197,7 +201,7 @@ class SessionImpl(Session):
         while parent:
             full_path = parent.path_id + full_path
             parent = parent.parent
-        return "[ID: {}, Owner: {}, Path: {}]".format(self.id, self.owner, full_path)
+        return "[ID: {}, Owner: {}, Path:({}|{}|{})]".format(self.id, self.owner, self._src_service, path_repr, self._dst_service)
 
     def __eq__(self, other: 'SessionImpl') -> bool:
         # Comparing to None, everything is False

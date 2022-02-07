@@ -62,7 +62,7 @@ class METAInterpreter(ActionInterpreter):
         if message.src_ip != IPAddress("127.0.0.1"):  # Local IP has a free pass
             if not message.session:
                 error = "Session not provided"
-            elif message.session.end not in [x.ip for x in node.interfaces]:
+            elif message.session.end[0] not in [x.ip for x in node.interfaces]:
                 error = "Session does not end in required node"
 
         if error:

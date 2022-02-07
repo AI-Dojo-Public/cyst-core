@@ -1,5 +1,5 @@
 from abc import ABC, abstractmethod
-from typing import Any, List, Optional, Union, Dict, TypeVar, Type
+from typing import Any, List, Optional, Union, Dict, TypeVar, Type, Tuple
 from netaddr import IPAddress, IPNetwork
 from flags import Flags
 
@@ -653,8 +653,9 @@ class NetworkConfiguration(ABC):
         pass
 
     @abstractmethod
-    def create_session(self, owner: str, waypoints: List[Union[str, Node]], parent: Optional[Session] = None,
-                       defer: bool = False, service: Optional[str] = None, reverse: bool = False) -> Optional[Session]:
+    def create_session(self, owner: str, waypoints: List[Union[str, Node]], src_service: Optional[str] = None,
+                       dst_service: Optional[str] = None, parent: Optional[Session] = None, defer: bool = False,
+                       reverse: bool = False) -> Optional[Session]:
         """
         Creates a fixed session in the simulated infrastructure. This session ignores the routing limitations imposed
         by router configuration. However, the creation mechanism checks if there exists a connection between each of
@@ -665,9 +666,25 @@ class NetworkConfiguration(ABC):
             exploiting.
         :type owner: str
 
-        :param waypoints: A list of node instances or their IDs, which constitute the path of the session. As per
-            the description, there has to be a connection between all subsequent tuples of waypoints.
-        :type waypoints: List[Union[str, Node]]
+        :param waypoints: A list of node instances or their IDs, which constitute the path of the session. As per the
+            description, there has to be a connection between all subsequent tuples of waypoints.
+        :type waypoints: List[Tuple[Union[str, Node], str]]
+
+        :param src_service: A service where the session originates. If a name is provided, this service must be present
+            at the node at the time of calling the function, otherwise the call will fail (unless deferred). It will
+            also fail if the name is set, but dst_service name is not.
+
+            If the name is not provided, the session can be created, but it cannot be torn down. Thus it acts as a
+            permanent tunnel between two nodes.
+        :type src_service: Optional[str]
+
+        :param dst_service: A service where the session terminates. If a name is provided, this service must be present
+            at the node at the time of calling the function, otherwise the call will fail (unless deferred). It will
+            also fail if the name is set, but src_service name is not.
+
+            If the name is not provided, the session can be created, but it cannot be torn down. Thus it acts as a
+            permanent tunnel between two nodes.
+        :type dst_service: Optional[str]
 
         :param parent: A parent session that can be optionally used as a first part/head of the session.
         :type parent: Optional[Session]

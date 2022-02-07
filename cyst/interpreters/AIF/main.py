@@ -286,7 +286,7 @@ class AIFInterpreter(ActionInterpreter):
         # Check if a service is to exploit is accessible
         # TODO: session endpoint is compared on an IP basis. This could theoretically lead to session spoofing, need to check
 
-        if not message.session or message.session.end not in node.ips:
+        if not message.session or message.session.end[0] not in node.ips:
             error = "No session opened to the node {} to apply local exploit".format(node)
             return 1, self._messaging.create_response(message, Status(StatusOrigin.SERVICE, StatusValue.ERROR), error,
                                                       session=message.session)
@@ -342,7 +342,7 @@ class AIFInterpreter(ActionInterpreter):
 
         service = node.services[message.dst_service].passive_service
 
-        if service.local and (not message.session or not message.session.end in node.ips):
+        if service.local and (not message.session or not message.session.end[0] in node.ips):
             error = "Trying to access local service without a session to the node"
             return 1, self._messaging.create_response(message, Status(StatusOrigin.NODE, StatusValue.ERROR), error,
                                                       session=message.session)
@@ -371,7 +371,7 @@ class AIFInterpreter(ActionInterpreter):
         error = ""
         if not message.dst_service:
             error = "Service for session creation not specified"
-        elif node.services[message.dst_service].passive_service.local and (not message.session or not message.session.end in node.ips):
+        elif node.services[message.dst_service].passive_service.local and (not message.session or not message.session.end[0] in node.ips):
             error = "Trying to access local service without a session to the node"
 
         if error:
@@ -425,7 +425,7 @@ class AIFInterpreter(ActionInterpreter):
     def process_ensure_access_lateral_movement(self, message: Request, node: Node) -> Tuple[int, Response]:
         # Sanity checks - having a session here and having correct parameters
         error = ""
-        if not message.session or message.session.end not in node.ips:
+        if not message.session or message.session.end[0] not in node.ips:
             error = "Could not do a lateral movement without a correct session"
 
         # Should we reuse the ID for a name?
