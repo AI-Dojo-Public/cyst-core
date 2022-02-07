@@ -27,10 +27,10 @@ class Session(ABC):
 
     @property
     @abstractmethod
-    def end(self) -> Optional[IPAddress]:
+    def end(self) -> Tuple[IPAddress, str]:
         pass
 
     @property
     @abstractmethod
-    def start(self) -> Optional[IPAddress]:
+    def start(self) -> Tuple[IPAddress, str]:
         pass

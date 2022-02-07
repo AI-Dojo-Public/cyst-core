@@ -346,7 +346,7 @@ class TestAIFIntegration(unittest.TestCase):
         self.assertEqual((result, state), (True, EnvironmentState.PAUSED), "Task ran and was successfully paused.")
         self.assertEqual(message.status, Status(StatusOrigin.SERVICE, StatusValue.SUCCESS), "Correctly established a session")
         self.assertTrue(isinstance(message.content, Node), "Got a node view of the target")
-        self.assertEqual(message.session.end, IPAddress("192.168.0.2"))
+        self.assertEqual(message.session.end[0], IPAddress("192.168.0.2"))
 
         # Create dud authorization, that fails because of wrong access token
         dud_ssh_auth = AuthorizationImpl("user2", ["target1"], ["ssh"], AccessLevel.LIMITED)
@@ -361,7 +361,7 @@ class TestAIFIntegration(unittest.TestCase):
         self.assertEqual((result, state), (True, EnvironmentState.PAUSED), "Task ran and was successfully paused.")
         self.assertEqual(message.status, Status(StatusOrigin.SERVICE, StatusValue.SUCCESS), "Correctly established a session")
         self.assertTrue(isinstance(message.content, Node), "Got a node view of the target")
-        self.assertEqual(message.session.end, IPAddress("192.168.0.2"))
+        self.assertEqual(message.session.end[0], IPAddress("192.168.0.2"))
         self.assertEqual(message.auth.identity, "lighttpd", "Got correct identity for newly created authorization")
 
         # Bad exploit used
@@ -439,7 +439,7 @@ class TestAIFIntegration(unittest.TestCase):
         session = message.session
         auth = message.auth
 
-        self.assertEqual(session.end, IPAddress("192.168.0.2"), "Got correct session")
+        self.assertEqual(session.end[0], IPAddress("192.168.0.2"), "Got correct session")
 
         self.assertTrue(self._env.policy.decide("target1", "lighttpd", AccessLevel.NONE, auth), "Authorization for correct target received")
         self.assertTrue(self._env.policy.decide("target1", "bash", AccessLevel.NONE, auth), "Authorization for correct target received")

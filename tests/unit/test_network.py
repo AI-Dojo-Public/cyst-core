@@ -529,7 +529,7 @@ class TestSessions(unittest.TestCase):
         self.assertTrue(response.session, "Received a session back")
 
         # session2 = SessionImpl("root", session1, path=[Hop(src=Endpoint(id='target1', port=1), dst=Endpoint(id='router2', port=2)), Hop(src=Endpoint(id='router2', port=3), dst=Endpoint(id='target2', port=0))])
-        session2 = create_session("root", ["target1", "router2", "target2"], session1)
+        session2 = create_session("root", ["target1", "router2", "target2"], parent=session1)
         self.assertEqual(s, session2)
 
         # Now to just try running an action over two sessions
