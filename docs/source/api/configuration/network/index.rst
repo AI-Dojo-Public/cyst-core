@@ -11,11 +11,13 @@ cyst.api.configuration.network.elements
 ---------------------------------------
 .. automodule:: cyst.api.configuration.network.elements
     :members:
+    :show-inheritance:
 
 cyst.api.configuration.network.node
 -----------------------------------
 .. automodule:: cyst.api.configuration.network.node
     :members:
+    :show-inheritance:
 
 cyst.api.configuration.network.firewall
 ---------------------------------------
@@ -23,13 +25,17 @@ TODO: Firewall configuration should be moved into host configuration
 
 .. automodule:: cyst.api.configuration.network.firewall
     :members:
+    :show-inheritance:
 
 cyst.api.configuration.network.router
 -------------------------------------
 .. automodule:: cyst.api.configuration.network.router
     :members:
+    :show-inheritance:
 
 cyst.api.configuration.network.network
 --------------------------------------
 .. automodule:: cyst.api.configuration.network.network
     :members:
+    :show-inheritance:
+

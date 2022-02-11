@@ -1,9 +1,26 @@
 from abc import ABC, abstractmethod
-from typing import NamedTuple, Optional
+from dataclasses import dataclass
+from typing import Optional
 from netaddr import IPNetwork, IPAddress
 
 
-class Route(NamedTuple):
+@dataclass
+class Route:
+    """
+    A route specifies which port should the traffic to specific network be routed through. Many routes can be specified
+    for a node. If there is an overlap in network specification, than the resulting port is selected according to the
+    route metrics (i.e., the lower the metric the higher the chance to be selected as the route). In case of a metric
+    equality, the most specific network is selected.
+
+    :param net: A network this route is related to.
+    :type net: IPNetwork
+
+    :param port: A port/interface index, where to route traffic to the particular network.
+    :type port: int
+
+    :param metric: A route metric used for deciding which route to use in case of network overlap.
+    :type metric: int
+    """
     net: IPNetwork
     port: int
     metric: int = 100
@@ -24,30 +41,63 @@ class Route(NamedTuple):
 
 
 class Port(ABC):
+    """
+    A network port represents an abstraction of an ethernet port, with a given IP address and a given network. A network
+    port does not support a default routing through a gateway and so it is used mostly for routers, which maintain
+    their own routing tables based on the port indexes.
+    """
 
     @property
     @abstractmethod
     def ip(self) -> Optional[IPAddress]:
+        """
+        Returns the IP address of the port.
+
+        :rtype: Optional[IPAddress]
+        """
         pass
 
     @property
     @abstractmethod
     def mask(self) -> Optional[str]:
+        """
+        Returns the network mask of the port.
+
+        :rtype: Optional[str]
+        """
         pass
 
     @property
     @abstractmethod
     def net(self) -> Optional[IPNetwork]:
+        """
+        Returns the network of the port.
+
+        :rtype: Optional[IPNetwork]
+        """
         pass
 
 
 class Interface(Port, ABC):
+    """
+    A network interface represents an abstraction of an ethernet port, with a given IP address and a given network.
+    The network interface automatically calculates the gateway and therefore enables a seamless networking.
+    """
 
     @property
     @abstractmethod
     def gateway(self) -> Optional[IPAddress]:
+        """
+        Returns the IP address of the gateway.
+
+        :rtype: Optional[IPAddress]
+        """
         pass
 
 
 class Connection(ABC):
+    """
+    Represents a connection between two network ports/interfaces. A connection will in future support setting of
+    connection properties, such as delay or packet drops. Right now, it is only an empty interface.
+    """
     pass
