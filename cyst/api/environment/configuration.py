@@ -1,5 +1,5 @@
 from abc import ABC, abstractmethod
-from typing import Any, List, Optional, Union, Dict, TypeVar, Type, Tuple
+from typing import Any, List, Optional, Union, Dict, TypeVar, Type
 from netaddr import IPAddress, IPNetwork
 from flags import Flags
 
@@ -20,6 +20,88 @@ from cyst.api.network.node import Node
 ActiveServiceInterfaceType = TypeVar('ActiveServiceInterfaceType')
 ConfigurationObjectType = TypeVar('ConfigurationObjectType')
 ObjectType = TypeVar('ObjectType')
+
+
+class EnvironmentConfiguration(ABC):
+    """
+    This interface is a collection of configuration interfaces for the environment, that are split according to
+    their general functionality.
+    """
+
+    @property
+    @abstractmethod
+    def general(self) -> 'GeneralConfiguration':
+        """
+        General configuration enables retrieval of objects and their configurations. As such it enables manipulation with
+        all objects that are present in the simulation run.
+
+        :rtype: GeneralConfiguration
+        """
+        pass
+
+    @property
+    @abstractmethod
+    def node(self) -> 'NodeConfiguration':
+        """
+        Node configuration enables creation and manipulation with nodes and routers.
+
+        :rtype: NodeConfiguration
+        """
+        pass
+
+    @property
+    @abstractmethod
+    def service(self) -> 'ServiceConfiguration':
+        """
+        Service configuration enables management of passive and active services.
+
+        :rtype: ServiceConfiguration
+        """
+        pass
+
+    @property
+    @abstractmethod
+    def network(self) -> 'NetworkConfiguration':
+        """
+        Network configuration enables placing nodes inside the topology and manipulation with connection and sessions.
+        Currently it is mostly additive, but it will include all manipulation options in the future.
+
+        :rtype: NetworkConfiguration
+        """
+        pass
+
+    @property
+    @abstractmethod
+    def exploit(self) -> 'ExploitConfiguration':
+        """
+        This interface provides means to manipulate with exploits.
+
+        :rtype: ExploitConfiguration
+        """
+        pass
+
+    @property
+    @abstractmethod
+    def action(self) -> 'ActionConfiguration':
+        """
+        Action configuration enables creation of action parameter domains. While the actions are fully declarative in their
+        description and their semantics stem from the interpretation given by behavioral models, action parameters enable
+        fine-tuning of actions, that is accessible to automatic tools in a uniform manner.
+
+        :rtype: ActionConfiguration
+        """
+        pass
+
+    @property
+    @abstractmethod
+    def access(self) -> 'AccessConfiguration':
+        """
+        Access configuration enables manipulation of authentication and authorization primitives, creation of access schemes
+        and evaluation of authentication tokens.
+
+        :rtype: AccessConfiguration
+        """
+        pass
 
 
 class GeneralConfiguration(ABC):
@@ -653,9 +735,8 @@ class NetworkConfiguration(ABC):
         pass
 
     @abstractmethod
-    def create_session(self, owner: str, waypoints: List[Union[str, Node]], src_service: Optional[str] = None,
-                       dst_service: Optional[str] = None, parent: Optional[Session] = None, defer: bool = False,
-                       reverse: bool = False) -> Optional[Session]:
+    def create_session(self, owner: str, waypoints: List[Union[str, Node]], parent: Optional[Session] = None,
+                       defer: bool = False, service: Optional[str] = None, reverse: bool = False) -> Optional[Session]:
         """
         Creates a fixed session in the simulated infrastructure. This session ignores the routing limitations imposed
         by router configuration. However, the creation mechanism checks if there exists a connection between each of
@@ -666,25 +747,9 @@ class NetworkConfiguration(ABC):
             exploiting.
         :type owner: str
 
-        :param waypoints: A list of node instances or their IDs, which constitute the path of the session. As per the
-            description, there has to be a connection between all subsequent tuples of waypoints.
-        :type waypoints: List[Tuple[Union[str, Node], str]]
-
-        :param src_service: A service where the session originates. If a name is provided, this service must be present
-            at the node at the time of calling the function, otherwise the call will fail (unless deferred). It will
-            also fail if the name is set, but dst_service name is not.
-
-            If the name is not provided, the session can be created, but it cannot be torn down. Thus it acts as a
-            permanent tunnel between two nodes.
-        :type src_service: Optional[str]
-
-        :param dst_service: A service where the session terminates. If a name is provided, this service must be present
-            at the node at the time of calling the function, otherwise the call will fail (unless deferred). It will
-            also fail if the name is set, but src_service name is not.
-
-            If the name is not provided, the session can be created, but it cannot be torn down. Thus it acts as a
-            permanent tunnel between two nodes.
-        :type dst_service: Optional[str]
+        :param waypoints: A list of node instances or their IDs, which constitute the path of the session. As per
+            the description, there has to be a connection between all subsequent tuples of waypoints.
+        :type waypoints: List[Union[str, Node]]
 
         :param parent: A parent session that can be optionally used as a first part/head of the session.
         :type parent: Optional[Session]
@@ -1009,7 +1074,7 @@ class AccessConfiguration(ABC):
             is of no use.
         :type services: Optional[List[str]]
 
-        :return:
+        :return: An authorization token.
         """
         pass
 
@@ -1083,70 +1148,3 @@ class AccessConfiguration(ABC):
         """
         pass
 
-
-class EnvironmentConfiguration(ABC):
-    """
-    This interface is a collection of configuration interfaces for the environment, that are split according to
-    their general functionality.
-    """
-
-    @property
-    @abstractmethod
-    def general(self) -> GeneralConfiguration:
-        """
-        General configuration enables retrieval of objects and their configurations. As such it enables manipulation with
-        all objects that are present in the simulation run.
-        """
-        pass
-
-    @property
-    @abstractmethod
-    def node(self) -> NodeConfiguration:
-        """
-        Node configuration enables creation and manipulation with nodes and routers.
-        """
-        pass
-
-    @property
-    @abstractmethod
-    def service(self) -> ServiceConfiguration:
-        """
-        Service configuration enables management of passive and active services.
-        """
-        pass
-
-    @property
-    @abstractmethod
-    def network(self) -> NetworkConfiguration:
-        """
-        Network configuration enables placing nodes inside the topology and manipulation with connection and sessions.
-        Currently it is mostly additive, but it will include all manipulation options in the future.
-        """
-        pass
-
-    @property
-    @abstractmethod
-    def exploit(self) -> ExploitConfiguration:
-        """
-        This interface provides means to manipulate with exploits.
-        """
-        pass
-
-    @property
-    @abstractmethod
-    def action(self) -> ActionConfiguration:
-        """
-        Action configuration enables creation of action parameter domains. While the actions are fully declarative in their
-        description and their semantics stem from the interpretation given by behavioral models, action parameters enable
-        fine-tuning of actions, that is accessible to automatic tools in a uniform manner.
-        """
-        pass
-
-    @property
-    @abstractmethod
-    def access(self) -> AccessConfiguration:
-        """
-        Access configuration enables manipulation of authentication and authorization primitives, creation of access schemes
-        and evaluation of authentication tokens.
-        """
-        pass

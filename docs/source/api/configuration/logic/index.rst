@@ -10,13 +10,16 @@ cyst.api.configuration.logic.access
 
 .. automodule:: cyst.api.configuration.logic.access
     :members:
+    :show-inheritance:
 
 cyst.api.configuration.logic.data
 ---------------------------------
 .. automodule:: cyst.api.configuration.logic.data
     :members:
+    :show-inheritance:
 
 cyst.api.configuration.logic.exploit
 ------------------------------------
 .. automodule:: cyst.api.configuration.logic.exploit
     :members:
+    :show-inheritance:
