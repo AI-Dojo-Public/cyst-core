@@ -1,9 +1,8 @@
 import argparse
-import importlib
-import uuid
 import os
-import time
 import sys
+import time
+import uuid
 
 if sys.version_info < (3, 10):
     from importlib_metadata import entry_points
@@ -26,12 +25,11 @@ from cyst.api.environment.configuration import EnvironmentConfiguration, General
     ServiceConfiguration, NetworkConfiguration, ServiceParameter, ExploitConfiguration, ActiveServiceInterfaceType, \
     AccessConfiguration, ActionConfiguration
 from cyst.api.environment.messaging import EnvironmentMessaging
-from cyst.api.environment.metadata_provider import MetadataProvider, MetadataProviderDescription
+from cyst.api.environment.metadata_provider import MetadataProvider
 from cyst.api.environment.policy import EnvironmentPolicy
 from cyst.api.environment.resources import EnvironmentResources
 from cyst.api.environment.message import Message, MessageType, Request, StatusValue, StatusOrigin, Status, Response, \
     StatusDetail, Timeout
-from cyst.api.environment.interpreter import ActionInterpreterDescription
 from cyst.api.environment.stores import ActionStore, ExploitStore
 from cyst.api.environment.stats import Statistics
 from cyst.api.network.elements import Interface, Route
@@ -39,13 +37,13 @@ from cyst.api.network.node import Node
 from cyst.api.logic.metadata import Metadata
 from cyst.api.logic.access import Authorization, AccessLevel, AuthenticationToken, AuthenticationProvider, \
     AuthenticationTokenSecurity, AuthenticationTokenType, AuthenticationProviderType, AccessScheme, AuthenticationTarget
-from cyst.api.logic.action import Action, ActionParameter, ActionParameterType, ActionParameterDomain
+from cyst.api.logic.action import Action, ActionParameterDomain
 from cyst.api.logic.data import Data
 from cyst.api.logic.exploit import VulnerableService, ExploitParameter, ExploitParameterType, ExploitLocality, \
     ExploitCategory, Exploit
 from cyst.api.network.session import Session
 from cyst.api.network.firewall import FirewallRule, FirewallPolicy
-from cyst.api.host.service import ActiveServiceDescription, Service, PassiveService, ActiveService
+from cyst.api.host.service import Service, PassiveService, ActiveService
 from cyst.api.configuration.configuration import ConfigItem
 
 from cyst.core.environment.configuration import Configuration, RuntimeConfiguration
@@ -68,7 +66,6 @@ from cyst.core.network.node import NodeImpl
 from cyst.core.network.router import Router
 from cyst.core.network.session import SessionImpl
 from cyst.api.utils.counter import Counter
-from cyst.core.utils.file import root_dir
 
 
 # Environment is unlike other core implementation given an underscore-prefixed name to let python complain about
@@ -1148,109 +1145,37 @@ class _Environment(Environment, EnvironmentControl, EnvironmentMessaging, Enviro
             service_description = s.load()
 
             if self._service_store.get_service(service_description.name):
-                print(
-                    "Service with name {} already registered, skipping the one in 'cyst_services/{}' directory".format(
-                        service_description.name, x.parts[-1]))
+                print("Service with name {} already registered, skipping...".format(service_description.name))
             else:
                 self._service_store.add_service(service_description)
-
-        # Check subdirectories in the cyst/services/ directory
-        path = root_dir() / 'cyst_services'
-        if not path.exists():
-            raise RuntimeError(
-                "Cannot find 'cyst_services/' path. This indicate corruption of the simulator. Please check...")
-
-        for x in path.iterdir():
-            if x.is_dir():
-                # Attempt to import main of the services and get the service descriptions
-                try:
-                    module_name = 'cyst_services.' + x.parts[-1] + '.main'
-                    module = importlib.import_module(module_name)
-                    service_description: ActiveServiceDescription = getattr(module, "service_description")
-
-                    if self._service_store.get_service(service_description.name):
-                        print(
-                            "Service with name {} already registered, skipping the one in 'cyst_services/{}' directory".format(
-                                service_description.name, x.parts[-1]))
-                    else:
-                        self._service_store.add_service(service_description)
-                except ModuleNotFoundError:
-                    # Given service does not provide a main
-                    print("Service {} does not provide the 'main.py' module".format(x.parts[-1]))
-                    pass
-                except AttributeError:
-                    # Given service does not provide a service description
-                    print("Service {} does not provide its description in the 'main.py' module".format(x.parts[-1]))
-                    pass
 
         # Explicit addition of built-in active services
         self._service_store.add_service(firewall_service_description)
 
     def _register_actions(self) -> None:
-        # TODO Rename action interpreters to behavioral models
-        # Check subdirectories in the cyst/interpreters/ directory
-        path = root_dir() / 'cyst_models'
-        if not path.exists():
-            raise RuntimeError(
-                "Cannot find 'cyst_models/' path. This indicate corruption of the simulator. Please check...")
 
-        for x in path.iterdir():
-            if x.is_dir():
-                # Attempt to import main of the interpreters and get the action interpreter descriptions
-                try:
-                    module_name = 'cyst_models.' + x.parts[-1] + '.main'
-                    module = importlib.import_module(module_name)
-                    intp_description: ActionInterpreterDescription = getattr(module, "action_interpreter_description")
+        plugin_models = entry_points(group="cyst_models")
+        for s in plugin_models:
+            model_description = s.load()
 
-                    if intp_description.namespace in self._interpreters:
-                        print(
-                            "Action interpreter with namespace {} already registered, skipping the one in 'cyst_models/{}' directory".format(
-                                intp_description.namespace, x.parts[-1]))
-                    else:
-                        interpreter = intp_description.creation_fn(self, self, self._policy, self)
-                        self._interpreters[intp_description.namespace] = interpreter
-                except ModuleNotFoundError:
-                    # Given service does not provide a main
-                    print("Action interpreter {} does not provide the 'main.py' module".format(x.parts[-1]))
-                    pass
-                except AttributeError as err:
-                    # Given service does not provide a service description
-                    print(
-                        "Action interpreter {} does not provide its description in the 'main.py' module. Reason: {}".format(
-                            x.parts[-1], err))
-                    pass
+            if model_description.namespace in self._interpreters:
+                print("Behavioral model with namespace {} already registered, skipping it ...".format(model_description.namespace))
+            else:
+                model = model_description.creation_fn(self, self, self._policy, self)
+                self._interpreters[model_description.namespace] = model
 
     def _register_metadata_providers(self) -> None:
-        return
 
-        # Check subdirectories in the cyst/metadata_providers/ directory
-        path = root_dir() / 'cyst' / 'metadata_providers'
-        if not path.exists():
-            raise RuntimeError(
-                "Cannot find 'cyst/metadata_providers/' path. This indicate corruption of the simulator. Please check...")
+        plugin_providers = entry_points(group="cyst_metadata_providers")
+        for s in plugin_providers:
+            provider_description = s.load()
 
-        for x in path.iterdir():
-            if x.is_dir():
-                # Attempt to import main of the interpreters and get the action interpreter descriptions
-                try:
-                    module_name = 'cyst.metadata_providers.' + x.parts[-1] + '.main'
-                    module = importlib.import_module(module_name)
-                    provider_description: MetadataProviderDescription = getattr(module, "metadata_provider_description")
-
-                    if provider_description.namespace in self._metadata_providers:
-                        print("Metadata provider with namespace {} already registered, skipping the one in 'cyst/metadata_providers/{}' directory".format(provider_description.namespace, x.parts[-1]))
-                    else:
-                        provider = provider_description.creation_fn(self.action_store, self)
-                        self._metadata_providers[provider_description.namespace] = provider
-                        provider.register_action_parameters()
-                except ModuleNotFoundError:
-                    # Given service does not provide a main
-                    print("Metadata provider {} does not provide the 'main.py' module".format(x.parts[-1]))
-                    pass
-                except AttributeError as err:
-                    # Given service does not provide a service description
-                    print("Metadata provider {} does not provide its description in the 'main.py' module. Reason: {}".format(x.parts[-1], err))
-                    pass
+            if provider_description.namespace in self._metadata_providers:
+                print("Metadata provider with namespace {} already registered, skipping ...".format(provider_description.namespace))
+            else:
+                provider = provider_description.creation_fn(self.action_store, self)
+                self._metadata_providers[provider_description.namespace] = provider
+                provider.register_action_parameters()
 
     def create_service(self, name: str, id: str, node: Node, args: Optional[Dict[str, Any]]) -> ServiceImpl:
         if name not in self._service_descriptions:
