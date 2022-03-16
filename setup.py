@@ -54,7 +54,7 @@ setup(
     # https://packaging.python.org/discussions/install-requires-vs-requirements/
     install_requires=[
         'netaddr',
-        'pyflags',
+        'py-flags',
         'semver',
         'rejson',
         'networkx',
