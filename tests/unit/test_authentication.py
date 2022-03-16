@@ -1,17 +1,15 @@
 import unittest
 
-from netaddr import IPAddress, IPNetwork
-
 from cyst.api.configuration import *
 from cyst.api.environment.environment import Environment
-from cyst.api.logic.access import AuthenticationProviderType, AuthenticationTokenType, AuthenticationTokenSecurity
-
-from cyst.api.network.node import Node
 from cyst.api.logic.access import AuthenticationProvider, Authorization, AuthenticationTarget
+from cyst.api.logic.access import AuthenticationProviderType, AuthenticationTokenType, AuthenticationTokenSecurity
+from cyst.api.network.node import Node
+
 from cyst.core.logic.access import AuthenticationProviderImpl
 from cyst.core.logic.access import AuthenticationTokenImpl
 
-"""Environment configuration"""
+""" Environment configuration """
 local_password_auth = AuthenticationProviderConfig \
         (
         provider_type=AuthenticationProviderType.LOCAL,
@@ -142,36 +140,18 @@ router1 = RouterConfig(
     id="router1"
 )
 
-attacker1 = NodeConfig(
-    active_services=[
-        ActiveServiceConfig(
-            "scripted_attacker",
-            "scripted_attacker",
-            "attacker",
-            AccessLevel.LIMITED,
-            id="attacker_service"
-        )
-    ],
-    passive_services=[],
-    interfaces=[
-        InterfaceConfig(IPAddress("192.168.0.5"), IPNetwork("192.168.0.1/24"))
-    ],
-    shell="",
-    id="attacker_node"
-)
-
 connections = [
-    ConnectionConfig("attacker_node", 0, "router1", 0),
     ConnectionConfig("target_node", 0, "router1", 1),
     ConnectionConfig("sso_server_node", 0, "router1", 2),
     ConnectionConfig("email_server_node", 0, "router1", 3)
 ]
 
+
 class AuthenticationProcessTestSSH(unittest.TestCase):
 
     @classmethod
     def setUpClass(cls) -> None:
-        cls.env = Environment.create().configure(email_server, sso_server, target, router1, attacker1, *connections)
+        cls.env = Environment.create().configure(email_server, sso_server, target, router1, *connections)
 
         node = cls.env.configuration.general.get_object_by_id("target_node", Node)
         service = next(filter(lambda x: x.name == "ssh", node.services.values()))
@@ -218,7 +198,7 @@ class AuthenticationProcessTestCustomService(unittest.TestCase):
 
     @classmethod
     def setUpClass(cls) -> None:
-        cls.env = Environment.create().configure(email_server, sso_server, target, router1, attacker1, *connections)
+        cls.env = Environment.create().configure(email_server, sso_server, target, router1, *connections)
 
         node = cls.env.configuration.general.get_object_by_id("target_node", Node)
         service = next(filter(lambda x: x.name == "my_custom_service", node.services.values()))

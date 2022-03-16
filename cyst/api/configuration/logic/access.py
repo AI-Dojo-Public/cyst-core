@@ -5,12 +5,12 @@ from typing import List, Optional, Union, Tuple
 from uuid import uuid4
 
 from netaddr import IPAddress
-from tools.serde_customized import serialize
+from serde import serialize
+from serde.compat import typename
 
 from cyst.api.configuration.configuration import ConfigItem
 from cyst.api.logic.access import AccessLevel, AuthenticationTokenSecurity, AuthenticationTokenType, \
                                   AuthenticationProviderType
-from tools.serde_customized.compat import typename
 
 
 @serialize

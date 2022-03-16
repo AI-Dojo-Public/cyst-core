@@ -18,7 +18,7 @@ class ActionTests(unittest.TestCase):
         with self.assertRaises(ValueError):
             len(domain_any)
 
-        with self.assertRaises(IndexError):
+        with self.assertRaises(ValueError):
             x = random.choice(domain_any)
 
         with self.assertRaises(IndexError):

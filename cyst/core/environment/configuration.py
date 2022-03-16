@@ -4,7 +4,7 @@ from dataclasses import dataclass, field
 from typing import List, Union, Optional, Dict, Any, Type, Tuple
 
 from cyst.api.environment.configuration import GeneralConfiguration, ObjectType, ConfigurationObjectType
-from cyst.api.configuration.configuration import ConfigItem, ConfigItemCloner
+from cyst.api.configuration.configuration import ConfigItem
 from cyst.api.configuration.host.service import ActiveServiceConfig, PassiveServiceConfig
 from cyst.api.configuration.logic.access import AuthorizationConfig, AuthenticationProviderConfig, AccessSchemeConfig, \
     AuthorizationDomainConfig, FederatedAuthorizationConfig
@@ -509,6 +509,7 @@ class Configuration(GeneralConfiguration):
                                                                                                        str(object_type),
                                                                                                        type(o)))
         return o
+
 
 # ----------------------------------------------------------------------------------------------------------------------
 # Runtime configuration of the environment. Can be filled from different sources

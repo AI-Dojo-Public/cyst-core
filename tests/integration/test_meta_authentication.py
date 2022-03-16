@@ -1,50 +1,42 @@
 import unittest
 import uuid
 
-from netaddr import IPAddress, IPNetwork
-
 from cyst.api.configuration import *
 from cyst.api.environment.control import EnvironmentState
 from cyst.api.environment.environment import Environment
 from cyst.api.environment.message import Status, StatusOrigin, StatusValue, StatusDetail
 from cyst.api.host.service import Service
 from cyst.api.logic.access import AuthenticationProviderType, AuthenticationTokenType, AuthenticationTokenSecurity
-from cyst.api.logic.action import ActionParameter, ActionParameterType
 
-from cyst.api.network.node import Node
 from cyst.api.logic.access import AuthenticationProvider, Authorization, AuthenticationTarget
-from cyst.core.logic.access import AuthenticationProviderImpl
 from cyst.core.logic.access import AuthenticationTokenImpl
-from cyst.services.scripted_attacker.main import ScriptedAttackerControl
+from cyst_services.scripted_actor.main import ScriptedActorControl
+
+# TODO: These tests should be inside test_meta
 
 """Environment configuration"""
-local_password_auth = AuthenticationProviderConfig \
-        (
-        provider_type=AuthenticationProviderType.LOCAL,
-        token_type=AuthenticationTokenType.PASSWORD,
-        token_security=AuthenticationTokenSecurity.SEALED,
-        timeout=30
-    )
+local_password_auth = AuthenticationProviderConfig(
+    provider_type=AuthenticationProviderType.LOCAL,
+    token_type=AuthenticationTokenType.PASSWORD,
+    token_security=AuthenticationTokenSecurity.SEALED,
+    timeout=30
+)
 
-remote_email_auth = AuthenticationProviderConfig \
-        (
-        provider_type=AuthenticationProviderType.REMOTE,
-        token_type=AuthenticationTokenType.PASSWORD,
-        token_security=AuthenticationTokenSecurity.SEALED,
-        ip=IPAddress("192.168.0.2"),
-        timeout=60
-    )
+remote_email_auth = AuthenticationProviderConfig(
+    provider_type=AuthenticationProviderType.REMOTE,
+    token_type=AuthenticationTokenType.PASSWORD,
+    token_security=AuthenticationTokenSecurity.SEALED,
+    ip=IPAddress("192.168.0.2"),
+    timeout=60
+)
 
-proxy_sso = AuthenticationProviderConfig \
-        (
-        provider_type=AuthenticationProviderType.PROXY,
-        token_type=AuthenticationTokenType.PASSWORD,
-        token_security=AuthenticationTokenSecurity.SEALED,
-        ip=IPAddress("192.168.0.3"),
-        timeout=30
-    )
-
-# authentication_providers = [local_password_auth, remote_email_auth, proxy_sso]
+proxy_sso = AuthenticationProviderConfig(
+    provider_type=AuthenticationProviderType.PROXY,
+    token_type=AuthenticationTokenType.PASSWORD,
+    token_security=AuthenticationTokenSecurity.SEALED,
+    ip=IPAddress("192.168.0.3"),
+    timeout=30
+)
 
 ssh_service = PassiveServiceConfig(
     type="ssh",
@@ -151,7 +143,7 @@ router1 = RouterConfig(
 attacker1 = NodeConfig(
     active_services=[
         ActiveServiceConfig(
-            "scripted_attacker",
+            "scripted_actor",
             "scripted_attacker",
             "attacker",
             AccessLevel.LIMITED,
@@ -200,17 +192,17 @@ class TestMetaAuth(unittest.TestCase):
         for action in _action_list:
             cls._actions[action.id] = action.copy()
 
-        _action_list = cls._env.resources.action_store.get_prefixed("aif")
+        _action_list = cls._env.resources.action_store.get_prefixed("cyst")
         for action in _action_list:
             cls._actions[action.id] = action.copy()
 
         # create attacker
         attacker_service = cls._env.configuration.general.get_object_by_id("attacker_service", Service)
         assert attacker_service is not None
-        cls._attacker: ScriptedAttackerControl = cls._env.configuration.service.get_service_interface(
-            attacker_service.active_service, ScriptedAttackerControl)
+        cls._attacker: ScriptedActorControl = cls._env.configuration.service.get_service_interface(
+            attacker_service.active_service, ScriptedActorControl)
 
-        cls._env.control.add_pause_on_response("attacker_node.scripted_attacker")
+        cls._env.control.add_pause_on_response("attacker_node.scripted_actor")
 
     def test_000_no_token_provided(self):
 
@@ -340,9 +332,8 @@ class TestMetaAuth(unittest.TestCase):
 
     def test_005_auto_authentication_bad_token(self):
 
-        action = self._actions["aif:ensure_access:command_and_control"].copy()
+        action = self._actions["cyst:network:create_session"].copy()
         self.assertIsNotNone(action, "Action unavailable")
-
 
         self._attacker.execute_action(
             "192.168.0.4",
@@ -370,7 +361,7 @@ class TestMetaAuth(unittest.TestCase):
 
     def test_006_auto_authentication_good_token(self):
 
-        action = self._actions["aif:ensure_access:command_and_control"].copy()
+        action = self._actions["cyst:network:create_session"].copy()
         self.assertIsNotNone(action, "Action unavailable")
 
         self._attacker.execute_action(
@@ -385,11 +376,13 @@ class TestMetaAuth(unittest.TestCase):
 
         self.assertEqual((True, EnvironmentState.PAUSED), (result, state), "Task run failed.")
         self.assertIsInstance(message.auth, Authorization, "AuthenticationToken was not swapped for authorization")
-        self.assertEqual(message.content, "Service ssh at node 192.168.0.4 does not enable session creation.", "bad description")
+        # There was a check for wrong authorization because of local authorization domain being used for remote
+        # authorization. But because the cyst:network:create_session creates it no matter what, this check was removed
+        # as it is not really related to the auto authentication anyway.
 
     def test_007_auto_good_token_more_factors_remaining(self):
 
-        action = self._actions["aif:ensure_access:command_and_control"].copy()
+        action = self._actions["cyst:network:create_session"].copy()
         self.assertIsNotNone(action, "Action unavailable")
 
         self._attacker.execute_action(
@@ -414,7 +407,7 @@ class TestMetaAuth(unittest.TestCase):
 
     def test_008_auto_authentication_non_local_token(self):
 
-        action = self._actions["aif:ensure_access:command_and_control"].copy()
+        action = self._actions["cyst:network:create_session"].copy()
         self.assertIsNotNone(action, "Action unavailable")
 
         self._attacker.execute_action(
@@ -440,6 +433,3 @@ class TestMetaAuth(unittest.TestCase):
                                                 StatusDetail.AUTHENTICATION_NOT_APPLICABLE),
                          "Bad state")
         self.assertEqual(message.content, "Auto-authentication does not work with non-local tokens", "Bad error message")
-
-
-

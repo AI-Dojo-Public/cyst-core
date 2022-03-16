@@ -3,6 +3,12 @@ import importlib
 import uuid
 import os
 import time
+import sys
+
+if sys.version_info < (3, 10):
+    from importlib_metadata import entry_points
+else:
+    from importlib.metadata import entry_points
 
 from heapq import heappush, heappop
 from itertools import product
@@ -42,7 +48,7 @@ from cyst.api.network.firewall import FirewallRule, FirewallPolicy
 from cyst.api.host.service import ActiveServiceDescription, Service, PassiveService, ActiveService
 from cyst.api.configuration.configuration import ConfigItem
 
-from cyst.core.environment.configuration import Configuration, ConfigItemCloner, RuntimeConfiguration
+from cyst.core.environment.configuration import Configuration, RuntimeConfiguration
 from cyst.core.environment.data_store import DataStore
 from cyst.core.environment.message import MessageImpl, RequestImpl, ResponseImpl, TimeoutImpl
 from cyst.core.environment.proxy import EnvironmentProxy
@@ -943,6 +949,7 @@ class _Environment(Environment, EnvironmentControl, EnvironmentMessaging, Enviro
         message = RequestImpl.cast_from(message)
 
         # TODO: auto-authentication here, maybe??
+        # cyst namespace is currently disabled from auto authentication
         if message.auth and isinstance(message.auth, AuthenticationToken):
             if not AuthenticationTokenImpl.is_local_instance(message.auth):
                 return time, self.messaging.create_response(message, Status(StatusOrigin.SERVICE,
@@ -1134,23 +1141,36 @@ class _Environment(Environment, EnvironmentControl, EnvironmentMessaging, Enviro
         return True, self._state
 
     def _register_services(self) -> None:
+
+        # First, check entry points registered via the importlib mechanism
+        plugin_services = entry_points(group="cyst_services")
+        for s in plugin_services:
+            service_description = s.load()
+
+            if self._service_store.get_service(service_description.name):
+                print(
+                    "Service with name {} already registered, skipping the one in 'cyst_services/{}' directory".format(
+                        service_description.name, x.parts[-1]))
+            else:
+                self._service_store.add_service(service_description)
+
         # Check subdirectories in the cyst/services/ directory
-        path = root_dir() / 'cyst' / 'services'
+        path = root_dir() / 'cyst_services'
         if not path.exists():
             raise RuntimeError(
-                "Cannot find 'cyst/services/' path. This indicate corruption of the simulator. Please check...")
+                "Cannot find 'cyst_services/' path. This indicate corruption of the simulator. Please check...")
 
         for x in path.iterdir():
             if x.is_dir():
                 # Attempt to import main of the services and get the service descriptions
                 try:
-                    module_name = 'cyst.services.' + x.parts[-1] + '.main'
+                    module_name = 'cyst_services.' + x.parts[-1] + '.main'
                     module = importlib.import_module(module_name)
                     service_description: ActiveServiceDescription = getattr(module, "service_description")
 
                     if self._service_store.get_service(service_description.name):
                         print(
-                            "Service with name {} already registered, skipping the one in 'cyst/services/{}' directory".format(
+                            "Service with name {} already registered, skipping the one in 'cyst_services/{}' directory".format(
                                 service_description.name, x.parts[-1]))
                     else:
                         self._service_store.add_service(service_description)
@@ -1167,23 +1187,24 @@ class _Environment(Environment, EnvironmentControl, EnvironmentMessaging, Enviro
         self._service_store.add_service(firewall_service_description)
 
     def _register_actions(self) -> None:
+        # TODO Rename action interpreters to behavioral models
         # Check subdirectories in the cyst/interpreters/ directory
-        path = root_dir() / 'cyst' / 'interpreters'
+        path = root_dir() / 'cyst_models'
         if not path.exists():
             raise RuntimeError(
-                "Cannot find 'cyst/interpreters/' path. This indicate corruption of the simulator. Please check...")
+                "Cannot find 'cyst_models/' path. This indicate corruption of the simulator. Please check...")
 
         for x in path.iterdir():
             if x.is_dir():
                 # Attempt to import main of the interpreters and get the action interpreter descriptions
                 try:
-                    module_name = 'cyst.interpreters.' + x.parts[-1] + '.main'
+                    module_name = 'cyst_models.' + x.parts[-1] + '.main'
                     module = importlib.import_module(module_name)
                     intp_description: ActionInterpreterDescription = getattr(module, "action_interpreter_description")
 
                     if intp_description.namespace in self._interpreters:
                         print(
-                            "Action interpreter with namespace {} already registered, skipping the one in 'cyst/interpreters/{}' directory".format(
+                            "Action interpreter with namespace {} already registered, skipping the one in 'cyst_models/{}' directory".format(
                                 intp_description.namespace, x.parts[-1]))
                     else:
                         interpreter = intp_description.creation_fn(self, self, self._policy, self)
@@ -1200,6 +1221,8 @@ class _Environment(Environment, EnvironmentControl, EnvironmentMessaging, Enviro
                     pass
 
     def _register_metadata_providers(self) -> None:
+        return
+
         # Check subdirectories in the cyst/metadata_providers/ directory
         path = root_dir() / 'cyst' / 'metadata_providers'
         if not path.exists():

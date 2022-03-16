@@ -1,4 +1,4 @@
-from cachetools.lru import LRUCache
+from cachetools import LRUCache
 from enum import Enum
 from typing import List, Union, Optional, Tuple, Dict, NamedTuple
 from netaddr import IPAddress, IPNetwork

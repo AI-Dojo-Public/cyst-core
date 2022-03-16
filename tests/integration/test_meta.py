@@ -13,20 +13,18 @@ from cyst.api.environment.environment import Environment
 from cyst.api.environment.control import EnvironmentState
 from cyst.api.environment.configuration import ServiceParameter
 from cyst.api.environment.message import StatusOrigin, StatusValue, Status
-from cyst.api.logic.action import ActionParameter, ActionParameterType
 from cyst.api.network.node import Node
 from cyst.api.network.session import Session
-from cyst.core.logic.access import AuthenticationProviderImpl, AuthenticationTokenImpl
+from cyst.core.logic.access import AuthenticationTokenImpl
 
-from cyst.services.scripted_attacker.main import ScriptedAttackerControl
+from cyst_services.scripted_actor.main import ScriptedActorControl
 
-local_password_auth = AuthenticationProviderConfig \
-        (
-        provider_type=AuthenticationProviderType.LOCAL,
-        token_type=AuthenticationTokenType.PASSWORD,
-        token_security=AuthenticationTokenSecurity.SEALED,
-        timeout=30
-    )
+local_password_auth = AuthenticationProviderConfig(
+    provider_type=AuthenticationProviderType.LOCAL,
+    token_type=AuthenticationTokenType.PASSWORD,
+    token_security=AuthenticationTokenSecurity.SEALED,
+    timeout=30
+)
 
 ssh_service = PassiveServiceConfig(
     type="openssh",
@@ -45,18 +43,18 @@ ssh_service = PassiveServiceConfig(
         )
     )],
     parameters=[
-                    (ServiceParameter.ENABLE_SESSION, True),
-                    (ServiceParameter.SESSION_ACCESS_LEVEL, AccessLevel.LIMITED)
-                ]
+        (ServiceParameter.ENABLE_SESSION, True),
+        (ServiceParameter.SESSION_ACCESS_LEVEL, AccessLevel.LIMITED)
+    ]
 )
 
 target1 = NodeConfig(id="target1", active_services=[], passive_services=[ssh_service],
-                    shell="bash", interfaces=[InterfaceConfig(IPAddress("192.168.0.3"), IPNetwork("192.168.0.1/24"))])
+                     shell="bash", interfaces=[InterfaceConfig(IPAddress("192.168.0.3"), IPNetwork("192.168.0.1/24"))])
 
 attacker1 = NodeConfig(
     active_services=[
         ActiveServiceConfig(
-            "scripted_attacker",
+            "scripted_actor",
             "scripted_attacker",
             "attacker",
             AccessLevel.LIMITED,
@@ -89,7 +87,7 @@ class TestMETAIntegration(unittest.TestCase):
 
     @classmethod
     def setUpClass(cls) -> None:
-        cls._env = Environment.create().configure(target1, attacker1, router1, *connections)
+        cls._env: Environment = Environment.create().configure(target1, attacker1, router1, *connections)
         cls._env.control.init()
 
         cls._action_list = cls._env.resources.action_store.get_prefixed("meta")
@@ -98,16 +96,16 @@ class TestMETAIntegration(unittest.TestCase):
             cls._actions[action.id] = action
 
         # Many META action are tied to other action for effects, so we have to use meta and something
-        cls._action_list = cls._env.resources.action_store.get_prefixed("aif")
+        cls._action_list = cls._env.resources.action_store.get_prefixed("cyst")
         for action in cls._action_list:
             cls._actions[action.id] = action
 
-        cls._env.control.add_pause_on_response("attacker_node.scripted_attacker")
+        cls._env.control.add_pause_on_response("attacker_node.scripted_actor")
 
         cls._target = cls._env.configuration.general.get_object_by_id("target1", Node)
         attacker_service = cls._env.configuration.general.get_object_by_id("attacker_service", Service)
-        cls._attacker: ScriptedAttackerControl = cls._env.configuration.service.get_service_interface(
-            attacker_service.active_service, ScriptedAttackerControl)
+        cls._attacker: ScriptedActorControl = cls._env.configuration.service.get_service_interface(
+            attacker_service.active_service, ScriptedActorControl)
 
         provider = cls._env.configuration.general.get_object_by_id("openssh_local_auth_id",
                                                                    AuthenticationProvider)
@@ -123,7 +121,7 @@ class TestMETAIntegration(unittest.TestCase):
         message = self._attacker.get_last_response()
 
         self.assertEqual((result, state), (True, EnvironmentState.PAUSED), "Task ran and was successfully paused.")
-        self.assertEqual(message.status, Status(StatusOrigin.NODE, StatusValue.SUCCESS), "Acction was successful")
+        self.assertEqual(message.status, Status(StatusOrigin.NODE, StatusValue.SUCCESS), "Action was successful")
         self.assertTrue(message.content and isinstance(message.content, Node), "Received a node description back")
 
         # Remote inspection
@@ -143,7 +141,7 @@ class TestMETAIntegration(unittest.TestCase):
 
         auth = message.auth
 
-        action = self._actions["aif:ensure_access:command_and_control"]
+        action = self._actions["cyst:network:create_session"]
         target = self._target.interfaces[0].ip
 
         self._attacker.execute_action(str(target), "openssh", action, auth=auth)
@@ -152,7 +150,7 @@ class TestMETAIntegration(unittest.TestCase):
         message = self._attacker.get_last_response()
 
         self.assertEqual((result, state), (True, EnvironmentState.PAUSED), "Task ran and was successfully paused.")
-        self.assertEqual(message.status, Status(StatusOrigin.SERVICE, StatusValue.SUCCESS), "Acction was successful")
+        self.assertEqual(message.status, Status(StatusOrigin.SERVICE, StatusValue.SUCCESS), "Action was successful")
         self.assertTrue(message.session and isinstance(message.session, Session), "Received a session back")
 
         session = message.session
@@ -164,7 +162,7 @@ class TestMETAIntegration(unittest.TestCase):
         message = self._attacker.get_last_response()
 
         self.assertEqual((result, state), (True, EnvironmentState.PAUSED), "Task ran and was successfully paused.")
-        self.assertEqual(message.status, Status(StatusOrigin.NODE, StatusValue.SUCCESS), "Acction was successful")
+        self.assertEqual(message.status, Status(StatusOrigin.NODE, StatusValue.SUCCESS), "Action was successful")
         self.assertTrue(message.content and isinstance(message.content, Node), "Received a node back")
 
         node: Node = message.content

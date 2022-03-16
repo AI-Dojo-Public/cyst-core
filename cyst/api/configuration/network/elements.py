@@ -3,10 +3,10 @@ from dataclasses import dataclass, field
 from netaddr import IPAddress, IPNetwork
 from typing import Optional
 from uuid import uuid4
-from tools.serde_customized import serialize
+from serde import serialize
+from serde.compat import typename
 
 from cyst.api.configuration.configuration import ConfigItem
-from tools.serde_customized.compat import typename
 
 
 @serialize

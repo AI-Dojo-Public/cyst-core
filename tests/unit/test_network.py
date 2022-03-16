@@ -1,4 +1,3 @@
-import dataclasses
 import unittest
 import uuid
 
@@ -7,21 +6,20 @@ from netaddr import IPAddress, IPNetwork
 from cyst.api.configuration import AuthenticationProviderConfig, PassiveServiceConfig, AccessSchemeConfig, \
     AuthorizationDomainConfig, AuthorizationDomainType, AuthorizationConfig, NodeConfig, InterfaceConfig, \
     ActiveServiceConfig, RouterConfig, ConnectionConfig
-from cyst.api.configuration.configuration import ConfigItemCloner
 from cyst.api.configuration.network.elements import RouteConfig
-from cyst.api.host.service import Service
-from cyst.api.logic.access import AccessLevel, AuthenticationProviderType, AuthenticationTokenType, \
-    AuthenticationTokenSecurity, AuthenticationProvider
+from cyst.api.environment.configuration import ServiceParameter
 from cyst.api.environment.environment import Environment
 from cyst.api.environment.message import StatusOrigin, StatusValue, Status
-from cyst.api.environment.configuration import ServiceParameter
+from cyst.api.host.service import Service
+from cyst.api.logic.access import AccessLevel, AuthenticationProviderType, AuthenticationTokenType, \
+    AuthenticationTokenSecurity
 from cyst.api.network.elements import Route
 from cyst.api.network.firewall import FirewallRule, FirewallPolicy
 from cyst.api.network.node import Node
 
-from cyst.core.logic.access import AuthenticationProviderImpl, AuthenticationTokenImpl
+from cyst.core.logic.access import AuthenticationTokenImpl
 
-from cyst.services.scripted_attacker.main import ScriptedAttacker
+from cyst_services.scripted_actor.main import ScriptedActor, ScriptedActorControl
 
 
 class TestInterface(unittest.TestCase):
@@ -398,8 +396,8 @@ class TestSessions(unittest.TestCase):
         attacker_node = NodeConfig(
             active_services=[
                 ActiveServiceConfig(
-                    "scripted_attacker",
-                    "scripted_attacker",
+                    "scripted_actor",
+                    "scripted_actor",
                     "attacker",
                     AccessLevel.LIMITED,
                     id="attacker_service"
@@ -469,7 +467,7 @@ class TestSessions(unittest.TestCase):
         # Create a simple scripted attacker
         attacker = env.configuration.service.get_service_interface(
             env.configuration.general.get_object_by_id("attacker_service", Service).active_service,
-            ScriptedAttacker)
+            ScriptedActorControl)
 
         router1 = env.configuration.general.get_object_by_id("router1", Node)
         router2 = env.configuration.general.get_object_by_id("router2", Node)
@@ -487,11 +485,11 @@ class TestSessions(unittest.TestCase):
 
         # Get correct actions
         actions = {}
-        action_list = env.resources.action_store.get_prefixed("aif")
+        action_list = env.resources.action_store.get_prefixed("cyst")
         for action in action_list:
             actions[action.id] = action
 
-        action = actions["aif:ensure_access:command_and_control"]
+        action = actions["cyst:network:create_session"]
 
         # Test direct connection to an inaccessible node
         attacker.execute_action("192.168.2.2", "ssh", action, session=None, auth=ssh_token_t1)
@@ -533,7 +531,7 @@ class TestSessions(unittest.TestCase):
         self.assertEqual(s, session2)
 
         # Now to just try running an action over two sessions
-        action = actions["aif:active_recon:service_discovery"]
+        action = actions["cyst:host:get_services"]
         attacker.execute_action("192.168.3.4", "ssh", action, session=s, auth=ssh_token_t3)
 
         env.control.run()
@@ -570,7 +568,7 @@ class TestRouting(unittest.TestCase):
     def test_0001_cycle(self):
         env = Environment.create()
         env.control.init()
-        env.control.add_pause_on_response("attacker_node.scripted_attacker")
+        env.control.add_pause_on_response("attacker_node.scripted_actor")
 
         # Function aliases to make it more readable
         create_node = env.configuration.node.create_node
@@ -607,16 +605,16 @@ class TestRouting(unittest.TestCase):
 
         # attacker sending the message
         attacker_node = create_node("attacker_node")
-        attacker_service = create_active_service("scripted_attacker", "attacker", "scripted_attacker", attacker_node)
+        attacker_service = create_active_service("scripted_actor", "attacker", "scripted_actor", attacker_node)
         add_service(attacker_node, attacker_service)
-        attacker = ScriptedAttacker.cast_from(attacker_service)
+        attacker = ScriptedActor.cast_from(attacker_service)
 
         # Connect attacker
         add_node(attacker_node)
         add_connection(attacker_node, router1, -1, router1_port1)
 
         # Let attacker send a probe message
-        action = env.resources.action_store.get("aif:active_recon:host_discovery")
+        action = env.resources.action_store.get("cyst:test:echo_success")
 
         attacker.execute_action("192.168.0.2", "", action)
 
@@ -630,7 +628,7 @@ class TestRouting(unittest.TestCase):
     def test_0002_ttl(self):
         env = Environment.create()
         env.control.init()
-        env.control.add_pause_on_response("attacker_node.scripted_attacker")
+        env.control.add_pause_on_response("attacker_node.scripted_actor")
 
         # Function aliases to make it more readable
         create_node = env.configuration.node.create_node
@@ -667,16 +665,16 @@ class TestRouting(unittest.TestCase):
 
         # attacker
         attacker_node = create_node("attacker_node")
-        attacker_service = create_active_service("scripted_attacker", "attacker", "scripted_attacker", attacker_node)
+        attacker_service = create_active_service("scripted_actor", "attacker", "scripted_actor", attacker_node)
         add_service(attacker_node, attacker_service)
-        attacker = ScriptedAttacker.cast_from(attacker_service)
+        attacker = ScriptedActor.cast_from(attacker_service)
 
         # Connect attacker
         add_node(attacker_node)
         add_connection(attacker_node, router1, -1, router1_port1)
 
         # Let attacker send a probe message
-        action = env.resources.action_store.get("aif:active_recon:host_discovery")
+        action = env.resources.action_store.get("cyst:test:echo_success")
 
         attacker.execute_action("192.168.0.2", "", action)
 
