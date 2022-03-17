@@ -7,10 +7,10 @@ pages:
   - pip install --upgrade pip
   - pip install -U sphinx
   - pip install sphinx-rtd-theme
-  - pip install -r requirements.txt
+  - pip install -e .
   - sphinx-build -b html docs/source public/
   artifacts:
     paths:
     - public/
   only:
-  - documentation_v2
+  - master
