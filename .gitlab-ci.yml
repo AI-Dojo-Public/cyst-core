@@ -6,7 +6,7 @@ pages:
   - apt-get update
   - pip install --upgrade pip
   - pip install -U sphinx
-  - pip install sphinx-rtd-theme
+  - pip install sphinx-rtd-theme sphinx-tabs
   - pip install -e .
   - sphinx-build -b html docs/source public/
   artifacts:
