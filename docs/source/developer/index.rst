@@ -529,3 +529,215 @@ Here we append the complete code.
             "A behavioral model that is without a doubt - awesome",
             create_awesome_model
         )
+
+
+Internal logic - services
+-------------------------
+
+Services, or rather active services, are the actors of the simulation. They effect the events in the simulation by means
+of sending and receiving the messages with other actors and the environment.
+
+Currently, the services exist within the simulation in two places - as traffic processors, which inspect and act upon
+any messages that arrive to the node which they reside on, and as ordinary services, which are specific targets of
+messages. Here are some examples:
+
+    - traffic processors:
+        IDS, IPS, firewalls, antiviruses, port knocking mechanisms, honeypots, etc.
+    - ordinary services:
+        attacking/defending/user simulating agents
+
+This difference, however, does not affect the code of the service much, and so the example service which will be
+presented in this section can be used in both cases.
+
+Each service must start with a minimal set of imports. Currently we prefer explicit imports, although it may change in
+the future:
+
+    .. code-block:: python
+
+        from abc import ABC, abstractmethod
+        from typing import Tuple, Optional, Dict, Any, Union
+
+        from cyst.api.logic.action import Action
+        from cyst.api.logic.access import Authorization, AuthenticationToken
+        from cyst.api.environment.environment import EnvironmentMessaging
+        from cyst.api.environment.message import Request, Response, MessageType, Message
+        from cyst.api.environment.resources import EnvironmentResources
+        from cyst.api.network.session import Session
+        from cyst.api.host.service import ActiveService, ActiveServiceDescription, Service
+
+You can either copy this verbatim, or use the imports provided by the service template.
+
+After that, you need to create your own service (let's call it AwesomeService). It will not do anything, aside from
+existing.
+
+    .. code-block:: python
+
+        class AwesomeService(ActiveService):
+
+            def __init__(self, env: EnvironmentMessaging = None, res: EnvironmentResources = None, args: Optional[Dict[str, Any]] = None) -> None:
+                pass
+
+            def run(self) -> None:
+                pass
+
+            def process_message(self, message: Message) -> Tuple[bool, int]:
+                pass
+
+Once you have this service stub, you need to prepare the entry point, which is a structure that describes the service
+and provides a factory function. Here is one way to do it.
+
+    .. code-block:: python
+
+        def create_awesome_service(msg: EnvironmentMessaging, res: EnvironmentResources, args: Optional[Dict[str, Any]]) -> ActiveService:
+            actor = AwesomeService(msg, res, args)
+            return actor
+
+
+        service_description = ActiveServiceDescription(
+            "awesome_service",
+            "A service that is being awesome on its own.",
+            create_awesome_service
+        )
+
+Provided you create an entry point in the setup.py like this, you will be able to instantiate the service in the
+environment.
+
+    .. code-block:: python
+
+            entry_points={
+                'cyst.services': [
+                    'awesome_service=cyst_services.awesome_service.main:service_description'
+                ]
+            },
+
+But as has been said, aside from existing, this service would not be able to do anything, so we will add a bit of
+functionality to it. First, we begin with configuration. Let's say that the service enables setting the level of
+awesomeness during the creation. The configuration would look like this:
+
+    .. code-block:: python
+
+        active_services=[
+            ActiveServiceConfig(
+                type="awesome_service",
+                name="My first service",
+                owner="owner",
+                access_level=AccessLevel.LIMITED,
+                configuration={"level":"super awesome"}
+            )
+        ],
+
+The configuration is going to be accessed from the constructor. With it we will also store the access to the vital
+interfaces - :class:`cyst.api.environment.messaging.EnvironmentMessaging` for communication with the service's exterior
+and :class:`cyst.api.environment.resources.EnvironmentResources` for gaining access to behavioral models, exploits, etc.
+
+    .. code-block:: python
+
+        def __init__(self, env: EnvironmentMessaging = None, res: EnvironmentResources = None, args: Optional[Dict[str, Any]] = None) -> None:
+            self._env = env
+            self._res = res
+            self._level = args["level"]
+
+The next step is to add some activity of the service after it is run. You don't necessarily have to have it do anything,
+however, the simulation usually ends when there are no actions on the stack. Therefore, you need at least one service in
+a simulation scenario that does something after being run.
+
+We assume that the previously developed awesome model is registered into the simulation framework, and so we adopt the
+awesome:punch action and deliver a weak one to a target that, for the sake of the example, we assume exists.
+
+    .. code-block:: python
+
+        def run(self) -> None:
+
+            action = self._res.action_store.get("awesome:punch")  # A weak punch is a default one
+            request = self._env.create_request("192.168.0.2", "punchable_service", action)
+            self._env.send_message(request)
+
+The code in the run will be executed at time 0 when the simulation starts. If the time 0 is not the right one for you,
+then you can either use the delay parameter of send_message(), or you can use the timeout() call of the
+:class:`cyst.api.environment.Clock` interface that is accessible through the
+:class:`cyst.api.environment.resources.EnvironmentResources` interface.
+
+One way or another, you have sent your first punch. But if you checked the code of the model, you would know that a weak
+punch will inevitably result in a failure. How will this information get to the service? Via the process_message()
+function, where the service has to implement response processing (and also request processing if there is the
+possibility of multiple active service communicating between each other). Let's do it.
+
+    .. code-block:: python
+
+        def process_message(self, message: Message) -> Tuple[bool, int]:
+            # In the real code, you would have different processing for requests and responses, and error checks and stuff...
+            response = message.cast_to(Response)
+            if response.status.value == StatusValue.FAILURE:
+                # We failed, let's punch harder
+                action = self._res.action_store.get("awesome:punch")
+                action.parameters["punch_strength"] = "super strong"
+                request = self._env.create_request("192.168.0.2", "punchable_service", action)
+                self._env.send_message(request)
+                return True, 1  # This just indicates that the processing went ok and that it took 1 virtual time unit
+            else:
+                # We succeeded, let's call it a day
+                return True, 1
+
+This implementation will repeat the action that was chosen in the run call, but this time it sets the parameter for
+stronger punch to which it will finally receives a SUCCESS. After that, it will not add any new message to the stack
+and the simulation will stop (assuming there is only this service running).
+
+This is basically all there is to creation of active services. Everything revolves around sending messages with actions,
+processing the responses and acting upon it. The amount of things the service can do is relatively limited
+interface-wise and the complexity arise from the size of action spaces (behavioral models) and from the message
+metadata. A good starting point is the following interfaces:
+
+    - :class:`cyst.api.environment.message.Message`
+    - :class:`cyst.api.environment.resources.EnvironmentResources`
+    - :class:`cyst.api.environment.messaging.EnvironmentMessaging`
+
+Here we append the complete code:
+
+    .. code-block:: python
+
+        from abc import ABC, abstractmethod
+        from typing import Tuple, Optional, Dict, Any, Union
+
+        from cyst.api.logic.action import Action
+        from cyst.api.logic.access import Authorization, AuthenticationToken
+        from cyst.api.environment.environment import EnvironmentMessaging
+        from cyst.api.environment.message import Request, Response, MessageType, Message
+        from cyst.api.environment.resources import EnvironmentResources
+        from cyst.api.network.session import Session
+        from cyst.api.host.service import ActiveService, ActiveServiceDescription, Service
+
+        class AwesomeService(ActiveService):
+
+            def __init__(self, env: EnvironmentMessaging = None, res: EnvironmentResources = None, args: Optional[Dict[str, Any]] = None) -> None:
+                self._env = env
+                self._res = res
+                self._level = args["level"]
+
+            def run(self) -> None:
+                action = self._res.action_store.get("awesome:punch")  # A weak punch is a default one
+                request = self._env.create_request("192.168.0.2", "punchable_service", action)
+                self._env.send_message(request)
+
+            def process_message(self, message: Message) -> Tuple[bool, int]:
+                # In the real code, you would have different processing for requests and responses, and error checks and stuff...
+                response = message.cast_to(Response)
+                if response.status.value == StatusValue.FAILURE:
+                    # We failed, let's punch harder
+                    action = self._res.action_store.get("awesome:punch")
+                    action.parameters["punch_strength"] = "super strong"
+                    request = self._env.create_request("192.168.0.2", "punchable_service", action)
+                    self._env.send_message(request)
+                    return True, 1  # This just indicates that the processing went ok and that it took 1 virtual time unit
+                else:
+                    # We succeeded, let's call it a day
+                    return True, 1
+
+        def create_awesome_service(msg: EnvironmentMessaging, res: EnvironmentResources, args: Optional[Dict[str, Any]]) -> ActiveService:
+            actor = AwesomeService(msg, res, args)
+            return actor
+
+        service_description = ActiveServiceDescription(
+            "awesome_service",
+            "A service that is being awesome on its own.",
+            create_awesome_service
+        )
