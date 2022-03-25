@@ -164,6 +164,13 @@ The following works only if you set up the packages as written earlier.
         If you see something like this, everything is ready and correctly working. You can now start doing changes in
         both packages and they will be reflected in each.
 
+        .. code-block:: console
+
+            ----------------------------------------------------------------------
+            Ran 26 tests in 0.786s
+
+            OK
+
     .. tab:: Linux shell
 
         Clone the cyst-core package
@@ -195,13 +202,6 @@ The following works only if you set up the packages as written earlier.
 
         If you see something like this, everything is ready and correctly working. You can now start doing changes in
         both packages and they will be reflected in each.
-
-        .. code-block:: console
-
-            ----------------------------------------------------------------------
-            Ran 26 tests in 0.786s
-
-            OK
 
         .. code-block:: console
 
@@ -438,6 +438,10 @@ awesome:pumch and enables you to easily add new functions to handle new actions.
             fn: Callable[[Request, Node], Tuple[int, Response]] = getattr(self, "process_" + action_name, self.process_default)
             return fn(message, node)
 
+        def process_default(self, message: Request, node: Node) -> Tuple[int, Response]:
+            print("Could not evaluate message. Action in `awesome` namespace unknown. " + str(message))
+            return 0, self._messaging.create_response(message, status=Status(StatusOrigin.SYSTEM, StatusValue.ERROR), session=message.session)
+
         def process_awesome_punch(self, message: Request, node: Node) -> Tuple[int, Response]:
             pass
 
@@ -453,7 +457,7 @@ created by the implemented model in response to requests.
         def process_awesome_punch(self, message: Request, node: Node) -> Tuple[int, Response]:
             # No error checking. Don't do this at home!
             strength = message.action.parameters["punch_strength"].value
-            if strength == weak:
+            if strength == "weak":
                 return 1, self._messaging.create_response(message, status=Status(StatusOrigin.NODE, StatusValue.FAILURE), content="That's a weak punch, bro!")
             else:
                 return 1, self._messaging.create_response(message, status=Status(StatusOrigin.NODE, StatusValue.SUCCESS), content="That's a good punch, bro!")
@@ -510,10 +514,14 @@ Here we append the complete code.
                 fn: Callable[[Request, Node], Tuple[int, Response]] = getattr(self, "process_" + action_name, self.process_default)
                 return fn(message, node)
 
+            def process_default(self, message: Request, node: Node) -> Tuple[int, Response]:
+                print("Could not evaluate message. Action in `awesome` namespace unknown. " + str(message))
+                return 0, self._messaging.create_response(message, status=Status(StatusOrigin.SYSTEM, StatusValue.ERROR), session=message.session)
+
             def process_awesome_punch(self, message: Request, node: Node) -> Tuple[int, Response]:
                 # No error checking. Don't do this at home!
                 strength = message.action.parameters["punch_strength"].value
-                if strength == weak:
+                if strength == "weak":
                     return 1, self._messaging.create_response(message, status=Status(StatusOrigin.NODE, StatusValue.FAILURE), content="That's a weak punch, bro!")
                 else:
                     return 1, self._messaging.create_response(message, status=Status(StatusOrigin.NODE, StatusValue.SUCCESS), content="That's a good punch, bro!")
@@ -589,8 +597,8 @@ and provides a factory function. Here is one way to do it.
     .. code-block:: python
 
         def create_awesome_service(msg: EnvironmentMessaging, res: EnvironmentResources, args: Optional[Dict[str, Any]]) -> ActiveService:
-            actor = AwesomeService(msg, res, args)
-            return actor
+            service = AwesomeService(msg, res, args)
+            return service
 
 
         service_description = ActiveServiceDescription(
