@@ -238,6 +238,16 @@ class Action(ABC):
 
     @property
     @abstractmethod
+    def description(self) -> str:
+        """
+        A textual description of the action.
+
+        :rtype: str
+        """
+        pass
+
+    @property
+    @abstractmethod
     def fragments(self) -> List[str]:
         """
         The list of fragments of the id (i.e., what is left after removing the colons). E.g, ["aif",

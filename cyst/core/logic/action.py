@@ -118,6 +118,10 @@ class ActionImpl(Action):
         return self._id
 
     @property
+    def description(self) -> str:
+        return self._description
+
+    @property
     def namespace(self) -> str:
         return self._namespace
 
