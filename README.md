@@ -1,1 +1,3 @@
-This is a blank readme file, because I am in a hurry...
+The current documentation can be found here: 
+
+https://muni.cz/go/cyst/
