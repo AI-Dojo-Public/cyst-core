@@ -808,6 +808,12 @@ class _Environment(Environment, EnvironmentControl, EnvironmentMessaging, Enviro
         heappush(self._tasks, (self._time + delay, m))
 
     # ------------------------------------------------------------------------------------------------------------------
+    # Statistics and data access TODO: make data stores available
+    @property
+    def statistics(self) -> Statistics:
+        return self._statistics
+
+    # ------------------------------------------------------------------------------------------------------------------
     # Internal functions
     @property
     def _get_network(self) -> Network:
@@ -1140,7 +1146,7 @@ class _Environment(Environment, EnvironmentControl, EnvironmentMessaging, Enviro
     def _register_services(self) -> None:
 
         # First, check entry points registered via the importlib mechanism
-        plugin_services = entry_points(group="cyst_services")
+        plugin_services = entry_points(group="cyst.services")
         for s in plugin_services:
             service_description = s.load()
 
@@ -1154,7 +1160,7 @@ class _Environment(Environment, EnvironmentControl, EnvironmentMessaging, Enviro
 
     def _register_actions(self) -> None:
 
-        plugin_models = entry_points(group="cyst_models")
+        plugin_models = entry_points(group="cyst.models")
         for s in plugin_models:
             model_description = s.load()
 
@@ -1166,7 +1172,7 @@ class _Environment(Environment, EnvironmentControl, EnvironmentMessaging, Enviro
 
     def _register_metadata_providers(self) -> None:
 
-        plugin_providers = entry_points(group="cyst_metadata_providers")
+        plugin_providers = entry_points(group="cyst.metadata_providers")
         for s in plugin_providers:
             provider_description = s.load()
 

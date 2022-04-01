@@ -1,12 +1,13 @@
 from abc import ABC, abstractmethod
 
 from cyst.api.environment.stores import ActionStore, ExploitStore
+from cyst.api.environment.stats import Statistics
 from cyst.api.environment.clock import Clock
 
 
 class EnvironmentResources(ABC):
     """
-    This interface provides an access to resources that can be used by services within the simulation.
+    This interface provides access to resources that can be used by services within the simulation.
     """
 
     @property
@@ -36,5 +37,15 @@ class EnvironmentResources(ABC):
         Clock provides a mean to track simulation and hybrid time.
 
         :rtype: Clock
+        """
+        pass
+
+    @property
+    @abstractmethod
+    def statistics(self) -> Statistics:
+        """
+        Statistics track basic information about the simulation runs.
+
+        :rtype: Statistics
         """
         pass

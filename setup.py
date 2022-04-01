@@ -11,7 +11,7 @@ long_description = (here / 'README.md').read_text(encoding='utf-8')
 
 setup(
     name='cyst-core',
-    version='0.3.2',
+    version='0.3.3',
     description='API and runtime of the CYST framework',
     long_description=long_description,
     long_description_content_type='text/markdown',
@@ -71,11 +71,11 @@ setup(
     # For example, the following would provide a command called `sample` which
     # executes the function `main` from this package when invoked:
     entry_points={
-        'cyst_models': [
+        'cyst.models': [
             'cyst=cyst_models.cyst.main:action_interpreter_description',
             'meta=cyst_models.meta.main:action_interpreter_description'
         ],
-        'cyst_services': [
+        'cyst.services': [
             'scripted_actor=cyst_services.scripted_actor.main:service_description'
         ]
     },
