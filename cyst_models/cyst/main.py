@@ -6,7 +6,7 @@ from cyst.api.environment.message import Request, Response, Status, StatusOrigin
 from cyst.api.environment.messaging import EnvironmentMessaging
 from cyst.api.environment.policy import EnvironmentPolicy
 from cyst.api.environment.resources import EnvironmentResources
-from cyst.api.logic.action import ActionDescription, ActionToken
+from cyst.api.logic.action import ActionDescription, ActionToken, ActionParameterType, ActionParameterDomain, ActionParameterDomainType, ActionParameter
 from cyst.api.network.node import Node
 
 
@@ -22,7 +22,8 @@ class CYSTModel(ActionInterpreter):
 
         self._action_store.add(ActionDescription("cyst:test:echo_success",
                                                  "A testing message that returns a SERVICE|SUCCESS",
-                                                 [],  # No parameters
+                                                 [ActionParameter(ActionParameterType.NONE, "punch_strength",
+                                                                  configuration.action.create_action_parameter_domain_options("weak", ["weak", "super strong"]))],
                                                  [(ActionToken.NONE, ActionToken.NONE)]))  # No tokens
 
         self._action_store.add(ActionDescription("cyst:test:echo_failure",
@@ -42,6 +43,11 @@ class CYSTModel(ActionInterpreter):
 
         self._action_store.add(ActionDescription("cyst:host:get_services",
                                                  "Get list of services on target node",
+                                                 [],  # No parameters
+                                                 [(ActionToken.NONE, ActionToken.NONE)]))  # No tokens
+
+        self._action_store.add(ActionDescription("cyst:compound:session_after_exploit",
+                                                 "Create a session after a successful application of an exploit",
                                                  [],  # No parameters
                                                  [(ActionToken.NONE, ActionToken.NONE)]))  # No tokens
 
@@ -81,9 +87,36 @@ class CYSTModel(ActionInterpreter):
     # ------------------------------------------------------------------------------------------------------------------
     # CYST:HOST
     def process_host_get_services(self, message: Request, node: Node) -> Tuple[int, Response]:
-        services = list(node.services.keys())
+        services = []
+        for service in node.services.values():
+            if service.passive_service:
+                services.append((service.name, service.passive_service.version))
         return 1, self._messaging.create_response(message, status=Status(StatusOrigin.SERVICE, StatusValue.ERROR),
                                                   session=message.session, auth=message.auth, content=services)
+
+    # ------------------------------------------------------------------------------------------------------------------
+    # CYST:COMPOUND
+    def process_compound_session_after_exploit(self, message: Request, node: Node) -> Tuple[int, Response]:
+        # TODO: Add check if exploit category and locality is ok
+        # Check if the service is running on the target
+        error = ""
+        if not message.dst_service:
+            error = "Service for session creation not specified"
+        # and that an exploit is provided
+        elif not message.action.exploit:
+            error = "Exploit not specified to ensure session creation"
+        # and it actually works
+        elif not self._exploit_store.evaluate_exploit(message.action.exploit, message, node):
+            error = f"Service {message.dst_service} not exploitable using the exploit {message.action.exploit.id}"
+
+        if error:
+            return 1, self._messaging.create_response(message, Status(StatusOrigin.NODE, StatusValue.ERROR), error,
+                                                      session=message.session)
+        else:
+            return 1, self._messaging.create_response(message, Status(StatusOrigin.SERVICE, StatusValue.SUCCESS),
+                                                      session=self._configuration.network.create_session_from_message(
+                                                          message),
+                                                      auth=message.auth)
 
 
 def create_cyst_model(configuration: EnvironmentConfiguration, resources: EnvironmentResources,
