@@ -11,11 +11,11 @@ long_description = (here / 'README.md').read_text(encoding='utf-8')
 
 setup(
     name='cyst-core',
-    version='0.3.3',
+    version='0.3.4',
     description='API and runtime of the CYST framework',
     long_description=long_description,
     long_description_content_type='text/markdown',
-    url='https://cyst.csirt.muni.cz/',
+    url='https://muni.cz/go/cyst/',
     author='Martin Drasar et al.',
     author_email='drasar@ics.muni.cz',
     classifiers=[
