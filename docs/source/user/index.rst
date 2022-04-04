@@ -260,6 +260,7 @@ To recap, this is the resulting code, which creates a machine with a specified s
     .. code-block:: python
         :linenos:
 
+        from cyst.api.environment.environment import Environment
         from cyst.api.configuration import NodeConfig, PassiveServiceConfig, AccessLevel, ExploitConfig, VulnerableServiceConfig
         from cyst.api.logic.exploit import ExploitLocality, ExploitCategory
 
@@ -325,7 +326,7 @@ Here is the router configuration:
     .. code-block:: python
         :linenos:
 
-        from netaddr import IPNetwork
+        from netaddr import IPNetwork, IPAddress
         from cyst.api.configuration import RouterConfig, InterfaceConfig
 
         router = RouterConfig(
@@ -403,7 +404,7 @@ The code is similar to the configuration of the target machine:
                     type="scripted_actor",
                     name="attacker",
                     owner="attacker",
-                    access_levelAccessLevel.LIMITED,
+                    access_level=AccessLevel.LIMITED,
                     id="attacker_service"
                 )
             ],
@@ -437,7 +438,7 @@ step happens only after the simulation environment is configured, as you need to
 
         from cyst_services.scripted_actor.main import ScriptedActorControl
 
-        e = Environment.create().configure(target, router, attacker, exploit1, connection1)
+        e = Environment.create().configure(target, router, attacker, exploit1, connection1, connection2)
 
         attacker_service = e.configuration.general.get_object_by_id("attacker_service", Service).active_service
         attacker_control = e.configuration.service.get_service_interface(attacker_service, ScriptedActorControl)
@@ -634,6 +635,8 @@ If you execute the code, you should see an output similar to this one.
         cyst:test:echo_error (A testing message that returns a SERVICE|ERROR)
         cyst:network:create_session (Create a session to a destination service)
         cyst:host:get_services (Get list of services on target node)
+        cyst:host:get_remote_services (Get list of services on target node)
+        cyst:host:get_local_services (Get list of services on target node)
 
 You will now use one those actions to probe the network. As you can see there is nothing like ping, or SYN scan, or any
 other real scanning technique. These are relegated to other behavioral models, e.g., `cyst-models-aif`. In this example,
@@ -649,7 +652,7 @@ Let's scan the first 16 addresses in the network and see what we get.
         for ip in IPNetwork("192.168.0.1/28").iter_hosts():
             attacker_control.execute_action(str(ip), "", action)
             e.control.run()
-            print(f"{ip}: {attacker_control.get_last_response().status})
+            print(f"{ip}: {attacker_control.get_last_response().status}")
 
 The control interface of scripted actor has two functions:
 
@@ -697,19 +700,19 @@ principle, however, routers generally ignore random messages going their way.
     .. code-block:: python
         :linenos:
 
-        action = actions["cyst:host:get_services"]
+        action = actions["cyst:host:get_remote_services"]
         attacker_control.execute_action("192.168.0.2", "", action)
         e.control.run()
         print(attacker_control.get_last_response().content)
 
-After you execute this, you should see the following:
+After you execute this, you should see the list of remotely accessible services:
 
     .. code-block:: console
 
-        [('bash', VersionInfo(major=8, minor=1, patch=0, prerelease=None, build=None)), ('lighttpd', VersionInfo(major=1, minor=4, patch=62, prerelease=None, build=None))]
+        [('lighttpd', VersionInfo(major=1, minor=4, patch=62, prerelease=None, build=None))]
 
 Let's pretend that you are the actual attacker and you don't know anything about the infrastructure and its setup and
-weaknesses. How would you find if any of these services are exploitable?
+weaknesses. How would you find if the service is exploitable?
 
     .. code-block:: python
         :linenos:
@@ -717,15 +720,16 @@ weaknesses. How would you find if any of these services are exploitable?
         services = attacker_control.get_last_response().content
 
         useful_exploits = []
-        for service_name in services.keys():
+        for service in services:
+            service_name = service[0]
+            service_version = service[1]
             potential_exploits = e.resources.exploit_store.get_exploit(service=service_name)
             for exp in potential_exploits:
-                current_version = services[service_name]
-                min_version = exp.services[service_name].min_version
-                max_version = exp.services[service_name].max_version
+                min_version = exp.services[service[0]].min_version
+                max_version = exp.services[service[0]].max_version
 
-                if min_version <= current_version <= max_version:
-                    useful_exploits.append((service_name, exp))
+                if min_version <= service_version <= max_version:
+                    useful_exploits.append((service[0], exp))
 
         for exploit in useful_exploits:
             service_name = exploit[0]
@@ -733,8 +737,242 @@ weaknesses. How would you find if any of these services are exploitable?
             print(f"Exploitable service: {service_name}, exploit category: {actual_exploit.category}, exploit locality: {actual_exploit.locality}")
 
 The gist of the code is that you take the services, which are present at the target (1) and look in the exploit store
-for eligible exploits (5). Version filtering is currently not implemented, so you have to do it yourself (7-11). As
-there may be multiple exploits for one service, you need to store them for later decision (12). The rest of the code
+for eligible exploits (7). Version filtering is currently not implemented, so you have to do it yourself (8-12). As
+there may be multiple exploits for one service, you need to store them for later decision (13). The rest of the code
 just presents them for your consumption.
 
 In this example there is only one exploit (and conveniently of the right type), so you're going to use it.
+
+  .. code-block:: python
+        :linenos:
+
+        action = actions["cyst:compound:session_after_exploit"]
+        action.set_exploit(useful_exploits[0][1])
+        attacker_control.execute_action("192.168.0.2", useful_exploits[0][0], action)
+        e.control.run()
+
+You are going to use one of the compound actions of the cyst namespace. This action is more similar to the actions that
+are going to be used in the real world, as it will only allow access to the target machine, if the exploit can be
+successfully applied.
+
+At line (2) you have to explicitly bind an exploit to the action. Aside from that, everything is very similar to what
+you have already done.
+
+Now comes the last step. Abusing the access to the target.
+
+  .. code-block:: python
+        :linenos:
+
+        from cyst.api.network.node import Node
+
+        session = attacker_control.get_last_response().session
+        action = e.resources.action_store.get("meta:inspect:node")
+        attacker_control.execute_action("192.168.0.2", "", action, session=session)
+        e.control.run()
+
+        node: Node = attacker_control.get_last_response().content
+        print(f"Services at the target: {node.services.keys()}, interfaces at the target: {node.ips}")
+
+The first important thing happens at line (3). CYST is using the concept of sessions to represent a connection between
+services. A session is a network tunnel, which can bypass routing limitations, which would prevent the source and
+destination to connect. The way this works is that these tunnels can be chained together, each one being a stepping
+stone for the next in line (see :class:`cyst.api.network.session.Session` for details). Both the terminology and the
+function is akin to sessions in Metasploit. When you have a session, you have a remote access to a target machine. And
+your previous action gave you one.
+
+With the session, you no longer need to rely on remotely executed actions and you can actually start doing stuff
+locally at the target. So, the action you use (4) is an action that is from the `meta` namespace. Meta namespace is
+a bit different than cyst namespace, as it contains actions to support other actions. Its purpose is to ease the
+burden of implementation of behavioral models, by providing some common functionality. That concrete action provides
+you with the information about a node you have the access to. To make it easy for later processing, it returns a
+read-only node interface (see :class:`cyst.api.network.node`), which you can use to get information about all services
+and network interfaces (9). This is also an action you would use with your attacking service to find out information
+about the node you are at.
+
+If this was a real or more complicated scenario, you would probably attempt to abuse some local service to get elevated
+privileges, steal some data, move to another machine, etc. But it is already getting rather long and complicated, so
+this part of the guide ends here and other topics will be covered in other sections.
+
+Here is the complete code:
+
+  .. code-block:: python
+        :linenos:
+
+        from netaddr import IPNetwork, IPAddress
+
+        from cyst.api.configuration import NodeConfig, PassiveServiceConfig, AccessLevel, ExploitConfig, VulnerableServiceConfig, \
+            ActiveServiceConfig, RouterConfig, InterfaceConfig, ConnectionConfig
+        from cyst.api.environment.environment import Environment
+        from cyst.api.host.service import Service
+        from cyst.api.logic.exploit import ExploitLocality, ExploitCategory
+        from cyst.api.network.node import Node
+
+        from cyst_services.scripted_actor.main import ScriptedActorControl
+
+
+        target = NodeConfig(
+            active_services=[],
+            passive_services=[
+                PassiveServiceConfig(
+                    type="bash",
+                    owner="root",
+                    version="8.1.0",
+                    access_level=AccessLevel.LIMITED,
+                    local=True,
+                    id="bash_service"
+                ),
+                PassiveServiceConfig(
+                    type="lighttpd",
+                    owner="www",
+                    version="1.4.62",
+                    access_level=AccessLevel.LIMITED,
+                    local=False,
+                    id="web_server"
+                )
+            ],
+            shell="bash_service",
+            interfaces=[],
+            id="target"
+        )
+
+        attacker = NodeConfig(
+            active_services=[
+                ActiveServiceConfig(
+                    type="scripted_actor",
+                    name="attacker",
+                    owner="attacker",
+                    access_level=AccessLevel.LIMITED,
+                    id="attacker_service"
+                )
+            ],
+            passive_services=[],
+            interfaces=[],
+            shell="",
+            id="attacker"
+        )
+
+        router = RouterConfig(
+            interfaces=[
+                InterfaceConfig(
+                    ip=IPAddress("192.168.0.1"),
+                    net=IPNetwork("192.168.0.1/24"),
+                    index=0
+                ),
+                InterfaceConfig(
+                    ip=IPAddress("192.168.0.1"),
+                    net=IPNetwork("192.168.0.1/24"),
+                    index=1
+                )
+            ],
+            id="router"
+        )
+
+        exploit1 = ExploitConfig(
+            services=[
+                VulnerableServiceConfig(
+                    name="lighttpd",
+                    min_version="1.4.62",
+                    max_version="1.4.62"
+                )
+            ],
+            locality=ExploitLocality.REMOTE,
+            category=ExploitCategory.CODE_EXECUTION,
+            id="http_exploit"
+        )
+
+        connection1 = ConnectionConfig(
+            src_id="target",
+            src_port=-1,
+            dst_id="router",
+            dst_port=0
+        )
+
+        connection2 = ConnectionConfig(
+            src_id="attacker",
+            src_port=-1,
+            dst_id="router",
+            dst_port=1
+        )
+
+        e = Environment.create().configure(target, attacker, router, exploit1, connection1, connection2)
+
+        attacker_service = e.configuration.general.get_object_by_id("attacker_service", Service).active_service
+        attacker_control = e.configuration.service.get_service_interface(attacker_service, ScriptedActorControl)
+
+        e.control.add_pause_on_response("attacker.attacker")
+        e.control.init()
+
+        # Store the actions
+        actions = {}
+        for action in e.resources.action_store.get_prefixed("cyst"):
+            actions[action.id] = action
+
+        # Display available actions
+        for action in actions.values():
+            print(f"{action.id} ({action.description})")
+
+        # Scan the network for usable targets
+        action = actions["cyst:test:echo_success"]
+        for ip in IPNetwork("192.168.0.1/28").iter_hosts():
+            attacker_control.execute_action(str(ip), "", action)
+            e.control.run()
+            print(f"{ip}: {attacker_control.get_last_response().status}")
+
+        # Look for exploitable services at the target
+        action = actions["cyst:host:get_remote_services"]
+        attacker_control.execute_action("192.168.0.2", "", action)
+        e.control.run()
+
+        services = attacker_control.get_last_response().content
+
+        useful_exploits = []
+        for service in services:
+            service_name = service[0]
+            service_version = service[1]
+            potential_exploits = e.resources.exploit_store.get_exploit(service=service_name)
+            for exp in potential_exploits:
+                min_version = exp.services[service[0]].min_version
+                max_version = exp.services[service[0]].max_version
+
+                if min_version <= service_version <= max_version:
+                    useful_exploits.append((service[0], exp))
+
+        for exploit in useful_exploits:
+            service_name = exploit[0]
+            actual_exploit = exploit[1]
+            print(f"Exploitable service: {service_name}, exploit category: {actual_exploit.category}, exploit locality: {actual_exploit.locality}")
+
+        # Use the exploit to get access to the target machine
+        action = actions["cyst:compound:session_after_exploit"]
+        action.set_exploit(useful_exploits[0][1])
+        attacker_control.execute_action("192.168.0.2", useful_exploits[0][0], action)
+        e.control.run()
+
+        # With the access get information about the target
+        session = attacker_control.get_last_response().session
+        action = e.resources.action_store.get("meta:inspect:node")
+        attacker_control.execute_action("192.168.0.2", "", action, session=session)
+        e.control.run()
+
+        node: Node = attacker_control.get_last_response().content
+        print(f"Services at the target: {node.services.keys()}, interfaces at the target: {node.ips}")
+
+        e.control.commit()
+
+        stats = e.resources.statistics
+        print(f"Run id: {stats.run_id}\nStart time real: {stats.start_time_real}\n"
+              f"End time real: {stats.end_time_real}\nDuration virtual: {stats.end_time_virtual}")
+
+
+Coming up next
+--------------
+Writing documentation is a tedious and boring process, however, we are working really hard to document as much as
+possible in the shortest possible time. Here are some topics, that will be covered soon:
+
+        - Enriching the messages with metadata.
+        - Creating a defensive service.
+        - Communication between agents.
+        - Partitioning the network.
+        - Visualizing what's going on.
+        - Stuffing everything into a docker.
+        - Running GPU-backed parallel simulations.
