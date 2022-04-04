@@ -46,6 +46,16 @@ class CYSTModel(ActionInterpreter):
                                                  [],  # No parameters
                                                  [(ActionToken.NONE, ActionToken.NONE)]))  # No tokens
 
+        self._action_store.add(ActionDescription("cyst:host:get_remote_services",
+                                                 "Get list of services on target node",
+                                                 [],  # No parameters
+                                                 [(ActionToken.NONE, ActionToken.NONE)]))  # No tokens
+
+        self._action_store.add(ActionDescription("cyst:host:get_local_services",
+                                                 "Get list of services on target node",
+                                                 [],  # No parameters
+                                                 [(ActionToken.NONE, ActionToken.NONE)]))  # No tokens
+
         self._action_store.add(ActionDescription("cyst:compound:session_after_exploit",
                                                  "Create a session after a successful application of an exploit",
                                                  [],  # No parameters
@@ -91,7 +101,23 @@ class CYSTModel(ActionInterpreter):
         for service in node.services.values():
             if service.passive_service:
                 services.append((service.name, service.passive_service.version))
-        return 1, self._messaging.create_response(message, status=Status(StatusOrigin.SERVICE, StatusValue.ERROR),
+        return 1, self._messaging.create_response(message, status=Status(StatusOrigin.SERVICE, StatusValue.SUCCESS),
+                                                  session=message.session, auth=message.auth, content=services)
+
+    def process_host_get_remote_services(self, message: Request, node: Node) -> Tuple[int, Response]:
+        services = []
+        for service in node.services.values():
+            if service.passive_service and not service.passive_service.local:
+                services.append((service.name, service.passive_service.version))
+        return 1, self._messaging.create_response(message, status=Status(StatusOrigin.SERVICE, StatusValue.SUCCESS),
+                                                  session=message.session, auth=message.auth, content=services)
+
+    def process_host_get_local_services(self, message: Request, node: Node) -> Tuple[int, Response]:
+        services = []
+        for service in node.services.values():
+            if service.passive_service and service.passive_service.local:
+                services.append((service.name, service.passive_service.version))
+        return 1, self._messaging.create_response(message, status=Status(StatusOrigin.SERVICE, StatusValue.SUCCESS),
                                                   session=message.session, auth=message.auth, content=services)
 
     # ------------------------------------------------------------------------------------------------------------------
