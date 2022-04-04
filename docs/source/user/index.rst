@@ -61,7 +61,7 @@ straightforward.
 
         .. code-block:: console
 
-            (venv) ...\my_awesome_project> pip install -i https://test.pypi.org/simple/ --extra-index-url=https://pypi.org/simple cyst
+            (venv) ...\my_awesome_project> pip install cyst
 
     .. tab:: Linux shell
 
@@ -78,7 +78,7 @@ straightforward.
 
         .. code-block:: console
 
-            (venv) .../my_awesome_project$ pip install -i https://test.pypi.org/simple/ --extra-index-url=https://pypi.org/simple cyst
+            (venv) .../my_awesome_project$ pip install cyst
 
 Running the first do-nothing code
 ---------------------------------
