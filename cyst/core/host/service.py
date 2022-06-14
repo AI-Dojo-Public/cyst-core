@@ -2,7 +2,7 @@ from semver import VersionInfo
 from typing import List, Set, Union, Tuple
 
 import cyst
-from cyst.api.host.service import Service, ActiveService, PassiveService
+from cyst.api.host.service import Service, ActiveService, PassiveService, ServiceState
 from cyst.api.logic.access import AccessLevel, Authorization, AuthenticationProvider, AccessScheme
 from cyst.api.logic.data import Data
 from cyst.api.network.node import Node
@@ -81,6 +81,7 @@ class PassiveServiceImpl(ServiceImpl, PassiveService):
         super(PassiveServiceImpl, self).__init__(id, self, id, owner, service_access_level)
 
         self._version = VersionInfo.parse(version)
+        self._state = ServiceState.INIT
         self._public_data = []
         self._private_data = []
         self._public_authorizations = []
@@ -102,6 +103,13 @@ class PassiveServiceImpl(ServiceImpl, PassiveService):
     @version.setter
     def version(self, value: str) -> None:
         self._version = VersionInfo.parse(value)
+
+    @property
+    def state(self) -> ServiceState:
+        return self._state
+
+    def set_state(self, value: ServiceState) -> None:
+        self._state = value
 
     @property
     def tags(self):

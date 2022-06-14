@@ -1,5 +1,6 @@
 from abc import ABC, abstractmethod
 from dataclasses import dataclass
+from enum import IntEnum
 from semver import VersionInfo
 from typing import Set, Tuple, Callable, Dict, Any, Optional
 
@@ -128,6 +129,22 @@ class ActiveServiceDescription:
                            Optional[Dict[str, Any]]], ActiveService]
 
 
+class ServiceState(IntEnum):
+    """
+    Service state represents the state of a service.
+
+    Possible values:
+        :INIT: A state that used when service is created and before environment was started.
+        :RUNNING: A default state that is set when the environment has started.
+        :PAUSED: A state in which service can't be accessed, but can be reactivated.
+        :ZOMBIE: A state in which service can't be accessed and can't be reactivated.
+    """
+    INIT = 0
+    RUNNING = 1
+    PAUSED = 2
+    ZOMBIE = 3
+
+
 class PassiveService(Service, ABC):
     """
     Passive service is used to model an arbitrary service running on a node, which only passively reacts to the actions
@@ -141,6 +158,16 @@ class PassiveService(Service, ABC):
         The version of the service.
 
         :rtype: VersionInfo
+        """
+        pass
+
+    @property
+    @abstractmethod
+    def state(self) -> ServiceState:
+        """
+        The state of the service.
+
+        :rtype: ServiceState
         """
         pass
 
