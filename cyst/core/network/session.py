@@ -15,6 +15,8 @@ class SessionImpl(Session):
     def __init__(self, owner: str, parent: Optional[Session] = None, path: Optional[List[Hop]] = None,
                  src_service: str = "", dst_service: str = "", resolver: Optional[Resolver] = None) -> None:
         self._id = uuid.uuid4()
+        self._enabled = True
+
         # TODO Remove owners. They don't work and the are not needed
         if not owner:
             raise Exception("Cannot create a session without an owner")
@@ -150,6 +152,16 @@ class SessionImpl(Session):
             return self._parent.start
         else:
             return self._path[0].src.ip, self._src_service
+
+    @property
+    def enabled(self) -> bool:
+        return self._enabled
+
+    def disable(self) -> None:
+        self._enabled = False
+
+    def enable(self) -> None:
+        self._enabled = True
 
     def terminates_at(self, node: Node) -> bool:
         end_ip = self.end
