@@ -85,6 +85,9 @@ class MessageImpl(Message):
     def dst_ip(self) -> Optional[IPAddress]:
         return self._dst_ip
 
+    def set_dst_ip(self, value: IPAddress) -> None:
+        self._dst_ip = value
+
     @property
     def sent(self) -> bool:
         return self._sent
@@ -107,7 +110,6 @@ class MessageImpl(Message):
     @property
     def next_hop(self) -> Optional[Endpoint]:
         return self._next_hop
-
 
     # Next hop can be explicitly set by a switch, or can be taken from an active session
     def set_next_hop(self, origin_endpoint: Endpoint = None, destination_endpoint: Endpoint = None) -> None:
@@ -192,6 +194,10 @@ class MessageImpl(Message):
     @property
     def dst_service(self):
         return self._dst_service
+
+    @dst_service.setter
+    def dst_service(self, value: str) -> None:
+        self._dst_service = value
 
     @property
     def ttl(self):
