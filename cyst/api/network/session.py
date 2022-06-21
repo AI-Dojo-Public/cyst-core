@@ -73,3 +73,13 @@ class Session(ABC):
         :rtype: Tuple[IPAddress, str]
         """
         pass
+
+    @property
+    @abstractmethod
+    def enabled(self) -> bool:
+        """
+        Returns whether the session is enabled. Messages can't be send in disabled sessions.
+
+        :rtype: bool
+        """
+        pass
