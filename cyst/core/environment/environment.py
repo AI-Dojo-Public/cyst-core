@@ -43,7 +43,7 @@ from cyst.api.logic.exploit import VulnerableService, ExploitParameter, ExploitP
     ExploitCategory, Exploit
 from cyst.api.network.session import Session
 from cyst.api.network.firewall import FirewallRule, FirewallPolicy
-from cyst.api.host.service import Service, PassiveService, ActiveService
+from cyst.api.host.service import Service, PassiveService, ActiveService, ServiceState
 from cyst.api.configuration.configuration import ConfigItem
 
 from cyst.core.environment.configuration import Configuration, RuntimeConfiguration
@@ -366,6 +366,17 @@ class _Environment(Environment, EnvironmentControl, EnvironmentMessaging, Enviro
                 for s in n.services.values():
                     if isinstance(s, ServiceImpl) and not s.passive:
                         s.active_service.run()
+
+                    # start all passive services
+                    if isinstance(s, ServiceImpl) and s.passive:
+                        PassiveServiceImpl.cast_from(s.passive_service).set_state(ServiceState.RUNNING)
+                for s in n.traffic_processors:
+                    s.run()
+
+            # on routers, call only traffic processors
+            for n in self._network.get_nodes_by_type("Router"):
+                for s in n.traffic_processors:
+                    s.run()
 
         # Run
         self._state = EnvironmentState.RUNNING
