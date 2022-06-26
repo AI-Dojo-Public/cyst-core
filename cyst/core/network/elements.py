@@ -72,14 +72,16 @@ class PortImpl(Port):
         self._index: int = index
         self._endpoint: Optional[Endpoint] = None
 
-        if ip:
+        # Had to use more inelegant check, because IP 0.0.0.0 translates to false
+        if ip is not None and ip != "":
             if type(ip) is str:
                 self._ip = IPAddress(ip)
             else:
                 self._ip = ip
 
         if mask:
-            if not ip:
+            # Had to use more inelegant check, because IP 0.0.0.0 translates to false
+            if ip is None or ip == "":
                 raise Exception("Netmask cannot be specified without an IP address")
             if type(ip) is str:
                 self._net = IPNetwork(ip + "/" + mask)
