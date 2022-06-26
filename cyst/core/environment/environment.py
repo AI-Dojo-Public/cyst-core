@@ -1109,11 +1109,17 @@ class _Environment(Environment, EnvironmentControl, EnvironmentMessaging, Enviro
                 if message_type == "response":
                     return
 
-                processing_time, response = self._process_passive(message, current_node)
-                if response.status.origin == StatusOrigin.SYSTEM and response.status.value == StatusValue.ERROR:
-                    print("Could not process the request, unknown semantics.")
-                else:
+                if current_node.services[message.dst_service].passive_service.state != ServiceState.RUNNING:
+                    response = ResponseImpl(message, Status(StatusOrigin.NODE, StatusValue.ERROR),
+                                            "Service {} at node {} is not running".format(message.dst_service, message.dst_ip),
+                                            session=message.session, auth=message.auth)
                     self.send_message(response, processing_time)
+                else:
+                    processing_time, response = self._process_passive(message, current_node)
+                    if response.status.origin == StatusOrigin.SYSTEM and response.status.value == StatusValue.ERROR:
+                        print("Could not process the request, unknown semantics.")
+                    else:
+                        self.send_message(response, processing_time)
 
             # Service exists and it is active
             else:
