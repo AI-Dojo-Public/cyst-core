@@ -1032,6 +1032,21 @@ class AccessConfiguration(ABC):
         pass
 
     @abstractmethod
+    def unregister_authentication_token(self, token_identity: str, provider: AuthenticationProvider) -> None:
+        """
+        Unregisters authentication token from given provider based on given token identity.
+
+        :param token_identity: An identity for token to be unregistered from provider.
+        :type token_identity: str
+
+        :param provider: An authentication provider to unregister token from.
+        :type provider: AuthenticationProvider
+
+        :return: None
+        """
+        pass
+
+    @abstractmethod
     def create_and_register_authentication_token(self, provider: AuthenticationProvider, identity: str) -> Optional[AuthenticationToken]:
         """
         A convenience function that combines the effects of create_authentication_token() and
@@ -1120,6 +1135,20 @@ class AccessConfiguration(ABC):
         pass
 
     @abstractmethod
+    def remove_authorization_from_scheme(self, auth: Authorization, scheme: AccessScheme) -> None:
+        """
+        Removes given authorization from given scheme by setting its access level to AccessLevel.NONE
+
+        :param auth: An authorization to be removed from scheme.
+        :type auth: Authorization
+
+        :param scheme: A scheme.
+        :type scheme: AccessScheme
+
+        :return: None
+        """
+
+    @abstractmethod
     def evaluate_token_for_service(self, service: Service, token: AuthenticationToken, node: Node,
                                    fallback_ip: Optional[IPAddress])\
             -> Optional[Union[Authorization, AuthenticationTarget]]:
@@ -1148,3 +1177,35 @@ class AccessConfiguration(ABC):
         """
         pass
 
+    @abstractmethod
+    def disable_authentication_token(self, provider: AuthenticationProvider, token: AuthenticationToken, time: int) -> None:
+        """
+        Disables given token until given simulation time.
+
+        :param provider: An authentication provider that contains token to be disabled.
+        :type provider: AuthenticationProvider
+
+        :param token: An authentication token to be disabled.
+        :type token: AuthenticationToken
+
+        :param time: Simulation time
+        :type time: int
+
+        :return: None
+        """
+        pass
+
+    @abstractmethod
+    def enable_authentication_token(self, provider: AuthenticationProvider, token: AuthenticationToken) -> None:
+        """
+        Enables given token.
+
+        :param provider: An authentication provider that contains token to be enabled.
+        :type provider: AuthenticationProvider
+
+        :param token: An authentication token to be enabled.
+        :type token: AuthenticationToken
+
+        :return: None
+        """
+        pass

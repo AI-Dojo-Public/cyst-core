@@ -738,7 +738,8 @@ class _Environment(Environment, EnvironmentControl, EnvironmentMessaging, Enviro
             -> Optional[Union[Authorization, AuthenticationTarget]]:
 
         for i in range(0, len(scheme.factors)):
-            if scheme.factors[i][0].token_is_registered(token):
+            if scheme.factors[i][0].token_is_registered(token) and \
+                    scheme.factors[i][0].is_token_valid(token, self.clock.simulation_time()):
                 if i == len(scheme.factors) - 1:
                     return next(filter(lambda auth: auth.identity == token.identity, scheme.authorizations), None)
                 else:
@@ -778,6 +779,18 @@ class _Environment(Environment, EnvironmentControl, EnvironmentMessaging, Enviro
                     service.add_active_authorization(ret_auth)  # TODO: check if this can go to public/private auths
                 return ret_auth
         return None
+
+    def unregister_authentication_token(self, token_identity: str, provider: AuthenticationProvider) -> None:
+        provider.remove_token_by_identity(token_identity)
+
+    def disable_authentication_token(self, provider: AuthenticationProvider, token: AuthenticationToken, time: int) -> None:
+        provider.disable_token(token, time)
+
+    def enable_authentication_token(self, provider: AuthenticationProvider, token: AuthenticationToken) -> None:
+        provider.enable_token(token)
+
+    def remove_authorization_from_scheme(self, auth: Authorization, scheme: AccessScheme) -> None:
+        scheme.remove_authorization(auth)
 
     # ------------------------------------------------------------------------------------------------------------------
     # Action configuration

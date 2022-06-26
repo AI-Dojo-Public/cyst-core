@@ -159,7 +159,7 @@ class AuthenticationProcessTestSSH(unittest.TestCase):
                                                                   AuthenticationProvider)
         token = None
         if isinstance(provider, AuthenticationProviderImpl):
-            token = next(iter(provider._tokens))
+            token = next(iter(provider._tokens)).token
 
         assert None not in [node, service, provider, token]
 
@@ -206,7 +206,9 @@ class AuthenticationProcessTestCustomService(unittest.TestCase):
                                                                   AuthenticationProvider)
         token = None
         if isinstance(provider, AuthenticationProviderImpl):
-            token = next(iter(provider._tokens))
+            # TODO: It is confusing that with the change that lead to stte tracking of tokens the name remained _tokens
+            #       It should be token states to prevent confusion and accidental errors.
+            token = next(iter(provider._tokens)).token
 
         assert None not in [node, service, provider, token]
 

@@ -1,5 +1,6 @@
 
 import uuid
+from abc import ABC
 
 from typing import List, Tuple, Optional
 from netaddr import IPAddress
@@ -219,6 +220,10 @@ class AccessSchemeImpl(AccessScheme):
     def add_authorization(self, auth: Authorization):
         self._authorizations.append(auth)
 
+    def remove_authorization(self, auth: Authorization):
+        # removing authorization means setting access level to NONE
+        auth.access_level = AccessLevel.NONE
+
     @property
     def factors(self) -> List[Tuple[AuthenticationProvider, int]]:
         return self._providers
@@ -241,6 +246,34 @@ class AccessSchemeImpl(AccessScheme):
 
 
 class AuthenticationProviderImpl(AuthenticationProvider):
+
+    class AuthenticationTokenState(ABC):
+        def __init__(self, token: AuthenticationToken):
+            self._token = token
+            self._enabled = True
+            self._disabled_until = 0
+
+        @property
+        def token(self) -> AuthenticationToken:
+            return self._token
+
+        @property
+        def enabled(self) -> bool:
+            return self._enabled
+
+        def enable_token(self) -> None:
+            self._enabled = True
+            self._disabled_until = 0
+
+        def disable_token(self, time: int) -> None:
+            self._enabled = False
+            self._disabled_until = time
+
+        def is_token_valid(self, time: int) -> bool:
+            if self._disabled_until < time:
+                # if _disabled_until expired, token is active at the time 'time', therefore enable token
+                self.enable_token()
+            return self._enabled
 
     def __init__(self, provider_type: AuthenticationProviderType, token_type: AuthenticationTokenType,
                  security: AuthenticationTokenSecurity, ip: Optional[IPAddress], timeout: int):
@@ -274,14 +307,41 @@ class AuthenticationProviderImpl(AuthenticationProvider):
         return self._security
 
     def token_is_registered(self, token: AuthenticationToken):
-        for t in self._tokens:
-            if t.identity == token.identity and token.content is not None:
+        for token_state in set(self._tokens):
+            if token_state.token.identity == token.identity and token.content is not None:
                 # This is pretty weak but until encrypted/hashed stuff is implemented its okay for testing
                 return True
         return False
 
     def add_token(self, token: AuthenticationToken):
-        self._tokens.add(token)
+        self._tokens.add(self.AuthenticationTokenState(token))
+
+    def disable_token(self, token: AuthenticationToken, time: int):
+        for token_state in set(self._tokens):
+            if token_state.token == token:
+                token_state.disable_token(time)
+
+    def enable_token(self, token: AuthenticationToken):
+        for token_state in set(self._tokens):
+            if token_state.token == token:
+                token_state.enable_token()
+
+    def is_token_valid(self, token: AuthenticationToken, time: int) -> bool:
+        for token_state in set(self._tokens):
+            # TODO: the token is matched only by identity on the premise that one authentication factor has only one
+            #       auth token for identity. Evaluate if this is really true or not
+            if token_state.token.identity == token.identity:
+                return token_state.is_token_valid(time)
+
+    def remove_token_by_identity(self, identity: str):
+        for token_state in set(self._tokens):
+            if token_state.token.identity == identity:
+                self._tokens.remove(token_state)
+
+    def get_token_by_identity(self, identity: str):
+        for token_state in set(self._tokens):
+            if token_state.token.identity == identity:
+                return token_state.token
 
     def _create_target(self):
         # TODO: inherit from provider? or should we do something else?
