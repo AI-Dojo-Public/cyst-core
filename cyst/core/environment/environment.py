@@ -671,7 +671,12 @@ class _Environment(Environment, EnvironmentControl, EnvironmentMessaging, Enviro
         original = SessionImpl.cast_from(original_session)
         appended = SessionImpl.cast_from(appended_session)
 
-        return SessionImpl(appended.owner, original, appended.path_id)
+        node = self._network.get_node_by_id(appended.startpoint.id)
+        session = SessionImpl(appended.owner, original, appended.path_id)
+
+        ServiceImpl.cast_from(node.services[original.start[1]]).add_session(session)
+
+        return session
 
     # ------------------------------------------------------------------------------------------------------------------
     # Exploit configuration
