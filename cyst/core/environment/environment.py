@@ -225,7 +225,7 @@ class _Environment(Environment, EnvironmentControl, EnvironmentMessaging, Enviro
             # New request with session should follow the session first
             # Response should either follow newly established session, or route to session endpoint
             # TODO rearrange it to reflect changes in response set_next_hop handling
-            if message.type == MessageType.REQUEST and message.session:
+            if message.type == MessageType.REQUEST and message.session and message.session.enabled:
                 message.set_next_hop()
                 # Not a pretty thing, but I am not sure how to make it better
                 # it = SessionImpl.cast_from(message.session).forward_iterator
@@ -236,7 +236,8 @@ class _Environment(Environment, EnvironmentControl, EnvironmentMessaging, Enviro
                 # If this works it is a proof that the entire routing must be reviewed
                 message.set_src_ip(message.path[0].src.ip)
             elif message.type == MessageType.RESPONSE:
-                if message.session and message.current == SessionImpl.cast_from(message.session).endpoint:
+                if message.session and message.current == SessionImpl.cast_from(message.session).endpoint\
+                        and message.session.enabled:
                     # This is stupid, but it complains...
                     if isinstance(message, ResponseImpl):
                         message.set_in_session(True)
@@ -254,7 +255,10 @@ class _Environment(Environment, EnvironmentControl, EnvironmentMessaging, Enviro
                 else:
                     gateway, port = source.gateway(target)
                     if not gateway:
-                        raise Exception("Could not send a message, no gateway to route it through.")
+                        if message.session and not message.session.enabled:
+                            raise Exception("Could not send a message, session is disabled.")
+                        else:
+                            raise Exception("Could not send a message, no gateway to route it through.")
 
                     iface = InterfaceImpl.cast_from(source.interfaces[port])
                     message.set_src_ip(iface.ip)
