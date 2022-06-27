@@ -285,6 +285,21 @@ class NodeConfiguration(ABC):
         pass
 
     @abstractmethod
+    def remove_service(self, node: Node, *service: Service) -> None:
+        """
+        Remove a service from the node.
+
+        :param node: An instance of a node to remove the service from.
+        :type node: Node
+
+        :param sertice: One or more service instances to remove.
+        :type service: Service
+
+        :return: None
+        """
+        pass
+
+    @abstractmethod
     def set_shell(self, node: Node, service: Service) -> None:
         """
         Set given service as a shell. Unlike the method add_service, set_shell does not produce undefined results, when

@@ -500,6 +500,12 @@ class _Environment(Environment, EnvironmentControl, EnvironmentMessaging, Enviro
         for srv in service:
             node.add_service(ServiceImpl.cast_from(srv))
 
+    def remove_service(self, node: Node, *service: Service) -> None:
+        node = NodeImpl.cast_from(node)
+
+        for srv in service:
+            node.remove_service(ServiceImpl.cast_from(srv))
+
     def add_traffic_processor(self, node: Node, processor: ActiveService) -> None:
         node = NodeImpl.cast_from(node)
 
