@@ -997,7 +997,11 @@ class _Environment(Environment, EnvironmentControl, EnvironmentMessaging, Enviro
 
         processing_time = 0
 
-        if current_node.type == "Router":
+        # HACK: Because we want to enable actions to be able to target routers, we need to bypass the router processing
+        #       if the message is at the end of its journey
+        last_hop = message.dst_ip in current_node.ips
+
+        if not last_hop and current_node.type == "Router":
             result, processing_time = current_node.process_message(message)
             if result:
                 heappush(self._tasks, (self._time + processing_time, message))

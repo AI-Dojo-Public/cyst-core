@@ -14,6 +14,11 @@ from cyst.core.network.node import NodeImpl
 from cyst.core.network.elements import PortImpl, InterfaceImpl, Endpoint, Resolver
 from cyst.core.network.firewall import FirewallImpl
 
+# TODO: The following is needed to automatically create a passive service representing the router itself for the purpose
+#       of exploitation. This ought to be changed in the near future by transforming the router into traffic processor.
+from cyst.api.logic.access import AccessLevel
+from cyst.core.host.service import PassiveServiceImpl
+
 
 class Router(NodeImpl):
 
@@ -31,6 +36,11 @@ class Router(NodeImpl):
 
         # set a firewall, which controls routing policy
         self._fw = FirewallImpl(env)
+
+        # create and add a passive service representing a router itself
+        # WARNING: No access policy is created, so the only way to abuse this service is to perform an exploitation
+        service = PassiveServiceImpl("router", "router", "1.2.3", False, AccessLevel.LIMITED)
+        self.add_service(service)
 
     @property
     def interfaces(self) -> List[PortImpl]:
@@ -206,7 +216,7 @@ class Router(NodeImpl):
                 message.set_next_hop(Endpoint(self.id, port, self._ports[port].ip), self._ports[port].endpoint)
                 return True, 1
 
-        # Unless the request vanished from cache - then we have to try to to deliver it the old-fashioned way
+        # Unless the request vanished from cache - then we have to try to deliver it the old-fashioned way
 
         # Check for messages running around in circles
         if message.type == MessageType.REQUEST:
