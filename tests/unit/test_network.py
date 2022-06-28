@@ -537,7 +537,7 @@ class TestSessions(unittest.TestCase):
         env.control.run()
 
         response = attacker.get_last_response()
-        self.assertEqual(response.content, ["ssh", "bash"])
+        self.assertEqual([item[0] for item in response.content], ["ssh", "bash"])
 
 
 class TestRouting(unittest.TestCase):
