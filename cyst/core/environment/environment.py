@@ -269,7 +269,7 @@ class _Environment(Environment, EnvironmentControl, EnvironmentMessaging, Enviro
         if isinstance(message, Request):
             action = message.action
 
-            if action.namespace in self._metadata_providers:
+            if self._metadata_providers and action.namespace in self._metadata_providers:
                 provider = self._metadata_providers[action.namespace]
                 if provider:
                     metadata = provider.get_metadata(action)
