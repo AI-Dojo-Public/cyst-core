@@ -65,7 +65,9 @@ from cyst.core.network.network import Network
 from cyst.core.network.node import NodeImpl
 from cyst.core.network.router import Router
 from cyst.core.network.session import SessionImpl
+
 from cyst.api.utils.counter import Counter
+from cyst.api.utils.log import get_logger
 
 
 # Environment is unlike other core implementation given an underscore-prefixed name to let python complain about
@@ -112,6 +114,9 @@ class _Environment(Environment, EnvironmentControl, EnvironmentMessaging, Enviro
         self._data_store = DataStore(self._runtime_configuration.data_backend, self._runtime_configuration.data_backend_params)
 
         self._statistics = StatisticsImpl()
+
+        # Logs
+        self._message_log = get_logger("messaging")
 
     # Runtime parameters can be passed via command-line, configuration file, or through environment variables
     # In case of multiple definitions of one parameter, the order is, from the most important to least:
@@ -287,11 +292,11 @@ class _Environment(Environment, EnvironmentControl, EnvironmentMessaging, Enviro
         try:
             heappush(self._tasks, (self._time + delay, message))
         except Exception as e:
-            print("Error sending a message, reason: {}".format(e))
+            self._message_log.error(f"Error sending a message, reason: {e}")
 
         message.sent = True
 
-        print("Sending a message: " + str(message))
+        self._message_log.debug(f"Sending a message: {str(message)}")
 
         if message.origin.id in self._pause_on_request:
             self._pause = True
@@ -1041,13 +1046,12 @@ class _Environment(Environment, EnvironmentControl, EnvironmentMessaging, Enviro
                     message.set_next_hop(Endpoint(current_node.id, port, current_node.interfaces[port].ip),
                                          Endpoint(dest_node_endpoint.id, dest_node_endpoint.port, dest_node_ip))
                     # ##################
-                    print("Proxying {} to {} via {} on a node {}".format(message_type, message.dst_ip,
-                                                                         message.next_hop.id, current_node.id))
+                    self._message_log.debug(f"Proxying {message_type} to {message.dst_ip} via {message.next_hop.id} on a node {current_node.id}")
                     heappush(self._tasks, (self._time + processing_time, message))
                     return
 
         # Message has to be processed locally
-        print("Processing {} on a node {}. {}".format(message_type, current_node.id, message))
+        self._message_log.debug(f"Processing {message_type} on a node {current_node.id}. {message}")
 
         # Before a message reaches to services within, it is evaluated by all traffic processors
         # While they are returning true, everything is ok. Once they return false, the message processing stops

@@ -8,6 +8,7 @@ from cyst.api.environment.message import Request, Response, MessageType, Message
 from cyst.api.environment.resources import EnvironmentResources
 from cyst.api.network.session import Session
 from cyst.api.host.service import ActiveService, ActiveServiceDescription, Service
+from cyst.api.utils.log import get_logger
 
 
 class ScriptedActorControl(ABC):
@@ -25,10 +26,11 @@ class ScriptedActor(ActiveService, ScriptedActorControl):
     def __init__(self, env: EnvironmentMessaging = None, res: EnvironmentResources = None, args: Optional[Dict[str, Any]] = None) -> None:
         self._env = env
         self._responses = []
+        self._log = get_logger("services.scripted_actor")
 
     # This Actor only runs given actions. No own initiative
     def run(self):
-        print("Launched a scripted Actor")
+        self._log.info("Launched a scripted Actor")
 
     def execute_action(self, target: str, service: str, action: Action, session: Session = None,
                        auth: Optional[Union[Authorization, AuthenticationToken]] = None) -> None:
@@ -36,7 +38,7 @@ class ScriptedActor(ActiveService, ScriptedActorControl):
         self._env.send_message(request)
 
     def process_message(self, message: Message) -> Tuple[bool, int]:
-        print("Got response on request {} : {}".format(message.id, str(message)))
+        self._log.debug(f"Got response on request {message.id} : {str(message)}")
         self._responses.append(message)
         return True, 1
 
