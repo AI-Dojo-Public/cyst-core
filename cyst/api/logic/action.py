@@ -132,13 +132,16 @@ class ActionParameterType(Enum):
         :IDENTIFIER: The parameter is some kind of identifier.
         :DURATION: The parameter represents a time duration in simulated time units.
         :TOKEN: The parameter is an instance of a token object, such as cyst.api.logic.access.AuthenticationToken.
+        :DATA: Added as a temporary solution for actions and communication that carries actual data not encoded into
+            the message structure. Given the complicated definition of parameters and factual uselessness of fitting
+            data into a domain that can be sampled, this will likely be replaced by a more top-level solution.
     """
     NONE = 0,
     IDENTITY = 1,
     IDENTIFIER = 2,
     DURATION = 3,
-    TOKEN = 4
-
+    TOKEN = 4,
+    DATA = 5
 
 @dataclass
 class ActionParameter:
