@@ -18,6 +18,8 @@ from cyst.api.configuration.network.node import NodeConfig
 from cyst.api.environment.environment import Environment
 from cyst.api.host.service import AccessLevel
 
+from cyst.core.network.firewall import FirewallImpl
+
 
 # ----------------------------------------------------------------------------------------------------------------------
 # Converting configuration description to actual objects
@@ -32,6 +34,7 @@ class Configurator:
         self._routers: List[RouterConfig] = []
         self._active_services: List[ActiveServiceConfig] = []
         self._passive_services: List[PassiveServiceConfig] = []
+        self._firewalls: List[FirewallConfig] = []
         self._interfaces: List[InterfaceConfig] = []
         self._authorizations: List[AuthorizationConfig] = []
         self._data: List[DataConfig] = []
@@ -48,6 +51,7 @@ class Configurator:
         self._routers.clear()
         self._active_services.clear()
         self._passive_services.clear()
+        self._firewalls.clear()
         self._interfaces.clear()
         self._authorizations.clear()
         self._data.clear()
@@ -88,6 +92,7 @@ class Configurator:
 
     def _process_RouterConfig(self, cfg: RouterConfig):
         interface_ids = []
+        traffic_processor_ids = []
         route_ids = []
 
         for interface in cfg.interfaces:
@@ -96,10 +101,18 @@ class Configurator:
             else:
                 interface_ids.append(self._process_cfg_item(interface))
 
+        for processor in cfg.traffic_processors:
+            if isinstance(processor, str):
+                traffic_processor_ids.append(processor)
+            else:
+                traffic_processor_ids.append(self._process_cfg_item(processor))
+
         for route in cfg.routing_table:
             self._process_RouteConfig(route)
 
         cfg.interfaces = interface_ids
+        cfg.traffic_processors = traffic_processor_ids
+
         self._routers.append(cfg)
         self._refs[cfg.id] = cfg
         return cfg.id
@@ -107,6 +120,7 @@ class Configurator:
     def _process_NodeConfig(self, cfg: NodeConfig) -> str:
         passive_service_ids = []
         active_service_ids = []
+        traffic_processor_ids = []
         interface_ids = []
 
         for service in cfg.passive_services:
@@ -120,6 +134,12 @@ class Configurator:
                 active_service_ids.append(service)
             else:
                 active_service_ids.append(self._process_cfg_item(service))
+        
+        for processor in cfg.traffic_processors:
+            if isinstance(processor, str):
+                traffic_processor_ids.append(processor)
+            else:
+                traffic_processor_ids.append(self._process_cfg_item(processor))
 
         for interface in cfg.interfaces:
             if isinstance(interface, str):
@@ -129,6 +149,7 @@ class Configurator:
 
         cfg.passive_services = passive_service_ids
         cfg.active_services = active_service_ids
+        cfg.traffic_processors = traffic_processor_ids
         cfg.interfaces = interface_ids
 
         self._nodes.append(cfg)
@@ -144,6 +165,11 @@ class Configurator:
     def _process_ActiveServiceConfig(self, cfg: ActiveServiceConfig) -> str:
         self._refs[cfg.id] = cfg
         self._active_services.append(cfg)
+        return cfg.id
+    
+    def _process_FirewallConfig(self, cfg: FirewallConfig) -> str:
+        self._refs[cfg.id] = cfg
+        self._firewalls.append(cfg)
         return cfg.id
 
     def _process_PassiveServiceConfig(self, cfg: PassiveServiceConfig) -> str:
@@ -442,6 +468,31 @@ class Configurator:
                                                                           service_cfg.configuration)
                 self._obj_refs[service_cfg.id] = s
                 self._env.configuration.node.add_service(n, s)
+            
+            for processor in node.traffic_processors:
+                processor_cfg: Union[ActiveServiceConfig, FirewallConfig] = self._refs[processor]
+                if isinstance(processor_cfg, ActiveServiceConfig):
+                    s = self._env.configuration.service.create_active_service(processor_cfg.type, processor_cfg.owner,
+                                                                              processor_cfg.name, n, processor_cfg.access_level,
+                                                                              processor_cfg.configuration)
+                else:
+                    # TODO: Owner/name/access_level not in the config. It should probably be there. Otherwise we have
+                    #       to hardcode.
+                    s = self._env.configuration.service.create_active_service("firewall", "root",
+                                                                              "firewall", n, AccessLevel.ELEVATED,
+                                                                              None)
+
+                    # This is not very pretty. But coding around it would require unnecessary expansion of the API.
+                    if isinstance(s.active_service, FirewallImpl):
+                        impl: FirewallImpl = s.active_service
+
+                        for chain in processor_cfg.chains:
+                            impl.set_default_policy(chain.type, chain.policy)
+                            for rule in chain.rules:
+                                impl.add_rule(chain.type, rule)
+
+                self._obj_refs[processor_cfg.id] = s
+                self._env.configuration.node.add_traffic_processor(n, s.active_service)
 
             self._env.configuration.node.set_shell(n, n.services.get(node.shell, None))
 
@@ -460,7 +511,31 @@ class Configurator:
                 self._env.configuration.node.add_route(r, route_obj)
                 self._obj_refs[route.id] = route_obj
 
-            # TODO: Firewall
+            # TODO: Code duplication... this is one of the things to fix once routers and nodes are combined together
+            for processor in router.traffic_processors:
+                processor_cfg: Union[ActiveServiceConfig, FirewallConfig] = self._refs[processor]
+                if isinstance(processor_cfg, ActiveServiceConfig):
+                    s = self._env.configuration.service.create_active_service(processor_cfg.type, processor_cfg.owner,
+                                                                              processor_cfg.name, r, processor_cfg.access_level,
+                                                                              processor_cfg.configuration)
+                else:
+                    # TODO: Owner/name/access_level not in the config. It should probably be there. Otherwise we have
+                    #       to hardcode.
+                    s = self._env.configuration.service.create_active_service("firewall", "root",
+                                                                              "firewall", r, AccessLevel.ELEVATED,
+                                                                              None)
+
+                    # This is not very pretty. But coding around it would require unnecessary expansion of the API.
+                    if isinstance(s.active_service, FirewallImpl):
+                        impl: FirewallImpl = s.active_service
+
+                        for chain in processor_cfg.chains:
+                            impl.set_default_policy(chain.type, chain.policy)
+                            for rule in chain.rules:
+                                impl.add_rule(chain.type, rule)
+
+                self._obj_refs[processor_cfg.id] = s
+                self._env.configuration.node.add_traffic_processor(r, s.active_service)
 
             self._env.configuration.network.add_node(r)
 

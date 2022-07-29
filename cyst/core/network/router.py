@@ -5,6 +5,7 @@ from netaddr import IPAddress, IPNetwork
 
 from cyst.api.environment.environment import EnvironmentMessaging
 from cyst.api.environment.message import StatusValue, StatusOrigin, MessageType, Status
+from cyst.api.host.service import ActiveService
 from cyst.api.network.elements import Route
 from cyst.api.network.node import Node
 from cyst.api.network.firewall import FirewallPolicy, FirewallRule, FirewallChainType
@@ -34,13 +35,18 @@ class Router(NodeImpl):
         # Cache storing last 64 requests
         self._request_cache: LRUCache = LRUCache(64)
 
-        # set a firewall, which controls routing policy
-        self._fw = FirewallImpl(env)
+        self._fw: Optional[FirewallImpl] = None
 
         # create and add a passive service representing a router itself
         # WARNING: No access policy is created, so the only way to abuse this service is to perform an exploitation
         service = PassiveServiceImpl("router", "router", "1.2.3", False, AccessLevel.LIMITED)
         self.add_service(service)
+
+    # Override adding of traffic processor to register firewall for routing
+    def add_traffic_processor(self, value: ActiveService) -> None:
+        self._traffic_processors.append(value)
+        if isinstance(value, FirewallImpl):
+            self._fw = value
 
     @property
     def interfaces(self) -> List[PortImpl]:
