@@ -1004,7 +1004,7 @@ class _Environment(Environment, EnvironmentControl, EnvironmentMessaging, Enviro
 
         # HACK: Because we want to enable actions to be able to target routers, we need to bypass the router processing
         #       if the message is at the end of its journey
-        last_hop = message.dst_ip in current_node.ips
+        last_hop = message.dst_ip == message.current.ip
 
         if not last_hop and current_node.type == "Router":
             result, processing_time = current_node.process_message(message)
@@ -1056,6 +1056,8 @@ class _Environment(Environment, EnvironmentControl, EnvironmentMessaging, Enviro
         # Before a message reaches to services within, it is evaluated by all traffic processors
         # While they are returning true, everything is ok. Once they return false, the message processing stops
         # Traffic processors are free to send any reply as they see fit
+        # TODO: Firewall does not return a response and currently we want it in some instances to return it and in
+        #       some instances we don't. This is not a good situation.
         for processor in current_node.traffic_processors:
             result, delay = processor.process_message(message)
             if not result:

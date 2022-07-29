@@ -32,6 +32,7 @@ class Router(NodeImpl):
         self._local_ips: Dict[IPAddress, int] = {}
         self._local_nets: List[IPNetwork] = []
         self._routes: List[Route] = []
+        self._router_ips = set()
         # Cache storing last 64 requests
         self._request_cache: LRUCache = LRUCache(64)
 
@@ -46,6 +47,8 @@ class Router(NodeImpl):
     def add_traffic_processor(self, value: ActiveService) -> None:
         self._traffic_processors.append(value)
         if isinstance(value, FirewallImpl):
+            for ip in self._router_ips:
+                value.add_local_ip(ip)
             self._fw = value
 
     @property
@@ -59,7 +62,13 @@ class Router(NodeImpl):
         if index == -1:
             new_index = len(self._ports)
 
+        if isinstance(ip, str):
+            ip = IPAddress(ip)
+
         self._ports.append(PortImpl(ip, mask, new_index))
+        self._router_ips.add(ip)
+        if self._fw:
+            self._fw.add_local_ip(ip)
         return new_index
 
     def port_net(self, index: int) -> Optional[IPNetwork]:
