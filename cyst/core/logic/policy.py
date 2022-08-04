@@ -3,7 +3,7 @@ from typing import List, Union, Optional, Tuple
 from cyst.api.environment.configuration import EnvironmentConfiguration
 from cyst.api.environment.policy import EnvironmentPolicy
 from cyst.api.host.service import Service
-from cyst.api.logic.access import AccessLevel, Authorization
+from cyst.api.logic.access import AccessLevel, AccessScheme, Authorization
 from cyst.api.network.node import Node
 from cyst.core.host.service import PassiveServiceImpl
 from cyst.core.logic.access import AuthorizationImpl, AccessSchemeImpl
@@ -80,6 +80,11 @@ class Policy(EnvironmentPolicy):
         return retval
 
 
+    def get_schemas(self, node: Union[str, Node], service: str) -> List[AccessScheme]:
+        actual_node = node if isinstance(node, Node) else self._config.general.get_object_by_id(node, Node)
+        actual_service = actual_node.services.get(service)
+
+        return actual_service._access_schemes if isinstance(actual_service, PassiveServiceImpl) else []
 
 
     def get_nodes(self, authorization: Authorization) -> List[str]:

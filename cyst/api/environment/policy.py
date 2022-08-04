@@ -3,7 +3,7 @@ from abc import ABC, abstractmethod
 from typing import List, Tuple, Union, Optional
 
 from cyst.api.host.service import Service
-from cyst.api.logic.access import AccessLevel, Authorization
+from cyst.api.logic.access import AccessLevel, AccessScheme, Authorization
 from cyst.api.network.node import Node
 
 
@@ -90,6 +90,14 @@ class EnvironmentPolicy(ABC):
             :Applicable authorization: (True, "")
             :Wrong authorization: (False, "Reason")
 
+        """
+        pass
+
+    @abstractmethod
+    def get_schemas(self, node: Union[str, Node], service: str) -> List[AccessScheme]:
+        """
+        schemas under which the service is accessible
+        TODO
         """
         pass
 
