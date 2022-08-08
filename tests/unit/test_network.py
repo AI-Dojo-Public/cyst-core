@@ -2,14 +2,17 @@ import unittest
 import uuid
 
 from netaddr import IPAddress, IPNetwork
+from typing import Tuple
 
 from cyst.api.configuration import AuthenticationProviderConfig, PassiveServiceConfig, AccessSchemeConfig, \
     AuthorizationDomainConfig, AuthorizationDomainType, AuthorizationConfig, NodeConfig, InterfaceConfig, \
-    ActiveServiceConfig, RouterConfig, ConnectionConfig
+    ActiveServiceConfig, RouterConfig, ConnectionConfig, FirewallConfig, FirewallChainConfig, FirewallChainType
 from cyst.api.configuration.network.elements import RouteConfig
 from cyst.api.environment.configuration import ServiceParameter
 from cyst.api.environment.environment import Environment
-from cyst.api.environment.message import StatusOrigin, StatusValue, Status
+from cyst.api.environment.message import StatusOrigin, StatusValue, Status, Message, Request
+from cyst.api.environment.messaging import EnvironmentMessaging
+from cyst.api.environment.resources import EnvironmentResources
 from cyst.api.host.service import Service
 from cyst.api.logic.access import AccessLevel, AuthenticationProviderType, AuthenticationTokenType, \
     AuthenticationTokenSecurity
@@ -292,9 +295,11 @@ class TestSessions(unittest.TestCase):
                 )
 
             ],
+            traffic_processors=[],
             shell="bash",
             interfaces=[InterfaceConfig(IPAddress("192.168.1.2"), IPNetwork("192.168.1.0/24")),
-                        InterfaceConfig(IPAddress("192.168.2.2"), IPNetwork("192.168.2.0/24"))])
+                        InterfaceConfig(IPAddress("192.168.2.2"), IPNetwork("192.168.2.0/24"))]
+        )
 
         target2 = NodeConfig(
             id="target2",
@@ -341,9 +346,11 @@ class TestSessions(unittest.TestCase):
                     )]
                 )
             ],
+            traffic_processors=[],
             shell="bash",
             interfaces=[InterfaceConfig(IPAddress("192.168.2.3"), IPNetwork("192.168.2.0/24")),
-                        InterfaceConfig(IPAddress("192.168.3.3"), IPNetwork("192.168.3.0/24"))])
+                        InterfaceConfig(IPAddress("192.168.3.3"), IPNetwork("192.168.3.0/24"))]
+        )
 
         target3 = NodeConfig(
             id="target3",
@@ -390,8 +397,10 @@ class TestSessions(unittest.TestCase):
                     )]
                 )
             ],
+            traffic_processors=[],
             shell="bash",
-            interfaces=[InterfaceConfig(IPAddress("192.168.3.4"), IPNetwork("192.168.3.0/24"))])
+            interfaces=[InterfaceConfig(IPAddress("192.168.3.4"), IPNetwork("192.168.3.0/24"))]
+        )
 
         attacker_node = NodeConfig(
             active_services=[
@@ -404,6 +413,7 @@ class TestSessions(unittest.TestCase):
                 )
             ],
             passive_services=[],
+            traffic_processors=[],
             interfaces=[
                 InterfaceConfig(IPAddress("192.168.0.2"), IPNetwork("192.168.0.0/24"))
             ],
@@ -412,6 +422,18 @@ class TestSessions(unittest.TestCase):
         )
 
         router1 = RouterConfig(
+            traffic_processors=[
+                FirewallConfig(
+                    default_policy=FirewallPolicy.DENY,
+                    chains=[
+                        FirewallChainConfig(
+                            type=FirewallChainType.FORWARD,
+                            policy=FirewallPolicy.DENY,
+                            rules=[]
+                        )
+                    ]
+                )
+            ],
             interfaces=[
                 InterfaceConfig(IPAddress("192.168.0.1"), IPNetwork("192.168.0.0/24"), index=0),
                 InterfaceConfig(IPAddress("10.0.0.1"), IPNetwork("10.0.0.0/24"), index=1)
@@ -430,6 +452,18 @@ class TestSessions(unittest.TestCase):
         )
 
         router2 = RouterConfig(
+            traffic_processors=[
+                FirewallConfig(
+                    default_policy=FirewallPolicy.DENY,
+                    chains=[
+                        FirewallChainConfig(
+                            type=FirewallChainType.FORWARD,
+                            policy=FirewallPolicy.DENY,
+                            rules=[]
+                        )
+                    ]
+                )
+            ],
             interfaces=[
                 InterfaceConfig(IPAddress("192.168.1.1"), IPNetwork("192.168.1.0/24"), index=0),
                 InterfaceConfig(IPAddress("192.168.2.1"), IPNetwork("192.168.2.0/24"), index=1),
@@ -538,6 +572,143 @@ class TestSessions(unittest.TestCase):
 
         response = attacker.get_last_response()
         self.assertEqual(response.content, ["ssh", "bash"])
+
+    def test_0003_active_service_opened_sessions(self):
+
+        active_node_1 = NodeConfig(
+            active_services=[
+                ActiveServiceConfig(
+                    "scripted_actor",
+                    "scripted_actor",
+                    "actor_1",
+                    AccessLevel.LIMITED,
+                    id="actor_service_1"
+                )
+            ],
+            passive_services=[],
+            traffic_processors=[],
+            shell="",
+            interfaces=[
+                InterfaceConfig(IPAddress("192.168.0.2"), IPNetwork("192.168.0/24"))
+            ],
+            id="active_node_1"
+        )
+
+        active_node_2 = NodeConfig(
+            active_services=[
+                ActiveServiceConfig(
+                    "scripted_actor",
+                    "scripted_actor",
+                    "actor_2",
+                    AccessLevel.LIMITED,
+                    id="actor_service_2"
+                )
+            ],
+            passive_services=[],
+            traffic_processors=[],
+            shell="",
+            interfaces=[
+                InterfaceConfig(IPAddress("192.168.0.3"), IPNetwork("192.168.0/24")),
+                InterfaceConfig(IPAddress("192.168.1.2"), IPNetwork("192.168.1/24"))
+            ],
+            id="active_node_2"
+        )
+
+        passive_node = NodeConfig(
+            active_services=[],
+            passive_services=[],
+            traffic_processors=[],
+            shell="",
+            interfaces=[
+                InterfaceConfig(IPAddress("192.168.1.3"), IPNetwork("192.168.1/24"))
+            ],
+            id="passive_node"
+        )
+
+        router = RouterConfig(
+            traffic_processors=[
+                FirewallConfig(
+                    default_policy=FirewallPolicy.DENY,
+                    chains=[
+                        FirewallChainConfig(
+                            type=FirewallChainType.FORWARD,
+                            policy=FirewallPolicy.DENY,
+                            rules=[]
+                        )
+                    ]
+                )
+            ],
+            interfaces=[
+                InterfaceConfig(IPAddress("192.168.0.1"), IPNetwork("192.168.0.0/24"), index=0),
+                InterfaceConfig(IPAddress("192.168.0.1"), IPNetwork("192.168.0.0/24"), index=1),
+                InterfaceConfig(IPAddress("192.168.1.1"), IPNetwork("192.168.1.0/24"), index=2),
+                InterfaceConfig(IPAddress("192.168.1.1"), IPNetwork("192.168.1.0/24"), index=3)
+            ],
+            routing_table=[],
+            id="router"
+        )
+
+        connections = [
+            ConnectionConfig("active_node_1", 0, "router", 0),
+            ConnectionConfig("active_node_2", 0, "router", 1),
+            ConnectionConfig("active_node_2", 1, "router", 2),
+            ConnectionConfig("passive_node",  0, "router", 3)
+        ]
+
+        env = Environment.create().configure(active_node_1, active_node_2, passive_node, router, *connections)
+        env.control.init()
+
+        env.control.add_pause_on_response("active_node_1.active_service_1")
+
+        actor1 = env.configuration.service.get_service_interface(
+            env.configuration.general.get_object_by_id("actor_service_1", Service).active_service,
+            ScriptedActorControl)
+
+        actor2 = env.configuration.service.get_service_interface(
+            env.configuration.general.get_object_by_id("actor_service_2", Service).active_service,
+            ScriptedActorControl)
+
+        # A function to open a session as a reaction to an incoming request
+        def open_session_and_respond(messaging: EnvironmentMessaging, resources: EnvironmentResources, message: Message) -> Tuple[bool, int]:
+            request = message.cast_to(Request)
+            session = messaging.open_session(request)
+            res = messaging.create_response(request, Status(StatusOrigin.SERVICE, StatusValue.SUCCESS), session=session)
+            messaging.send_message(res)
+            return True, 1
+
+        actor2.set_request_callback(open_session_and_respond)
+
+        # --------------------------------------------------------------------------------------------------------------
+        # Testing of opening of sessions upon an incoming request
+        # - actor_1 tries to connect to passive_node (unsuccessfully)
+        # - actor_1 connects to actor_2 and actor_2 opens a session
+        # - actor_1 use the session to connect to the passive_node
+
+        # - actor_1 tries to connect to passive_node (unsuccessfully)
+        action1 = env.resources.action_store.get("cyst:test:echo_success")
+        actor1.execute_action("192.168.1.3", "", action1)
+
+        env.control.run()
+        response = actor1.get_last_response()
+        self.assertTrue(response.status == Status(StatusOrigin.NETWORK, StatusValue.FAILURE), f"Failed to connect the passive service in different network. Reason: {str(response)}")
+
+        # - actor_1 connects to actor_2 and actor_2 opens a session
+        action2 = env.resources.action_store.get("cyst:active_service:action_1")
+        actor1.execute_action("192.168.0.3", "scripted_actor", action2)
+
+        env.control.run()
+        response = actor1.get_last_response()
+        self.assertTrue(response.status == Status(StatusOrigin.SERVICE, StatusValue.SUCCESS), f"Failed to connect with active service to get a session. Reason: {str(response)}")
+
+        # - actor_1 use the session to connect to the passive_node
+        session = response.session
+        actor1.execute_action("192.168.1.3", "", action1, session=session)
+
+        env.control.run()
+        response = actor1.get_last_response()
+        self.assertTrue(response.status == Status(StatusOrigin.SERVICE, StatusValue.SUCCESS), f"Selected session could not be used to connect the passive service. Reason: {str(response)}")
+
+        env.control.commit()
 
 
 class TestRouting(unittest.TestCase):

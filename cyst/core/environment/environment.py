@@ -217,6 +217,9 @@ class _Environment(Environment, EnvironmentControl, EnvironmentMessaging, Enviro
         else:
             raise ValueError("Malformed request passed to create a response from")
 
+    def open_session(self, request: Request) -> Session:
+        return self.create_session_from_message(request)
+
     def send_message(self, message: MessageImpl, delay: int = 0) -> None:
         # set a first hop for a message
         source = self._network.get_node_by_id(message.origin.id)
