@@ -61,6 +61,21 @@ class CYSTModel(ActionInterpreter):
                                                  [],  # No parameters
                                                  [(ActionToken.NONE, ActionToken.NONE)]))  # No tokens
 
+        self._action_store.add(ActionDescription("cyst:active_service:action_1",
+                                                 "A placeholder action for active services instead of dedicated behavioral model.",
+                                                 [],  # No parameters
+                                                 [(ActionToken.NONE, ActionToken.NONE)]))  # No tokens
+
+        self._action_store.add(ActionDescription("cyst:active_service:action_2",
+                                                 "A placeholder action for active services instead of dedicated behavioral model.",
+                                                 [],  # No parameters
+                                                 [(ActionToken.NONE, ActionToken.NONE)]))  # No tokens
+
+        self._action_store.add(ActionDescription("cyst:active_service:action_3",
+                                                 "A placeholder action for active services instead of dedicated behavioral model.",
+                                                 [],  # No parameters
+                                                 [(ActionToken.NONE, ActionToken.NONE)]))  # No tokens
+
     def evaluate(self, message: Request, node: Node) -> Tuple[int, Response]:
         if not message.action:
             raise ValueError("Action not provided")
@@ -143,6 +158,26 @@ class CYSTModel(ActionInterpreter):
                                                       session=self._configuration.network.create_session_from_message(
                                                           message),
                                                       auth=message.auth)
+
+    # ------------------------------------------------------------------------------------------------------------------
+    # CYST:ACTIVE_SERVICE
+    def process_active_service_action_1(self, message: Request, node: Node) -> Tuple[int, Response]:
+        # These actions cannot be called on passive services
+        return 1, self._messaging.create_response(message, Status(StatusOrigin.SYSTEM, StatusValue.ERROR),
+                                                  "Cannot call active service placeholder actions on passive services.",
+                                                  session=message.session)
+
+    def process_active_service_action_2(self, message: Request, node: Node) -> Tuple[int, Response]:
+        # These actions cannot be called on passive services
+        return 1, self._messaging.create_response(message, Status(StatusOrigin.SYSTEM, StatusValue.ERROR),
+                                                  "Cannot call active service placeholder actions on passive services.",
+                                                  session=message.session)
+
+    def process_active_service_action_3(self, message: Request, node: Node) -> Tuple[int, Response]:
+        # These actions cannot be called on passive services
+        return 1, self._messaging.create_response(message, Status(StatusOrigin.SYSTEM, StatusValue.ERROR),
+                                                  "Cannot call active service placeholder actions on passive services.",
+                                                  session=message.session)
 
 
 def create_cyst_model(configuration: EnvironmentConfiguration, resources: EnvironmentResources,
