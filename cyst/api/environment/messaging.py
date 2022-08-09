@@ -93,3 +93,16 @@ class EnvironmentMessaging(ABC):
         :return: A response to be sent.
         """
         pass
+
+    @abstractmethod
+    def open_session(self, request: Request) -> Session:
+        """
+        Opens a session to the source of the request. If the request already contains a session, it will append the
+        session, unless the current node is an endpoint of that session. In that case, the same session is returned.
+
+        :param request: The request from which the session is established.
+        :type request: Request
+
+        :return: A session to the request source.
+        """
+        pass
