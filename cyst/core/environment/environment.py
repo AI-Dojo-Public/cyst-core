@@ -277,7 +277,7 @@ class _Environment(Environment, EnvironmentControl, EnvironmentMessaging, Enviro
         if isinstance(message, Request):
             action = message.action
 
-            if action.namespace in self._metadata_providers:
+            if self._metadata_providers and action.namespace in self._metadata_providers:
                 provider = self._metadata_providers[action.namespace]
                 if provider:
                     metadata = provider.get_metadata(action)
@@ -1005,7 +1005,11 @@ class _Environment(Environment, EnvironmentControl, EnvironmentMessaging, Enviro
 
         processing_time = 0
 
-        if current_node.type == "Router":
+        # HACK: Because we want to enable actions to be able to target routers, we need to bypass the router processing
+        #       if the message is at the end of its journey
+        last_hop = message.dst_ip == message.current.ip
+
+        if not last_hop and current_node.type == "Router":
             result, processing_time = current_node.process_message(message)
             if result:
                 heappush(self._tasks, (self._time + processing_time, message))
@@ -1055,6 +1059,8 @@ class _Environment(Environment, EnvironmentControl, EnvironmentMessaging, Enviro
         # Before a message reaches to services within, it is evaluated by all traffic processors
         # While they are returning true, everything is ok. Once they return false, the message processing stops
         # Traffic processors are free to send any reply as they see fit
+        # TODO: Firewall does not return a response and currently we want it in some instances to return it and in
+        #       some instances we don't. This is not a good situation.
         for processor in current_node.traffic_processors:
             result, delay = processor.process_message(message)
             if not result:

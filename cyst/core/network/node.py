@@ -61,7 +61,11 @@ class NodeImpl(Node):
 
     @property
     def ips(self) -> List[IPAddress]:
-        return [x.ip for x in self._interfaces]
+        # A set is used because a router can have multiple interfaces with the same IP address
+        result = set()
+        for i in self.interfaces:
+            result.add(i.ip)
+        return list(result)
 
     def add_interface(self, i: InterfaceImpl) -> int:
         # TODO Currently there is no control of interface overlaps. Question is whether it matters...

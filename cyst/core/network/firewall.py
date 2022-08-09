@@ -66,7 +66,8 @@ class FirewallImpl(ActiveService, Firewall):
         pass
 
     def add_local_ip(self, ip: IPAddress) -> None:
-        self._local_ips.append(ip)
+        if not ip in self._local_ips:
+            self._local_ips.append(ip)
 
     def remove_local_ip(self, ip: IPAddress) -> None:
         self._local_ips.remove(ip)
