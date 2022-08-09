@@ -1,5 +1,5 @@
 from abc import ABC, abstractmethod
-from typing import Tuple, Optional, Dict, Any, Union
+from typing import Tuple, Optional, Dict, Any, Union, Callable
 
 from cyst.api.logic.action import Action
 from cyst.api.logic.access import Authorization, AuthenticationToken
@@ -18,14 +18,35 @@ class ScriptedActorControl(ABC):
         pass
 
     @abstractmethod
+    def get_last_message_type(self) -> Optional[MessageType]:
+        pass
+
+    @abstractmethod
+    def get_last_request(self) -> Optional[Request]:
+        pass
+
+    @abstractmethod
     def get_last_response(self) -> Optional[Response]:
+        pass
+
+    @abstractmethod
+    def set_request_callback(self, fn: Callable[[EnvironmentMessaging, EnvironmentResources, Message], Tuple[bool, int]]):
+        pass
+
+    @abstractmethod
+    def set_response_callback(self, fn: Callable[[EnvironmentMessaging, EnvironmentResources, Message], Tuple[bool, int]]):
         pass
 
 
 class ScriptedActor(ActiveService, ScriptedActorControl):
     def __init__(self, env: EnvironmentMessaging = None, res: EnvironmentResources = None, args: Optional[Dict[str, Any]] = None) -> None:
-        self._env = env
+        self._messaging = env
+        self._resources = res
         self._responses = []
+        self._requests = []
+        self._response_callback = None
+        self._request_callback = None
+        self._last_message_type = None
         self._log = get_logger("services.scripted_actor")
 
     # This Actor only runs given actions. No own initiative
@@ -34,19 +55,45 @@ class ScriptedActor(ActiveService, ScriptedActorControl):
 
     def execute_action(self, target: str, service: str, action: Action, session: Session = None,
                        auth: Optional[Union[Authorization, AuthenticationToken]] = None) -> None:
-        request = self._env.create_request(target, service, action, session=session, auth=auth)
-        self._env.send_message(request)
+        request = self._messaging.create_request(target, service, action, session=session, auth=auth)
+        self._messaging.send_message(request)
 
     def process_message(self, message: Message) -> Tuple[bool, int]:
-        self._log.debug(f"Got response on request {message.id} : {str(message)}")
-        self._responses.append(message)
+        self._last_message_type = message.type
+
+        if message.type == MessageType.REQUEST:
+            self._log.debug(f"Got a new request {message.id} : {str(message)}")
+            self._requests.append(message)
+            if self._request_callback:
+                return self._request_callback(self._messaging, self._resources, message)
+        else:
+            self._log.debug(f"Got a new response {message.id} : {str(message)}")
+            self._responses.append(message)
+            if self._response_callback:
+                return self._response_callback(self._messaging, self._resources, message)
+
         return True, 1
+
+    def get_last_message_type(self) -> Optional[MessageType]:
+        return self._last_message_type
+
+    def get_last_request(self) -> Optional[Request]:
+        if not self._requests:
+            return None
+        else:
+            return self._requests[-1]
 
     def get_last_response(self) -> Optional[Response]:
         if not self._responses:
             return None
         else:
             return self._responses[-1]
+
+    def set_request_callback(self, fn: Callable[[EnvironmentMessaging, EnvironmentResources, Message], Tuple[bool, int]]):
+        self._request_callback = fn
+
+    def set_response_callback(self, fn: Callable[[EnvironmentMessaging, EnvironmentResources, Message], Tuple[bool, int]]):
+        self._response_callback = fn
 
     @staticmethod
     def cast_from(o: Service) -> 'ScriptedActor':
