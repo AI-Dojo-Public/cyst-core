@@ -1224,3 +1224,50 @@ class AccessConfiguration(ABC):
         :return: None
         """
         pass
+
+    @abstractmethod
+    def create_service_access(self, service: Service, identity: str, access_level: AccessLevel,
+            tokens: List[AuthenticationToken]) -> Optional[List[AuthenticationToken]]:
+        """
+        Create a means to acces the given passive service by registering authentication tokens
+        under the given identity.
+
+        TODO: Currently works only for local providers.
+
+        :param service: A passive service to grant access to.
+        :type service: PassiveService
+
+        :param identity: An identity of the user which will gain the access.
+                         It must not be already present in one of the access schemes.
+        :type identity: str
+
+        :param access_level: The level of access which will be created.
+        :type access_level: Accesslevel
+
+        :param tokens: Tokens to be optionally used instead of creating new ones.
+        :type tokens: List[AuthenticationToken]
+
+        :return: List of authentication tokens if successful, None otherwise.
+        """
+        pass
+
+    @abstractmethod
+    def modify_existing_access(self, service: Service, identity: str, access_level: AccessLevel) -> bool:
+        """
+        Modify the access level of the given passive service. No new tokens are created.
+
+        TODO: Currently works only for local providers.
+
+        :param service: A passive service to grant access to.
+        :type service: PassiveService
+
+        :param identity: An identity of the user which access will be modified.
+                         It must be already present at one of the access scheme.
+        :type identity: str
+
+        :param access_level: The level of access which will be modified.
+        :type access_level: Accesslevel
+
+        :return: True if successfull, False otherwise.
+        """
+        pass

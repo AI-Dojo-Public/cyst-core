@@ -818,6 +818,38 @@ class _Environment(Environment, EnvironmentControl, EnvironmentMessaging, Enviro
     def remove_authorization_from_scheme(self, auth: Authorization, scheme: AccessScheme) -> None:
         scheme.remove_authorization(auth)
 
+    def modify_existing_access(self, service: Service, identity: str, access_level: AccessLevel) -> bool:
+        if isinstance(service, PassiveService):
+            ok, _ = self._access_service(service, identity, access_level, allow_modify=True)
+            return ok
+        return False
+
+    def create_service_access(self, service: Service, identity: str, access_level: AccessLevel,
+            tokens: List[AuthenticationToken]) -> Optional[List[AuthenticationToken]]:
+        if isinstance(service, PassiveService):
+            ok, tokens = self._access_service(service, identity, access_level, tokens)
+            if ok:
+                return tokens
+
+    def _access_service(self, service: PassiveService, identity: str, access_level: AccessLevel,
+            tokens: List[AuthenticationToken] = [], allow_modify: bool = False) -> Tuple[bool, List[AuthenticationToken]]:
+        for scheme in PassiveServiceImpl.cast_from(service)._access_schemes:
+            actual_scheme = AccessSchemeImpl.cast_from(scheme)
+            if not actual_scheme.is_local():
+                # TODO: handle non-local providers
+                continue
+
+            if allow_modify and identity in actual_scheme.identities:
+                actual_scheme.modify_access(identity, access_level)
+                return True, []
+
+            elif not allow_modify and identity not in actual_scheme.identities:
+                if tokens and not actual_scheme.match_tokens(tokens):
+                    continue
+                return True, actual_scheme.create_access(identity, access_level, tokens)
+
+        return False, []
+
     # ------------------------------------------------------------------------------------------------------------------
     # Action configuration
     def create_action_parameter_domain_any(self) -> ActionParameterDomain:

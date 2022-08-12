@@ -224,6 +224,38 @@ class AccessSchemeImpl(AccessScheme):
         # removing authorization means setting access level to NONE
         auth.access_level = AccessLevel.NONE
 
+    def register_authorization(self, auth: Authorization) -> None:
+        identity = AuthorizationImpl.cast_from(auth).identity
+        if identity not in self.identities:
+            self.add_identity(identity)
+        self.add_authorization(auth)
+
+    def is_local(self) -> bool:
+        return all(p.type is AuthenticationProviderType.LOCAL for p, _ in self.factors)
+
+    def match_tokens(self, tokens: List[AuthenticationToken]) -> bool:
+        return len(tokens) == len(self.factors) and \
+                all(AuthenticationProviderImpl.cast_from(factor).is_token_matching(token)
+                    for (factor, _), token in zip(self.factors, tokens))
+
+    def create_access(self, identity: str, access_level: AccessLevel, tokens: List[AuthenticationToken]) -> List[AuthenticationToken]:
+        self.register_authorization(AuthorizationImpl(identity, id=str(uuid.uuid4()), access_level=access_level))
+
+        # no tokens supplied, create and return new ones
+        if not tokens:
+            return [AuthenticationProviderImpl.cast_from(p).register_new_token(identity) for p, _ in self.factors]
+
+        # otherwise add tokens to each factor one by one
+        for (factor, _), token in zip(self.factors, tokens):
+            AuthenticationProviderImpl.cast_from(factor).add_token(token)
+
+        return tokens
+
+    def modify_access(self, identity: str, access_level: AccessLevel) -> None:
+        # WARN: this will raise exception if identity not present
+        template = next(a for a in self.authorizations if a.identity == identity)
+        AuthorizationImpl.cast_from(template).access_level = access_level
+
     @property
     def factors(self) -> List[Tuple[AuthenticationProvider, int]]:
         return self._providers
@@ -313,6 +345,21 @@ class AuthenticationProviderImpl(AuthenticationProvider):
                 return True
         return False
 
+    def create_token(self, identity: str) -> AuthenticationToken:
+        return AuthenticationTokenImpl(self._token_type, self._security, identity,
+                self._provider_type is AuthenticationProviderType.LOCAL)._set_content(uuid.uuid4())
+
+    def register_new_token(self, identity: str) -> AuthenticationToken:
+        token = self.create_token(identity)
+        self.add_token(token)
+        return token
+
+    def is_token_matching(self, token: AuthenticationToken) -> bool:
+        return isinstance(token, AuthenticationTokenImpl) and \
+            token.security is self.security and \
+            token.type is self.token_type and \
+            token.is_local == (self.type is AuthenticationProviderType.LOCAL)
+
     def add_token(self, token: AuthenticationToken):
         self._tokens.add(self.AuthenticationTokenState(token))
 
@@ -359,3 +406,10 @@ class AuthenticationProviderImpl(AuthenticationProvider):
             self._target.address = ip
         else:
             raise RuntimeError
+
+    @staticmethod
+    def cast_from(other: AuthenticationProvider):
+        if isinstance(other, AuthenticationProviderImpl):
+            return other
+        else:
+            raise ValueError("Malformed underlying object passed with the AuthenticationProvider interface")
