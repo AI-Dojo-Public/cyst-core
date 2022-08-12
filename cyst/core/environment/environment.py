@@ -717,21 +717,11 @@ class _Environment(Environment, EnvironmentControl, EnvironmentMessaging, Enviro
         return AuthenticationTokenImpl(type, security, identity, is_local)._set_content(uuid.uuid4())
                 # contetn setting is temporary until encrypted/hashed data is implemented
 
-    def register_authentication_token(self, provider: AuthenticationProvider, token: AuthenticationToken) -> bool:
-        if isinstance(provider, AuthenticationProviderImpl):
-            provider.add_token(token)
-            return True
+    def register_authentication_token(self, provider: AuthenticationProvider, token: AuthenticationToken) -> None:
+        AuthenticationProviderImpl.cast_from(provider).add_token(token)
 
-        return False
-
-    def create_and_register_authentication_token(self, provider: AuthenticationProvider, identity: str) -> Optional[AuthenticationToken]:
-        if isinstance(provider, AuthenticationProviderImpl):
-            token = self.create_authentication_token(provider.token_type, provider.security, identity,
-                                                True if provider.type == AuthenticationProviderType.LOCAL else False)
-            self.register_authentication_token(provider, token)
-            return token
-
-        return None
+    def create_and_register_authentication_token(self, provider: AuthenticationProvider, identity: str) -> AuthenticationToken:
+        return AuthenticationProviderImpl.cast_from(provider).register_new_token(identity)
 
     def create_authorization(self, identity: str, access_level: AccessLevel, id: str, nodes: Optional[List[str]] = None,
                              services: Optional[List[str]] = None) -> Authorization:
@@ -744,21 +734,13 @@ class _Environment(Environment, EnvironmentControl, EnvironmentMessaging, Enviro
         )
 
     def create_access_scheme(self) -> AccessScheme:
-        scheme = AccessSchemeImpl()
-        return scheme
+        return AccessSchemeImpl()
 
-    def add_provider_to_scheme(self, provider: AuthenticationProvider, scheme: AccessScheme):
-        if isinstance(scheme, AccessSchemeImpl):
-            scheme.add_provider(provider)
-            return True
-        return False
+    def add_provider_to_scheme(self, provider: AuthenticationProvider, scheme: AccessScheme) -> None:
+        AccessSchemeImpl.cast_from(scheme).add_provider(provider)
 
-    def add_authorization_to_scheme(self, auth: Authorization, scheme: AccessScheme):
-        if isinstance(scheme, AccessSchemeImpl):
-            scheme.add_authorization(auth)
-            scheme.add_identity(auth.identity)
-            return True
-        return False
+    def add_authorization_to_scheme(self, auth: Authorization, scheme: AccessScheme) -> None:
+        AccessSchemeImpl.cast_from(scheme).register_authorization(auth)
 
     def assess_token(self, scheme: AccessScheme, token: AuthenticationToken) \
             -> Optional[Union[Authorization, AuthenticationTarget]]:
