@@ -807,7 +807,7 @@ class _Environment(Environment, EnvironmentControl, EnvironmentMessaging, Enviro
         return False
 
     def create_service_access(self, service: Service, identity: str, access_level: AccessLevel,
-            tokens: List[AuthenticationToken]) -> Optional[List[AuthenticationToken]]:
+            tokens: List[AuthenticationToken] = []) -> Optional[List[AuthenticationToken]]:
         if isinstance(service, PassiveService):
             ok, tokens = self._access_service(service, identity, access_level, tokens)
             if ok:

@@ -1227,7 +1227,7 @@ class AccessConfiguration(ABC):
 
     @abstractmethod
     def create_service_access(self, service: Service, identity: str, access_level: AccessLevel,
-            tokens: List[AuthenticationToken]) -> Optional[List[AuthenticationToken]]:
+            tokens: List[AuthenticationToken] = []) -> Optional[List[AuthenticationToken]]:
         """
         Create a means to acces the given passive service by registering authentication tokens
         under the given identity.
