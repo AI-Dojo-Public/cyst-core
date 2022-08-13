@@ -161,7 +161,7 @@ class AuthenticationProcessTestSSH(unittest.TestCase):
         service = next(filter(lambda x: x.name == "ssh", node.services.values()))
         provider = cls.env.configuration.general.get_object_by_id("ssh_service_local_auth_id",
                                                                   AuthenticationProvider)
-        token = None # user2
+        token = None
         if isinstance(provider, AuthenticationProviderImpl):
             token = next(iter(provider._tokens)).token
 
@@ -261,9 +261,7 @@ class AuthenticationAccessManipulationTest(unittest.TestCase):
 
         provider = cls.env.configuration.general.get_object_by_id("ssh_service_local_auth_id",
                                                                   AuthenticationProviderImpl)
-        token = None
-        if isinstance(provider, AuthenticationProviderImpl):
-            token = next(iter(provider._tokens)).token
+        token = provider.get_token_by_identity("user1")
 
         assert None not in [node, service_2fa, service_local_1fa, provider, token]
 
