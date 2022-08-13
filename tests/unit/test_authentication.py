@@ -2,7 +2,7 @@ import unittest
 
 from cyst.api.configuration import *
 from cyst.api.environment.environment import Environment
-from cyst.api.logic.access import AuthenticationProvider, Authorization, AuthenticationTarget
+from cyst.api.logic.access import AuthenticationProvider, AuthenticationToken, Authorization, AuthenticationTarget
 from cyst.api.logic.access import AuthenticationProviderType, AuthenticationTokenType, AuthenticationTokenSecurity
 from cyst.api.network.node import Node
 
@@ -157,7 +157,7 @@ class AuthenticationProcessTestSSH(unittest.TestCase):
         service = next(filter(lambda x: x.name == "ssh", node.services.values()))
         provider = cls.env.configuration.general.get_object_by_id("ssh_service_local_auth_id",
                                                                   AuthenticationProvider)
-        token = None
+        token = None # user2
         if isinstance(provider, AuthenticationProviderImpl):
             token = next(iter(provider._tokens)).token
 
@@ -243,3 +243,115 @@ class AuthenticationProcessTestCustomService(unittest.TestCase):
                                                      IPAddress("0.0.0.0"))
 
         self.assertIsNone(result, "Process returned an object for a bad token")
+
+class AuthenticationAccessManipulationTest(unittest.TestCase):
+
+    @classmethod
+    def setUpClass(cls) -> None:
+        cls.env = Environment.create().configure(email_server, sso_server, target, router1, *connections)
+
+        node = cls.env.configuration.general.get_object_by_id("target_node", Node)
+
+        service_2fa = next(filter(lambda x: x.name == "my_custom_service", node.services.values()))
+        service_local_1fa = next(filter(lambda x: x.name == "ssh", node.services.values()))
+
+        provider = cls.env.configuration.general.get_object_by_id("ssh_service_local_auth_id",
+                                                                  AuthenticationProviderImpl)
+        token = None
+        if isinstance(provider, AuthenticationProviderImpl):
+            token = next(iter(provider._tokens)).token
+
+        assert None not in [node, service_2fa, service_local_1fa, provider, token]
+
+        cls.node = node
+        cls.provider = provider
+        cls.token = token
+        cls.service_local_1fa = service_local_1fa
+        cls.service_2fa = service_2fa
+
+        # improve readibility
+        cls.create_service_access = cls.env.configuration.access.create_service_access
+        cls.modify_existing_access = cls.env.configuration.access.modify_existing_access
+
+    def test_000_add_account(self) -> None:
+        identity = "intruder1"
+        result = self.create_service_access(self.service_local_1fa, identity, AccessLevel.ELEVATED)
+
+        self.assertIsNotNone(result, "Access creation should succeed")
+        assert result is not None # mypy
+        self.assertIsInstance(result[0], AuthenticationToken, "The result is not an authentication token")
+
+        token = result[0]
+        self.assertEqual(token.identity, identity, f"Resulting token's identity should be {identity}")
+        self.assertTrue(self.provider.token_is_registered(token), "Token should be registered")
+
+        result = self.env.evaluate_token_for_service(self.service_local_1fa,
+                                                     token,
+                                                     self.node,
+                                                     IPAddress("0.0.0.0"))
+
+        self.assertIsInstance(result, Authorization, "Resulting object should be authorization")
+
+    def test_001_add_existing_account(self) -> None:
+        result = self.create_service_access(self.service_local_1fa, "user1", AccessLevel.ELEVATED)
+        self.assertIsNone(result, "Access creation with existing account should fail")
+
+    def test_002_add_account_with_token(self) -> None:
+        identity = "intruder2"
+        # Provider parameters: PASSWORD, SEALED, LOCAL
+        token = AuthenticationTokenImpl(AuthenticationTokenType.PASSWORD, AuthenticationTokenSecurity.SEALED,
+                                        identity, True)._set_content("pass")
+        result = self.create_service_access(self.service_local_1fa, identity, AccessLevel.ELEVATED, [token])
+
+        self.assertIsNotNone(result, "Access creation should succeed")
+        self.assertTrue(self.provider.token_is_registered(token), "Token should be registered")
+        self.assertEqual(result[0], token, "Token should be the one supplied")
+
+        result = self.env.evaluate_token_for_service(self.service_local_1fa,
+                                                     token,
+                                                     self.node,
+                                                     IPAddress("0.0.0.0"))
+
+        self.assertIsInstance(result, Authorization, "Resulting object should be authorization")
+
+    def test_003_add_acount_with_invalid_token(self) -> None:
+        identity = "intruder3"
+        invalid_token = AuthenticationTokenImpl(AuthenticationTokenType.BIOMETRIC, AuthenticationTokenSecurity.SEALED,
+                                                identity, True)._set_content("pass")
+        result = self.create_service_access(self.service_local_1fa, identity, AccessLevel.ELEVATED, [invalid_token])
+
+        self.assertIsNone(result, "Access creation should not succeed")
+
+    def test_004_modify_account(self) -> None:
+        # Two rounds of authentication with modify inbetween
+        identity = self.token.identity
+        auth_before = self.env.evaluate_token_for_service(self.service_local_1fa,
+                                                          self.token,
+                                                          self.node,
+                                                          IPAddress("0.0.0.0"))
+        self.assertIsInstance(auth_before, Authorization, "Resulting object should be authorization")
+
+        result = self.modify_existing_access(self.service_local_1fa, identity, AccessLevel.ELEVATED)
+        self.assertTrue(result, "Access creation should succeed")
+
+        auth_after: Authorization = self.env.evaluate_token_for_service(self.service_local_1fa,
+                                                                        self.token,
+                                                                        self.node,
+                                                                        IPAddress("0.0.0.0"))
+        self.assertIsInstance(auth_after, Authorization, "Resulting object should be authorization")
+
+        self.assertGreater(auth_after.access_level, auth_before.access_level, "Access level should be higher")
+
+    def test_005_modify_non_existent_account(self) -> None:
+        identity = "user_non_existent"
+
+        result = self.modify_existing_access(self.service_local_1fa, identity, AccessLevel.ELEVATED)
+        self.assertTrue(not result, "Access creation should not succeed")
+
+    def test_006_add_account_MF(self) -> None:
+        # TODO: non-local providers are not yet implemented
+        identity = "intruder"
+        result = self.create_service_access(self.service_2fa, identity, AccessLevel.ELEVATED)
+
+        self.assertIsNone(result, "Access creation should fail, for now")
+        # self.assertIsNotNone(result, "Access creation should succeed")
