@@ -5,6 +5,7 @@ from netaddr import IPAddress, IPNetwork
 
 from cyst.api.environment.environment import EnvironmentMessaging
 from cyst.api.environment.message import StatusValue, StatusOrigin, MessageType, Status
+from cyst.api.host.service import ActiveService
 from cyst.api.network.elements import Route
 from cyst.api.network.node import Node
 from cyst.api.network.firewall import FirewallPolicy, FirewallRule, FirewallChainType
@@ -13,6 +14,11 @@ from cyst.core.environment.message import MessageImpl, RequestImpl, ResponseImpl
 from cyst.core.network.node import NodeImpl
 from cyst.core.network.elements import PortImpl, InterfaceImpl, Endpoint, Resolver
 from cyst.core.network.firewall import FirewallImpl
+
+# TODO: The following is needed to automatically create a passive service representing the router itself for the purpose
+#       of exploitation. This ought to be changed in the near future by transforming the router into traffic processor.
+from cyst.api.logic.access import AccessLevel
+from cyst.core.host.service import PassiveServiceImpl
 
 
 class Router(NodeImpl):
@@ -26,11 +32,24 @@ class Router(NodeImpl):
         self._local_ips: Dict[IPAddress, int] = {}
         self._local_nets: List[IPNetwork] = []
         self._routes: List[Route] = []
+        self._router_ips = set()
         # Cache storing last 64 requests
         self._request_cache: LRUCache = LRUCache(64)
 
-        # set a firewall, which controls routing policy
-        self._fw = FirewallImpl(env)
+        self._fw: Optional[FirewallImpl] = None
+
+        # create and add a passive service representing a router itself
+        # WARNING: No access policy is created, so the only way to abuse this service is to perform an exploitation
+        service = PassiveServiceImpl("router", "router", "1.2.3", False, AccessLevel.LIMITED)
+        self.add_service(service)
+
+    # Override adding of traffic processor to register firewall for routing
+    def add_traffic_processor(self, value: ActiveService) -> None:
+        self._traffic_processors.append(value)
+        if isinstance(value, FirewallImpl):
+            for ip in self._router_ips:
+                value.add_local_ip(ip)
+            self._fw = value
 
     @property
     def interfaces(self) -> List[PortImpl]:
@@ -43,7 +62,13 @@ class Router(NodeImpl):
         if index == -1:
             new_index = len(self._ports)
 
+        if isinstance(ip, str):
+            ip = IPAddress(ip)
+
         self._ports.append(PortImpl(ip, mask, new_index))
+        self._router_ips.add(ip)
+        if self._fw:
+            self._fw.add_local_ip(ip)
         return new_index
 
     def port_net(self, index: int) -> Optional[IPNetwork]:
@@ -206,7 +231,7 @@ class Router(NodeImpl):
                 message.set_next_hop(Endpoint(self.id, port, self._ports[port].ip), self._ports[port].endpoint)
                 return True, 1
 
-        # Unless the request vanished from cache - then we have to try to to deliver it the old-fashioned way
+        # Unless the request vanished from cache - then we have to try to deliver it the old-fashioned way
 
         # Check for messages running around in circles
         if message.type == MessageType.REQUEST:

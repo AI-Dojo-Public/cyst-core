@@ -2,7 +2,9 @@ from dataclasses import dataclass, field
 from typing import List, Union, Optional
 from uuid import uuid4
 from serde import serialize
+
 from cyst.api.configuration.configuration import ConfigItem
+from cyst.api.configuration.host.service import ActiveServiceConfig
 from cyst.api.configuration.network.elements import InterfaceConfig, RouteConfig
 from cyst.api.configuration.network.firewall import FirewallConfig
 
@@ -22,6 +24,10 @@ class RouterConfig(ConfigItem):
     :param interfaces: A list of network interfaces.
     :type interfaces: List[Union[InterfaceConfig]]
 
+    :param traffic_processors: A list of either active services that are acting as traffic processors, or at most one
+        firewall. Firewall is used as a mechanism for router to do inter-network routing, by means of a FORWARD chain.
+    :type traffic_processors: Optional[List[Union[FirewallConfig, ActiveServiceConfig, str]]]
+
     :param routing_table: A routing configuration for inter-router communication. Routing to end devices is arranged
         automatically when creating connections between end devices and the router. Networks are inferred from
         interface configurations.
@@ -34,6 +40,6 @@ class RouterConfig(ConfigItem):
     :type id: str
     """
     interfaces: List[Union[InterfaceConfig]]
+    traffic_processors: List[Union[FirewallConfig, ActiveServiceConfig, str]]
     routing_table: List[RouteConfig] = field(default_factory=list)  # TODO: check if such a default is ok
-    firewall: Optional[FirewallConfig] = field(default=None)
     id: str = field(default_factory=lambda: str(uuid4()))

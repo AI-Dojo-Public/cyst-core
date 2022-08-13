@@ -65,7 +65,9 @@ from cyst.core.network.network import Network
 from cyst.core.network.node import NodeImpl
 from cyst.core.network.router import Router
 from cyst.core.network.session import SessionImpl
+
 from cyst.api.utils.counter import Counter
+from cyst.api.utils.log import get_logger
 
 
 # Environment is unlike other core implementation given an underscore-prefixed name to let python complain about
@@ -112,6 +114,9 @@ class _Environment(Environment, EnvironmentControl, EnvironmentMessaging, Enviro
         self._data_store = DataStore(self._runtime_configuration.data_backend, self._runtime_configuration.data_backend_params)
 
         self._statistics = StatisticsImpl()
+
+        # Logs
+        self._message_log = get_logger("messaging")
 
     # Runtime parameters can be passed via command-line, configuration file, or through environment variables
     # In case of multiple definitions of one parameter, the order is, from the most important to least:
@@ -217,6 +222,9 @@ class _Environment(Environment, EnvironmentControl, EnvironmentMessaging, Enviro
         else:
             raise ValueError("Malformed request passed to create a response from")
 
+    def open_session(self, request: Request) -> Session:
+        return self.create_session_from_message(request)
+
     def send_message(self, message: MessageImpl, delay: int = 0) -> None:
         # set a first hop for a message
         source = self._network.get_node_by_id(message.origin.id)
@@ -273,7 +281,7 @@ class _Environment(Environment, EnvironmentControl, EnvironmentMessaging, Enviro
         if isinstance(message, Request):
             action = message.action
 
-            if action.namespace in self._metadata_providers:
+            if self._metadata_providers and action.namespace in self._metadata_providers:
                 provider = self._metadata_providers[action.namespace]
                 if provider:
                     metadata = provider.get_metadata(action)
@@ -291,11 +299,11 @@ class _Environment(Environment, EnvironmentControl, EnvironmentMessaging, Enviro
         try:
             heappush(self._tasks, (self._time + delay, message))
         except Exception as e:
-            print("Error sending a message, reason: {}".format(e))
+            self._message_log.error(f"Error sending a message, reason: {e}")
 
         message.sent = True
 
-        print("Sending a message: " + str(message))
+        self._message_log.debug(f"Sending a message: {str(message)}")
 
         if message.origin.id in self._pause_on_request:
             self._pause = True
@@ -1050,7 +1058,11 @@ class _Environment(Environment, EnvironmentControl, EnvironmentMessaging, Enviro
 
         processing_time = 0
 
-        if current_node.type == "Router":
+        # HACK: Because we want to enable actions to be able to target routers, we need to bypass the router processing
+        #       if the message is at the end of its journey
+        last_hop = message.dst_ip == message.current.ip
+
+        if not last_hop and current_node.type == "Router":
             result, processing_time = current_node.process_message(message)
             if result:
                 heappush(self._tasks, (self._time + processing_time, message))
@@ -1090,17 +1102,18 @@ class _Environment(Environment, EnvironmentControl, EnvironmentMessaging, Enviro
                     message.set_next_hop(Endpoint(current_node.id, port, current_node.interfaces[port].ip),
                                          Endpoint(dest_node_endpoint.id, dest_node_endpoint.port, dest_node_ip))
                     # ##################
-                    print("Proxying {} to {} via {} on a node {}".format(message_type, message.dst_ip,
-                                                                         message.next_hop.id, current_node.id))
+                    self._message_log.debug(f"Proxying {message_type} to {message.dst_ip} via {message.next_hop.id} on a node {current_node.id}")
                     heappush(self._tasks, (self._time + processing_time, message))
                     return
 
         # Message has to be processed locally
-        print("Processing {} on a node {}. {}".format(message_type, current_node.id, message))
+        self._message_log.debug(f"Processing {message_type} on a node {current_node.id}. {message}")
 
         # Before a message reaches to services within, it is evaluated by all traffic processors
         # While they are returning true, everything is ok. Once they return false, the message processing stops
         # Traffic processors are free to send any reply as they see fit
+        # TODO: Firewall does not return a response and currently we want it in some instances to return it and in
+        #       some instances we don't. This is not a good situation.
         for processor in current_node.traffic_processors:
             result, delay = processor.process_message(message)
             if not result:
