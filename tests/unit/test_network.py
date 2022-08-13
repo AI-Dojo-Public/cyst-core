@@ -703,18 +703,18 @@ class TestService(unittest.TestCase):
         node = create_node("node")
         add_service(node, service1, service2)
 
-        self.assertEqual(node.services, {"service1" : service1, "service2": service2}, "Services added")
+        self.assertDictEqual(node.services, {"service1" : service1, "service2": service2}, "Services added")
 
         # Remove services one by one
         remove_service(node, service2)
-        self.assertEqual(node.services, {"service1" : service1}, "Removed last service")
+        self.assertDictEqual(node.services, {"service1" : service1}, "Removed last service")
 
         remove_service(node, service1)
-        self.assertEqual(node.services, {}, "Removed both services")
+        self.assertDictEqual(node.services, {}, "Removed both services")
 
         # No services left, silently do nothing
         remove_service(node, service1, service2)
-        self.assertEqual(node.services, {}, "Both services still removed")
+        self.assertDictEqual(node.services, {}, "Both services still removed")
 
 if __name__ == '__main__':
     unittest.main()

@@ -95,7 +95,8 @@ class NodeImpl(Node):
 
     def remove_service(self, service: Service) -> None:
         s = ServiceImpl.cast_from(service)
-        del self._services[s.id]
+        if s.id in self._services:
+            del self._services[s.id]
 
     def add_traffic_processor(self, value: ActiveService) -> None:
         self._traffic_processors.append(value)
