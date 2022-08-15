@@ -49,6 +49,7 @@ ssh_service = PassiveServiceConfig(
 )
 
 target1 = NodeConfig(id="target1", active_services=[], passive_services=[ssh_service],
+                     traffic_processors=[],
                      shell="bash", interfaces=[InterfaceConfig(IPAddress("192.168.0.3"), IPNetwork("192.168.0.1/24"))])
 
 attacker1 = NodeConfig(
@@ -62,6 +63,7 @@ attacker1 = NodeConfig(
         )
     ],
     passive_services=[],
+    traffic_processors=[],
     interfaces=[
         InterfaceConfig(IPAddress("192.168.0.5"), IPNetwork("192.168.0.1/24"))
     ],
@@ -74,6 +76,7 @@ router1 = RouterConfig(
         InterfaceConfig(IPAddress("192.168.0.1"), IPNetwork("192.168.0.1/24"), index=0),
         InterfaceConfig(IPAddress("192.168.0.1"), IPNetwork("192.168.0.1/24"), index=1)
     ],
+    traffic_processors=[],
     id="router1"
 )
 
