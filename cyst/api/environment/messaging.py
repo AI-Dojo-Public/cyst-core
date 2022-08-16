@@ -2,7 +2,7 @@ from abc import ABC, abstractmethod
 from netaddr import IPAddress
 from typing import Any, Optional, Union
 
-from cyst.api.environment.message import Message, Request, Status
+from cyst.api.environment.message import Message, Request, Response, Status
 from cyst.api.logic.action import Action
 from cyst.api.logic.access import Authorization, AuthenticationTarget, AuthenticationToken
 from cyst.api.network.session import Session
@@ -65,7 +65,7 @@ class EnvironmentMessaging(ABC):
 
     @abstractmethod
     def create_response(self, request: Request, status: Status, content: Optional[Any] = None, session: Optional[Session] = None,
-                        auth: Optional[Union[Authorization, AuthenticationTarget]] = None):
+                        auth: Optional[Union[Authorization, AuthenticationTarget]] = None) -> Response:
         """
         Creates a message of type RESPONSE. This response is always created from a request.
 
