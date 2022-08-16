@@ -76,6 +76,11 @@ class CYSTModel(ActionInterpreter):
                                                  [],  # No parameters
                                                  [(ActionToken.NONE, ActionToken.NONE)]))  # No tokens
 
+        self._action_store.add(ActionDescription("cyst:active_service:open_session",
+                                                 "Open a session to an existing active service acting as forward/reverse shell.",
+                                                 [],  # No parameters
+                                                 [(ActionToken.NONE, ActionToken.NONE)]))  # No tokens
+
     def evaluate(self, message: Request, node: Node) -> Tuple[int, Response]:
         if not message.action:
             raise ValueError("Action not provided")
@@ -177,6 +182,12 @@ class CYSTModel(ActionInterpreter):
         # These actions cannot be called on passive services
         return 1, self._messaging.create_response(message, Status(StatusOrigin.SYSTEM, StatusValue.ERROR),
                                                   "Cannot call active service placeholder actions on passive services.",
+                                                  session=message.session)
+
+    def process_active_service_open_session(self, message: Request, node: Node):
+        # These actions cannot be called on passive services
+        return 1, self._messaging.create_response(message, Status(StatusOrigin.SYSTEM, StatusValue.ERROR),
+                                                  "Cannot open session with service that's not an active shell service",
                                                   session=message.session)
 
 
