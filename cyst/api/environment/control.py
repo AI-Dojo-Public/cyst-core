@@ -166,3 +166,23 @@ class EnvironmentControl(ABC):
         :return: None
         """
         pass
+
+    @abstractmethod
+    def snapshot_save(self) -> str:
+        """ Returns a complete state of the environment, from which it can be restored.
+
+        :return: String representation of the environment
+        """
+        pass
+
+    @abstractmethod
+    def snapshot_load(self, state: str) -> None:
+        """ Attempts to restore the environment into the state described by the state string.
+
+        :param state: State representation obtained by snapshot_save function. Currently, the snapshots are not
+                      guaranteed to work across versions.
+        :type state: str
+
+        :return: None
+        """
+        pass

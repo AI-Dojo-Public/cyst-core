@@ -50,6 +50,7 @@ from cyst.core.environment.configuration import Configuration, RuntimeConfigurat
 from cyst.core.environment.data_store import DataStore
 from cyst.core.environment.message import MessageImpl, RequestImpl, ResponseImpl, TimeoutImpl
 from cyst.core.environment.proxy import EnvironmentProxy
+from cyst.core.environment.serialization import Serializer
 from cyst.core.environment.stores import ActionStoreImpl, ServiceStoreImpl, ExploitStoreImpl
 from cyst.core.environment.stats import StatisticsImpl
 from cyst.core.host.service import ServiceImpl, PassiveServiceImpl
@@ -77,7 +78,6 @@ class _Environment(Environment, EnvironmentControl, EnvironmentMessaging, Enviro
                    Clock, AccessConfiguration):
 
     def __init__(self) -> None:
-        self._network = Network()
         self._time = 0
         self._start_time = localtime()
         self._tasks = []
@@ -111,12 +111,98 @@ class _Environment(Environment, EnvironmentControl, EnvironmentMessaging, Enviro
         self._runtime_configuration = RuntimeConfiguration()
         self._configure_runtime()
 
+        self._network = Network(self._configuration)
+
         self._data_store = DataStore(self._runtime_configuration.data_backend, self._runtime_configuration.data_backend_params)
 
         self._statistics = StatisticsImpl()
 
         # Logs
         self._message_log = get_logger("messaging")
+
+    def __getstate__(self) -> dict:
+        return {
+            # Simple values
+            "_time": self._time,
+            "_start_time": self._start_time,
+            "_pause": self._pause,
+            "_terminate": self._terminate,
+            "_initialized": self._initialized,
+            "_state": self._state,
+            "_run_id": self._run_id,
+
+            # Arrays
+            "_pause_on_response": self._pause_on_response,
+            "_pause_on_request": self._pause_on_request,
+
+            # Simple objects
+            "_runtime_configuration": self._runtime_configuration,
+            "_statistics": self._statistics,
+
+            # Complex beasts
+            "_action_store": self._action_store,
+            "_service_store": self._service_store,
+            "_exploit_store": self._exploit_store,
+            "_metadata_providers": self._metadata_providers,
+            "_network": self._network,
+            "_configuration": self._configuration
+
+            # Ignored members
+            # Policy - is reinitialized, no need to serialize
+            # DataStore - stays the same across serializations
+            # Log - stays the same across serializations
+        }
+
+    def __setstate__(self, state: dict) -> None:
+        self._time = state["_time"]
+        self._start_time = state["_start_time"]
+        self._pause = state["_pause"]
+        self._terminate = state["_terminate"]
+        self._initialized = state["_initialized"]
+        self._state = state["_state"]
+        self._run_id = state["_run_id"]
+
+        self._pause_on_response = state["_pause_on_response"]
+        self._pause_on_request = state["_pause_on_request"]
+
+        self._runtime_configuration = state["_runtime_configuration"]
+        self._statistics = state["_statistics"]
+
+        self._action_store = state["_action_store"]
+        self._service_store = state["_service_store"]
+        self._exploit_store = state["_exploit_store"]
+        self._metadata_providers = state["_metadata_providers"]
+        self._network = state["_network"],
+        self._configuration = state["_configuration"]
+
+        # Members reconstructed on the fly
+        self._policy = Policy(self)
+
+    # Replace the environment with the state of another environment. This is used for deserialization. It is explicit to
+    # avoid replacing of ephemeral stuff, such as data store connections or whatnot
+    def _replace(self, env: "_Environment"):
+        self._time = env._time
+        self._start_time = env._start_time
+        self._pause = env._pause
+        self._terminate = env._terminate
+        self._initialized = env._initialized
+        self._state = env._state
+        self._run_id = env._run_id
+
+        self._pause_on_response = env._pause_on_response
+        self._pause_on_request = env._pause_on_request
+
+        self._runtime_configuration = env._runtime_configuration
+        self._statistics = env._statistics
+
+        self._action_store = env._action_store
+        self._service_store = env._service_store
+        self._exploit_store = env._exploit_store
+        self._metadata_providers = env._metadata_providers
+        self._network = env._network
+        self._configuration = env._configuration
+
+        self._policy = env._policy
 
     # Runtime parameters can be passed via command-line, configuration file, or through environment variables
     # In case of multiple definitions of one parameter, the order is, from the most important to least:
@@ -370,7 +456,7 @@ class _Environment(Environment, EnvironmentControl, EnvironmentMessaging, Enviro
 
         # if this is the first run() after init, call all run() methods of active services
         if self._state == EnvironmentState.INIT:
-            for n in self._network.get_nodes_by_type("Node"):
+            for n in self._configuration.get_objects_by_type(NodeImpl):
                 for s in n.services.values():
                     if isinstance(s, ServiceImpl) and not s.passive:
                         s.active_service.run()
@@ -417,6 +503,12 @@ class _Environment(Environment, EnvironmentControl, EnvironmentMessaging, Enviro
     def remove_pause_on_response(self, id: str) -> None:
         self._pause_on_response = [x for x in self._pause_on_response if x != id]
 
+    def snapshot_save(self) -> str:
+        return Serializer.serialize(self)
+
+    def snapshot_load(self, state: str) -> None:
+        self._replace(Serializer.deserialize(state))
+
     # ------------------------------------------------------------------------------------------------------------------
     @property
     def action_store(self) -> ActionStore:
@@ -461,16 +553,28 @@ class _Environment(Environment, EnvironmentControl, EnvironmentMessaging, Enviro
     # ------------------------------------------------------------------------------------------------------------------
     # NodeConfiguration
     def create_node(self, id: str, ip: Union[str, IPAddress] = "", mask: str = "", shell: Service = None) -> Node:
-        return NodeImpl(id, "Node", ip, mask, shell)
+        n = NodeImpl(id, "Node", ip, mask, shell)
+        self._configuration.add_object(id, n)
+        return n
 
     def create_router(self, id: str, messaging: EnvironmentMessaging) -> Node:
-        return Router(id, messaging)
+        r = Router(id, messaging)
+        self._configuration.add_object(id, r)
+        return r
 
-    def create_interface(self, ip: Union[str, IPAddress] = "", mask: str = "", index: int = 0):
-        return InterfaceImpl(ip, mask, index)
+    def create_interface(self, ip: Union[str, IPAddress] = "", mask: str = "", index: int = 0, id: str = "") -> Interface:
+        if not id:
+            id = str(uuid.uuid4())
+        i = InterfaceImpl(ip, mask, index, id)
+        self._configuration.add_object(id, i)
+        return i
 
-    def create_route(self, net: IPNetwork, port: int, metric: int) -> Route:
-        return Route(net, port, metric)
+    def create_route(self, net: IPNetwork, port: int, metric: int, id: str = "") -> Route:
+        if not id:
+            id = str(uuid.uuid4())
+        r = Route(net, port, metric, id)
+        self._configuration.add_object(id, r)
+        return r
 
     def add_interface(self, node: Node, interface: Interface, index: int = -1) -> int:
         if node.type == "Router":
@@ -528,10 +632,17 @@ class _Environment(Environment, EnvironmentControl, EnvironmentMessaging, Enviro
 
     # ------------------------------------------------------------------------------------------------------------------
     # ServiceConfiguration
-    def create_active_service(self, id: str, owner: str, name: str, node: Node,
+    def create_active_service(self, type: str, owner: str, name: str, node: Node,
                               service_access_level: AccessLevel = AccessLevel.LIMITED,
-                              configuration: Optional[Dict[str, Any]] = None) -> Optional[Service]:
-        return self._service_store.create_active_service(id, owner, name, node, service_access_level, configuration)
+                              configuration: Optional[Dict[str, Any]] = None, id: str = "") -> Optional[Service]:
+        if not id:
+            id = str(uuid.uuid4())
+
+        s = self._service_store.create_active_service(type, owner, name, node, service_access_level, configuration, id)
+        if s:
+            self._configuration.add_object(id, s)
+
+        return s
 
     def get_service_interface(self, service: ActiveService,
                               interface_type: Type[ActiveServiceInterfaceType]) -> ActiveServiceInterfaceType:
@@ -540,9 +651,11 @@ class _Environment(Environment, EnvironmentControl, EnvironmentMessaging, Enviro
         else:
             raise RuntimeError("Given active service does not provide control interface of given type.")
 
-    def create_passive_service(self, id: str, owner: str, version: str = "0.0.0", local: bool = False,
-                               service_access_level: AccessLevel = AccessLevel.LIMITED) -> Service:
-        return PassiveServiceImpl(id, owner, version, local, service_access_level)
+    def create_passive_service(self, type: str, owner: str, version: str = "0.0.0", local: bool = False,
+                               service_access_level: AccessLevel = AccessLevel.LIMITED, id: str = "") -> Service:
+        p = PassiveServiceImpl(type, owner, version, local, service_access_level, id)
+        self._configuration.add_object(id, p)
+        return p
 
     def update_service_version(self, service: PassiveService, version: str = "0.0.0") -> None:
         service = PassiveServiceImpl.cast_from(service)
@@ -556,7 +669,11 @@ class _Environment(Environment, EnvironmentControl, EnvironmentMessaging, Enviro
             service.set_session_access_level(value)
 
     def create_data(self, id: Optional[str], owner: str, description: str) -> Data:
-        return DataImpl(id, owner, description)
+        if not id:
+            id = str(uuid.uuid4())
+        d = DataImpl(id, owner, description)
+        self._configuration.add_object(id, d)
+        return d
 
     def public_data(self, service: PassiveService) -> List[Data]:
         return PassiveServiceImpl.cast_from(service).public_data
@@ -691,8 +808,12 @@ class _Environment(Environment, EnvironmentControl, EnvironmentMessaging, Enviro
     # Access configuration
     def create_authentication_provider(self, provider_type: AuthenticationProviderType,
                                        token_type: AuthenticationTokenType, security: AuthenticationTokenSecurity,
-                                       ip: Optional[IPAddress], timeout: int) -> AuthenticationProvider:
-        return AuthenticationProviderImpl(provider_type, token_type, security, ip, timeout)
+                                       ip: Optional[IPAddress], timeout: int, id: str = "") -> AuthenticationProvider:
+        if not id:
+            id = str(uuid.uuid4())
+        a = AuthenticationProviderImpl(provider_type, token_type, security, ip, timeout, id)
+        self._configuration.add_object(a.id, a)
+        return a
 
     def create_authentication_token(self, type: AuthenticationTokenType, security: AuthenticationTokenSecurity,
                                     identity: str, is_local: bool) -> AuthenticationToken:
@@ -717,16 +838,23 @@ class _Environment(Environment, EnvironmentControl, EnvironmentMessaging, Enviro
 
     def create_authorization(self, identity: str, access_level: AccessLevel, id: str, nodes: Optional[List[str]] = None,
                              services: Optional[List[str]] = None) -> Authorization:
-        return AuthorizationImpl(
+        if not id:
+            id = str(uuid.uuid4())
+        a = AuthorizationImpl(
             identity=identity,
             access_level=access_level,
             id=id,
             nodes=nodes,
             services=services
         )
+        self._configuration.add_object(id, a)
+        return a
 
-    def create_access_scheme(self) -> AccessScheme:
-        scheme = AccessSchemeImpl()
+    def create_access_scheme(self, id: str = "") -> AccessScheme:
+        if not id:
+            id = str(uuid.uuid4())
+        scheme = AccessSchemeImpl(id)
+        self._configuration.add_object(scheme.id, scheme)
         return scheme
 
     def add_provider_to_scheme(self, provider: AuthenticationProvider, scheme: AccessScheme):

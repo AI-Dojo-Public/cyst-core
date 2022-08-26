@@ -14,19 +14,24 @@ from cyst.core.logic.data import DataImpl
 
 class ServiceImpl(Service):
 
-    def __init__(self, id: str, service: Union[ActiveService, PassiveService],
-                 name: str, owner: str, service_access_level: AccessLevel = AccessLevel.LIMITED):
-        self._id = id
+    def __init__(self, type: str, service: Union[ActiveService, PassiveService],
+                 name: str, owner: str, service_access_level: AccessLevel = AccessLevel.LIMITED, id: str = ""):
+        self._type = type
         self._service = service
         self._name = name
         self._owner = owner
         self._sal = service_access_level
         self._node = None
         self._sessions = []
+        self._id = id
 
     @property
     def id(self) -> str:
         return self._id
+
+    @property
+    def type(self) -> str:
+        return self._type
 
     def set_node(self, id):
         self._node = id
@@ -76,9 +81,9 @@ class ServiceImpl(Service):
 
 
 class PassiveServiceImpl(ServiceImpl, PassiveService):
-    def __init__(self, id: str, owner: str, version: str = "0.0.0", local: bool = False,
-                 service_access_level: AccessLevel = AccessLevel.LIMITED) -> None:
-        super(PassiveServiceImpl, self).__init__(id, self, id, owner, service_access_level)
+    def __init__(self, type: str, owner: str, version: str = "0.0.0", local: bool = False,
+                 service_access_level: AccessLevel = AccessLevel.LIMITED, id: str = "") -> None:
+        super(PassiveServiceImpl, self).__init__(type, self, type, owner, service_access_level, id)
 
         self._version = VersionInfo.parse(version)
         self._public_data = []

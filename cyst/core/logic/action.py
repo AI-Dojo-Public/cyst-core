@@ -113,6 +113,25 @@ class ActionImpl(Action):
         for p in action.parameters:
             self._parameters[p.name] = p
 
+    def __getstate__(self) -> dict:
+        return {
+            "_id": self._id,
+            "_description": self._description,
+            "_tokens": self._tokens,
+            "_exploit": self._exploit,
+            "_parameters": self._parameters
+        }
+
+    def __setstate__(self, state) -> None:
+        self._id = state["_id"]
+        fragments = self._id.split(":")
+        self._namespace = fragments[0]
+        self._fragments = fragments[1:]
+        self._description = state["_description"]
+        self._tokens = state["_tokens"]
+        self._exploit = state["_exploit"]
+        self._parameters = state["_parameters"]
+
     @property
     def id(self) -> str:
         return self._id

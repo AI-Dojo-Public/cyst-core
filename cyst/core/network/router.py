@@ -43,6 +43,45 @@ class Router(NodeImpl):
         service = PassiveServiceImpl("router", "router", "1.2.3", False, AccessLevel.LIMITED)
         self.add_service(service)
 
+    # jsonpickle struggles with IPAddress and IPNetwork in a router, even though it has specific handlers for it,
+    # so we convert it to a string and back
+    def __getstate__(self) -> dict:
+        result = self.__dict__
+        replacement_local_ips = {}
+        for ip, index in self._local_ips.items():
+            replacement_local_ips[str(ip)] = index
+        result["_local_ips"] = replacement_local_ips
+
+        replacement_router_ips = set()
+        for ip in self._router_ips:
+            replacement_router_ips.add(str(ip))
+        result["_router_ips"] = replacement_router_ips
+
+        replacement_local_nets = []
+        for net in self._local_nets:
+            replacement_local_nets.append(str(net))
+        result["_local_nets"] = replacement_local_nets
+
+        return result
+
+    def __setstate__(self, state: dict) -> None:
+        original_local_ips = {}
+        for ip, index in state["_local_ips"].items():
+            original_local_ips[IPAddress(ip)] = index
+        state["_local_ips"] = original_local_ips
+
+        original_router_ips = set()
+        for ip in state["_router_ips"]:
+            original_router_ips.add(IPAddress(ip))
+        state["_router_ips"] = original_router_ips
+
+        original_local_nets = []
+        for net in state["_local_nets"]:
+            original_local_nets.append(IPNetwork(net))
+        state["_local_nets"] = original_local_nets
+
+        self.__dict__.update(state)
+
     # Override adding of traffic processor to register firewall for routing
     def add_traffic_processor(self, value: ActiveService) -> None:
         self._traffic_processors.append(value)

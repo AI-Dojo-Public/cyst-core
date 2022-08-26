@@ -90,7 +90,7 @@ class NodeImpl(Node):
 
     def add_service(self, service: Service) -> None:
         s = ServiceImpl.cast_from(service)
-        self._services[s.id] = s
+        self._services[s.type] = s
         s.set_node(self._id)
         # TODO: create a mechanism for reasonable running of active services
         # Initiate active services

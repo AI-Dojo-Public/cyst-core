@@ -205,10 +205,11 @@ class AuthenticationTargetImpl(AuthenticationTarget):
 
 
 class AccessSchemeImpl(AccessScheme):
-    def __init__(self):
+    def __init__(self, id: str):
         self._providers = []
         self._authorizations = []
         self._identities = []
+        self._id = id
 
     def add_provider(self, provider: AuthenticationProvider):
         self._providers.append((provider, len(self._providers)))
@@ -232,6 +233,10 @@ class AccessSchemeImpl(AccessScheme):
     def authorizations(self) -> List[Authorization]:
         return self._authorizations
 
+    @property
+    def id(self) -> str:
+        return self._id
+
     @staticmethod
     def cast_from(other: AccessScheme):
         if isinstance(other, AccessSchemeImpl):
@@ -243,7 +248,7 @@ class AccessSchemeImpl(AccessScheme):
 class AuthenticationProviderImpl(AuthenticationProvider):
 
     def __init__(self, provider_type: AuthenticationProviderType, token_type: AuthenticationTokenType,
-                 security: AuthenticationTokenSecurity, ip: Optional[IPAddress], timeout: int):
+                 security: AuthenticationTokenSecurity, ip: Optional[IPAddress], timeout: int, id: str):
 
         self._provider_type = provider_type
         self._token_type = token_type
@@ -252,6 +257,8 @@ class AuthenticationProviderImpl(AuthenticationProvider):
 
         self._tokens = set()
         self._target = self._create_target()
+
+        self._id = id
 
         if provider_type != AuthenticationProviderType.LOCAL and ip is None:
             raise RuntimeError("Non-local provider needs ip address")
@@ -272,6 +279,10 @@ class AuthenticationProviderImpl(AuthenticationProvider):
     @property
     def security(self):
         return self._security
+
+    @property
+    def id(self) -> str:
+        return self._id
 
     def token_is_registered(self, token: AuthenticationToken):
         for t in self._tokens:

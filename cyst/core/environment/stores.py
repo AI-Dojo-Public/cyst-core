@@ -34,16 +34,16 @@ class ServiceStoreImpl:
         else:
             return None
 
-    def create_active_service(self, id: str, owner: str, name: str, node: Node,
+    def create_active_service(self, type: str, owner: str, name: str, node: Node,
                               service_access_level: AccessLevel = AccessLevel.LIMITED,
-                              configuration: Optional[Dict[str, Any]] = None) -> Optional[Service]:
-        if not id in self._services:
+                              configuration: Optional[Dict[str, Any]] = None, id: str = "") -> Optional[Service]:
+        if not type in self._services:
             return None
         node = NodeImpl.cast_from(node)
-        proxy = EnvironmentProxy(self._messaging, node.id, id)
-        service_description: ActiveServiceDescription = self._services[id]
+        proxy = EnvironmentProxy(self._messaging, node.id, type)
+        service_description: ActiveServiceDescription = self._services[type]
         service = service_description.creation_fn(proxy, self._resources, configuration)
-        return ServiceImpl(id, service, name, owner, service_access_level)
+        return ServiceImpl(type, service, name, owner, service_access_level, id)
 
 
 class ActionStoreImpl(ActionStore):

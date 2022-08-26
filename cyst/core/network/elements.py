@@ -1,3 +1,4 @@
+import uuid
 from abc import ABC, abstractmethod
 from netaddr import IPAddress, IPNetwork
 from typing import NamedTuple, Optional, Union
@@ -66,7 +67,8 @@ class ConnectionImpl(Connection):
 
 
 class PortImpl(Port):
-    def __init__(self, ip: Union[str, IPAddress] = "", mask: str = "", index: int = 0) -> None:
+    def __init__(self, ip: Union[str, IPAddress] = "", mask: str = "", index: int = 0, id: str = "") -> None:
+        self._id: str = id
         self._ip: Optional[IPAddress] = None
         self._net: Optional[IPNetwork] = None
         self._index: int = index
@@ -143,6 +145,10 @@ class PortImpl(Port):
     def set_index(self, value: int = 0) -> None:
         self._index = value
 
+    @property
+    def id(self) -> str:
+        return self._id
+
     # Returns true if given ip belongs to the network
     def routes(self, ip: Union[str, IPAddress] = ""):
         if ip in self._net:
@@ -161,8 +167,8 @@ class PortImpl(Port):
 # Interface is just a port, which preserves gateway information (that is a port for end devices)
 class InterfaceImpl(PortImpl, Interface):
 
-    def __init__(self, ip: Union[str, IPAddress] = "", mask: str = "", index: int = 0):
-        super(InterfaceImpl, self).__init__(ip, mask, index)
+    def __init__(self, ip: Union[str, IPAddress] = "", mask: str = "", index: int = 0, id: str = ""):
+        super(InterfaceImpl, self).__init__(ip, mask, index, id)
 
         self._gateway_ip: Optional[IPAddress] = None
 

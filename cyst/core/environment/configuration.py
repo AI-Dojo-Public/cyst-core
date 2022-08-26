@@ -1,7 +1,10 @@
 import uuid
+import collections
 
 from dataclasses import dataclass, field
 from typing import List, Union, Optional, Dict, Any, Type, Tuple
+
+import jsonpickle
 
 from cyst.api.environment.configuration import GeneralConfiguration, ObjectType, ConfigurationObjectType
 from cyst.api.configuration.configuration import ConfigItem
@@ -17,6 +20,7 @@ from cyst.api.configuration.network.router import RouterConfig
 from cyst.api.configuration.network.node import NodeConfig
 from cyst.api.environment.environment import Environment
 from cyst.api.host.service import AccessLevel
+from cyst.api.network.node import Node
 
 from cyst.core.network.firewall import FirewallImpl
 
@@ -42,6 +46,13 @@ class Configurator:
         self._authentication_providers: List[AuthenticationProviderConfig] = []
         self._access_schemes: List[AccessSchemeConfig] = []
         self._authorization_domains: List[AuthorizationDomainConfig] = []
+
+    def __getstate__(self):
+        result = self.__dict__
+        return result
+
+    def __setstate__(self, state):
+        self.__dict__.update(state)
 
     def reset(self):
         self._refs.clear()
@@ -313,6 +324,42 @@ class Configurator:
         else:
             return self._obj_refs[id]
 
+    def get_objects_by_type(self, type: Type[ObjectType]) -> List[ObjectType]:
+        result = []
+        for obj in self._obj_refs:
+            if isinstance(obj, type):
+                result.append(obj)
+        return result
+
+    def _resolve_config_item(self, item: ConfigItem) -> ConfigItem:
+        replaced = {}
+        for key, value in item.__dict__.items():
+            if isinstance(value, str) and not key.endswith("id") and value in self._refs:
+                replaced[key] = self._resolve_config_item(self._refs[value])
+            if isinstance(value, list):
+                tmp = []
+                for element in value:
+                    if isinstance(element, str) and element in self._refs:
+                        tmp.append(self._resolve_config_item(self._refs[element]))
+                if tmp:
+                    replaced[key] = tmp
+        item.__dict__.update(replaced)
+        return item
+
+    def get_configuration(self) -> List[ConfigItem]:
+        top_level = [*self._nodes, *self._routers, *self._connections, *self._exploits]
+        result = []
+        for item in top_level:
+            result.append(self._resolve_config_item(item))
+        return result
+
+    def add_object(self, id: str, obj: Any) -> None:
+        if id in self._obj_refs:
+            tmp = self._obj_refs[id]
+            raise RuntimeError(f"Attempting to add an already existing object with id: {id} and type: {type(tmp)}")
+
+        self._obj_refs[id] = obj
+
     # ------------------------------------------------------------------------------------------------------------------
     # Gather all configuration items
     # TODO: Return of Environment is an artifact of previous development. Need to change it to something more useful
@@ -351,8 +398,7 @@ class Configurator:
         # Prepare authentication tokens based on the authorizations in access schemes
         for scheme in self._access_schemes:
 
-            scheme_instance = self._env.configuration.access.create_access_scheme()
-            self._obj_refs[scheme.id] = scheme_instance
+            scheme_instance = self._env.configuration.access.create_access_scheme(scheme.id)
 
             authorization_domain = self._refs[scheme.authorization_domain]
 
@@ -366,36 +412,40 @@ class Configurator:
                         provider_conf.token_type,
                         provider_conf.token_security,
                         provider_conf.ip,
-                        provider_conf.timeout)
-                    self._obj_refs[provider_id] = provider
+                        provider_conf.timeout,
+                        provider_id
+                    )
                 else:
                     provider = self._obj_refs[provider_id]
 
                 self._env.configuration.access.add_provider_to_scheme(provider, scheme_instance)
 
-                for auth_id in authorization_domain.authorizations:
-                    auth = self._refs[auth_id]
-                    if isinstance(auth, AuthorizationConfig) or isinstance(auth, FederatedAuthorizationConfig):
-                        identity = auth.identity
-                        self._env.configuration.access.create_and_register_authentication_token(provider, identity)
+            for auth_id in authorization_domain.authorizations:
+                auth = self._refs[auth_id]
+                if isinstance(auth, AuthorizationConfig) or isinstance(auth, FederatedAuthorizationConfig):
+                    identity = auth.identity
 
-                        # WARN: this creates authorizations with services = ["*"], nodes = ["*"] if not Federated is
-                        # created, when the authorization process is
-                        # done, these are only used as templates so should not be a problem
-                        authorization = self._env.configuration.access.create_authorization(auth.identity,
-                                                                                            auth.access_level, auth.id)\
-                            if not isinstance(auth, FederatedAuthorizationConfig) else \
-                            self._env.configuration.access.create_authorization(auth.identity, auth.access_level,
-                                                                                auth.id, auth.nodes, auth.services)
+                    # This is not very pretty, but the original version that ran this code for each provider caused
+                    # problems with the new approach that correctly tracks IDs of objects. In this case objects with
+                    # identical IDs could be created multiple times.
+                    for provider_id in scheme.authentication_providers:
+                        self._env.configuration.access.create_and_register_authentication_token(self._obj_refs[provider_id], identity)
 
-                        self._obj_refs[auth.id] = authorization
-                        self._env.configuration.access.add_authorization_to_scheme(authorization, scheme_instance)
-                    else:
-                        raise RuntimeError("Wrong object type provided instead of (Federated)AuthorizationConfig")
+                    # WARN: this creates authorizations with services = ["*"], nodes = ["*"] if not Federated is
+                    # created, when the authorization process is
+                    # done, these are only used as templates so should not be a problem
+                    authorization = self._env.configuration.access.create_authorization(auth.identity,
+                                                                                        auth.access_level, auth.id)\
+                        if not isinstance(auth, FederatedAuthorizationConfig) else \
+                        self._env.configuration.access.create_authorization(auth.identity, auth.access_level,
+                                                                            auth.id, auth.nodes, auth.services)
+
+                    self._env.configuration.access.add_authorization_to_scheme(authorization, scheme_instance)
+                else:
+                    raise RuntimeError("Wrong object type provided instead of (Federated)AuthorizationConfig")
 
         for data in self._data:
             d = self._env.configuration.service.create_data(data.id, data.owner, data.description)
-            self._obj_refs[data.id] = d
 
         for exploit in self._exploits:
             params = []
@@ -419,7 +469,7 @@ class Configurator:
         passive_service_obj = {}
         for service in self._passive_services:
             s = self._env.configuration.service.create_passive_service(service.type, service.owner, service.version,
-                                                                       service.local, service.access_level)
+                                                                       service.local, service.access_level, service.id)
 
             for d in service.public_data:
                 self._env.configuration.service.public_data(s.passive_service).append(self._obj_refs[d])
@@ -443,13 +493,11 @@ class Configurator:
                     scheme.id if isinstance(scheme, AccessSchemeConfig) else scheme])
 
             passive_service_obj[service.id] = s
-            self._obj_refs[service.id] = s
 
         # 3) Interfaces
         for iface in self._interfaces:
             # TODO: Missing a setting of a gateway (Really todo?)
-            i = self._env.configuration.node.create_interface(iface.ip, str(iface.net.netmask), iface.index)
-            self._obj_refs[iface.id] = i
+            self._env.configuration.node.create_interface(iface.ip, str(iface.net.netmask), iface.index, iface.id)
 
         # 4) Nodes
         for node in self._nodes:
@@ -465,8 +513,7 @@ class Configurator:
                 service_cfg: ActiveServiceConfig = self._refs[service]
                 s = self._env.configuration.service.create_active_service(service_cfg.type, service_cfg.owner,
                                                                           service_cfg.name, n, service_cfg.access_level,
-                                                                          service_cfg.configuration)
-                self._obj_refs[service_cfg.id] = s
+                                                                          service_cfg.configuration, service_cfg.id)
                 self._env.configuration.node.add_service(n, s)
             
             for processor in node.traffic_processors:
@@ -491,17 +538,16 @@ class Configurator:
                             for rule in chain.rules:
                                 impl.add_rule(chain.type, rule)
 
-                self._obj_refs[processor_cfg.id] = s
                 self._env.configuration.node.add_traffic_processor(n, s.active_service)
 
             self._env.configuration.node.set_shell(n, n.services.get(node.shell, None))
 
             self._env.configuration.network.add_node(n)
 
-            self._obj_refs[node.id] = n
-
         for router in self._routers:
             r = self._env.configuration.node.create_router(router.id, self._env.messaging)
+            # TODO: This one complains that it is the List of Interface configs, while, after config processing it is
+            #       a list of strings. This should probably be fixed to keep it type-happy.
             for iface_id in router.interfaces:
                 iface = self._obj_refs[iface_id]
                 self._env.configuration.node.add_interface(r, iface, iface.index)
@@ -509,7 +555,6 @@ class Configurator:
             for route in router.routing_table:
                 route_obj = self._env.configuration.node.create_route(route.network, route.port, route.metric)
                 self._env.configuration.node.add_route(r, route_obj)
-                self._obj_refs[route.id] = route_obj
 
             # TODO: Code duplication... this is one of the things to fix once routers and nodes are combined together
             for processor in router.traffic_processors:
@@ -534,12 +579,9 @@ class Configurator:
                             for rule in chain.rules:
                                 impl.add_rule(chain.type, rule)
 
-                self._obj_refs[processor_cfg.id] = s
                 self._env.configuration.node.add_traffic_processor(r, s.active_service)
 
             self._env.configuration.network.add_node(r)
-
-            self._obj_refs[router.id] = r
 
         # 5) Connections
         for conn in self._connections:
@@ -565,6 +607,15 @@ class Configuration(GeneralConfiguration):
         self._configurator.configure(self._env, *config_item)
         return self._env
 
+    def get_configuration(self) -> List[ConfigItem]:
+        return self._configurator.get_configuration()
+
+    def save_configuration(self, indent: Optional[int]) -> str:
+        return jsonpickle.encode(self._configurator.get_configuration(), make_refs=False, indent=indent)
+
+    def load_configuration(self, config: str) -> List[ConfigItem]:
+        return jsonpickle.decode(config)
+
     def get_configuration_by_id(self, id: str,
                                 configuration_type: Type[ConfigurationObjectType]) -> ConfigurationObjectType:
 
@@ -584,6 +635,12 @@ class Configuration(GeneralConfiguration):
                                                                                                        str(object_type),
                                                                                                        type(o)))
         return o
+
+    def get_objects_by_type(self, type: Type[ObjectType]) -> List[ObjectType]:
+        return self._configurator.get_objects_by_type(type)
+
+    def add_object(self, id: str, obj: Any) -> None:
+        self._configurator.add_object(id, obj)
 
 
 # ----------------------------------------------------------------------------------------------------------------------
