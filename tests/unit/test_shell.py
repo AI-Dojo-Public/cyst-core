@@ -155,10 +155,15 @@ class TestReverseShell(unittest.TestCase):
 
         cls.actions = {a.id: a for a in cls.env.resources.action_store.get_prefixed("cyst")}
 
+        # dummy request from which a response will be formed
+        request = cls.env.messaging.create_request(TARGET, "scripted_actor",
+                                                   cls.actions["cyst:active_service:action_1"])
+
         configuration = {
             "ignore_requests": False,
             "target": (IPAddress(ATTACKER), "scripted_actor"),
-            "delay": 30  # not usefull in this synthetic test
+            "delay": 30,  # not usefull in this synthetic test
+            "origin": request
         }
 
         shell = cls.env.configuration.service.create_active_service("reverse_shell",

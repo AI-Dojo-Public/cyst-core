@@ -1,6 +1,8 @@
 from typing import Any, Dict, Optional, Tuple
 
-from cyst.api.environment.message import Message, MessageType, Request, Status, StatusOrigin, StatusValue
+from netaddr import IPAddress
+
+from cyst.api.environment.message import Message, MessageType, Request, Response, Status, StatusOrigin, StatusValue
 from cyst.api.environment.messaging import EnvironmentMessaging
 from cyst.api.environment.resources import EnvironmentResources
 from cyst.api.host.service import ActiveService, ActiveServiceDescription
@@ -18,11 +20,17 @@ class ReverseShell(ActiveService):
         self._resources = res
         self._log = get_logger("services.reverse_shell")
 
+        self._success_sent = False
+        if args and (origin := args.get("origin")):
+            self._origin_request: Request = origin
+        else:
+            raise ValueError("Reverse shell requires the request which inicialized it")
+
         self._delay: int = delay if args and (delay := args.get("delay")) else 0
         self._ignore_requests = args is None or args.get("ignore_requests", True)
 
         if args and (target := args.get("target")):
-            self._target: Tuple[str, str] = target  # (ip, service)
+            self._target: Tuple[IPAddress, str] = target  # (ip, service)
         else:
             raise ValueError("Reverse shell requires target parameter")
 
@@ -36,11 +44,20 @@ class ReverseShell(ActiveService):
         self._request_open_session(delay=0)
 
     def process_message(self, message: Message) -> Tuple[bool, int]:
-        self._log.debug(f"Processing message: {message.id} : {str(message)}")
+        self._log.debug(f"Processing message {message.id} : {message}")
 
         is_from_target = (message.src_ip, message.src_service) == self._target
 
         if message.type is MessageType.RESPONSE and is_from_target:
+            response = message.cast_to(Response)
+
+            if not self._success_sent:
+                if response.status.value is StatusValue.SUCCESS:
+                    self._log.debug(f"Sending final response back to {self._origin_request.id}")
+                    self._send_success_to_origin()
+                else:
+                    self._respond_with_error(self._origin_request, "Failed to open session")
+
             self._log.debug(f"Sending another open session request to {self._target}")
             self._request_open_session(self._delay)
             return True, 1
@@ -59,6 +76,16 @@ class ReverseShell(ActiveService):
         response = self._messaging.create_response(
             request, Status(StatusOrigin.SERVICE, StatusValue.FAILURE), error)
         self._messaging.send_message(response)
+
+    def _send_success_to_origin(self) -> None:
+        request = self._origin_request
+        response = self._messaging.create_response(request,
+                                                   Status(StatusOrigin.SERVICE,
+                                                          StatusValue.SUCCESS),
+                                                   f"Session opened as a reaction to {self._origin_request.id}",
+                                                   session=request.session)
+        self._messaging.send_message(response)
+        self._success_sent = True
 
 
 def create_shell(msg: EnvironmentMessaging, res: EnvironmentResources,
