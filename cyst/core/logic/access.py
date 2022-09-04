@@ -1,7 +1,7 @@
 
 import uuid
 
-from typing import List, Tuple, Optional
+from typing import List, Tuple, Optional, Set
 from netaddr import IPAddress
 
 from cyst.api.configuration.logic.access import AccessLevel
@@ -26,7 +26,9 @@ class AuthorizationImpl(Authorization):
         self._token = token
         self._expiration = -1  # TODO
 
-    def __eq__(self, other: 'Authorization') -> bool:
+    def __eq__(self, other: object) -> bool:
+        if not isinstance(other, AuthorizationImpl):
+            return NotImplemented
         if not other:
             return False
 
@@ -41,6 +43,7 @@ class AuthorizationImpl(Authorization):
 
     @property
     def id(self) -> str:
+        #Mypy complains about optionality of the id, it is also noted, that it is suspicious in Authorization class
         return self._id
 
     @id.setter
@@ -81,11 +84,13 @@ class AuthorizationImpl(Authorization):
 
     @property
     def token(self) -> Optional[uuid.UUID]:
-        return self._token
+        return self._token #MYPY: Authorization has token as not null, however there are calls to this implementation, that do not set it and therefore it can be null. Is relaxing authorization by making token null the correct choice?
+    #Also UUID and str is not unified
+
 
     @token.setter
-    def token(self, value: uuid) -> None:
-        self._token = value
+    def token(self, value: uuid.UUID) -> None:
+        self._token = value #MYPY: uid vs str
 
     def matching_id(self, other: Authorization):
         return self.id == AuthorizationImpl.cast_from(other).id
@@ -154,7 +159,7 @@ class AuthenticationTokenImpl(AuthenticationToken):
 
     @property
     def identity(self) -> str:
-        return self._identity
+        return self._identity #MYPY: Setter is defined in AuthenticationToken, is it OK to add here? It should be here as well
 
     def copy(self) -> Optional[AuthenticationToken]:
         pass # TODO different uuid needed????
@@ -187,21 +192,22 @@ class AuthenticationTargetImpl(AuthenticationTarget):
     def address(self) -> Optional[IPAddress]:
         return self._address
 
+    @address.setter
+    def address(self, ip: IPAddress):
+        self._address = ip
+
     @property
     def service(self) -> str:
-        return self._service
+        return self._service #MYPY: Service is defined as not optional in AuthenticationTarget, but constructor of impl has it optional and is called in that way
+
+    @service.setter
+    def service(self, serv: str):
+        self._service = serv
 
     @property
     def tokens(self) -> List[AuthenticationTokenType]:
         return self._tokens
 
-    @address.setter
-    def address(self, ip: IPAddress):
-        self._address = ip
-
-    @service.setter
-    def service(self, serv: str):
-        self._service = serv
 
 
 class AccessSchemeImpl(AccessScheme):
@@ -250,7 +256,7 @@ class AuthenticationProviderImpl(AuthenticationProvider):
         self._security = security
         self._timeout = timeout
 
-        self._tokens = set()
+        self._tokens: Set[AuthenticationToken] = set()
         self._target = self._create_target()
 
         if provider_type != AuthenticationProviderType.LOCAL and ip is None:
