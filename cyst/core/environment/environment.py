@@ -305,7 +305,7 @@ class _Environment(Environment, EnvironmentControl, EnvironmentMessaging, Enviro
 
         self._message_log.debug(f"Sending a message: {str(message)}")
 
-        if message.origin.id in self._pause_on_request:
+        if message.type is MessageType.REQUEST and f"{message.origin.id}.{message.src_service}" in self._pause_on_request:
             self._pause = True
 
     # ------------------------------------------------------------------------------------------------------------------
