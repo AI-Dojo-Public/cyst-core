@@ -1,6 +1,6 @@
 from cachetools import LRUCache
 from enum import Enum
-from typing import List, Union, Optional, Tuple, Dict, NamedTuple
+from typing import List, Union, Optional, Tuple, Dict, NamedTuple, Set
 from netaddr import IPAddress, IPNetwork
 
 from cyst.api.environment.environment import EnvironmentMessaging
@@ -32,7 +32,7 @@ class Router(NodeImpl):
         self._local_ips: Dict[IPAddress, int] = {}
         self._local_nets: List[IPNetwork] = []
         self._routes: List[Route] = []
-        self._router_ips = set()
+        self._router_ips: Set[IPAddress] = set()
         # Cache storing last 64 requests
         self._request_cache: LRUCache = LRUCache(64)
 
@@ -51,6 +51,8 @@ class Router(NodeImpl):
                 value.add_local_ip(ip)
             self._fw = value
 
+    # MYPY: Inheritance issue, parent has Interface, this one PortImpl, both inherit from Port.
+    # Maybe create Interface(Port) as it should be its extension or add separate ports property to Node?
     @property
     def interfaces(self) -> List[PortImpl]:
         return self._ports

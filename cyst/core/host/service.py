@@ -22,7 +22,7 @@ class ServiceImpl(Service):
         self._owner = owner
         self._sal = service_access_level
         self._node = None
-        self._sessions = []
+        self._sessions: List[Session] = []
 
     @property
     def id(self) -> str:
@@ -81,17 +81,18 @@ class PassiveServiceImpl(ServiceImpl, PassiveService):
         super(PassiveServiceImpl, self).__init__(id, self, id, owner, service_access_level)
 
         self._version = VersionInfo.parse(version)
-        self._public_data = []
-        self._private_data = []
-        self._public_authorizations = []
-        self._private_authorizations = []
-        self._tags = set()
+        self._public_data: List[Data] = []
+        self._private_data: List[Data] = []
+        self._public_authorizations: List[Authorization] = []
+        self._private_authorizations: List[Authorization] = []
+        self._tags: Set[str] = set() #Mypy: I did not find out the type
         self._enable_session = False
         self._session_access_level = AccessLevel.NONE
         self._local = local
-        self._provided_auths = []
-        self._access_schemes = []
-        self._active_authorizations = []
+        self._provided_auths: List[AuthenticationProvider] = []
+        self._access_schemes: List[AccessScheme] = []
+        self._active_authorizations: List[Authorization] = []
+
 
     # ------------------------------------------------------------------------------------------------------------------
     # PassiveService
