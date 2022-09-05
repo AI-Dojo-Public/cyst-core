@@ -43,7 +43,7 @@ class AuthorizationImpl(Authorization):
 
     @property
     def id(self) -> str:
-        #Mypy complains about optionality of the id, it is also noted, that it is suspicious in Authorization class
+        #MYPY: complains about optionality of the id, it is also noted, that it is suspicious in Authorization class
         return self._id
 
     @id.setter
