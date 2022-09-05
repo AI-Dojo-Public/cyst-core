@@ -4,6 +4,8 @@ import sys
 import time
 import uuid
 
+from cyst.api.environment.interpreter import ActionInterpreter
+
 if sys.version_info < (3, 10):
     from importlib_metadata import entry_points
 else:
@@ -80,7 +82,7 @@ class _Environment(Environment, EnvironmentControl, EnvironmentMessaging, Enviro
         self._network = Network()
         self._time = 0
         self._start_time = localtime()
-        self._tasks = []
+        self._tasks: List[Tuple[int,MessageImpl]] = []
         self._pause = False
         self._terminate = False
         self._initialized = False
@@ -88,20 +90,20 @@ class _Environment(Environment, EnvironmentControl, EnvironmentMessaging, Enviro
 
         self._run_id = ""
 
-        self._pause_on_request = []
-        self._pause_on_response = []
+        self._pause_on_request: List[str] = []
+        self._pause_on_response: List[str] = []
 
         self._action_store = ActionStoreImpl()
         self._service_store = ServiceStoreImpl(self.messaging, self.resources)
         self._exploit_store = ExploitStoreImpl()
 
-        self._interpreters = {}
+        self._interpreters: Dict[str, ActionInterpreter] = {}
         # TODO currently, there can be only on metadata provider for one namespace
         self._metadata_providers: Dict[str, MetadataProvider] = {}
 
         self._policy = Policy(self)
 
-        self._sessions_to_add = []
+        self._sessions_to_add: List[Tuple[ str, List[Union[str, Node]],Optional[str] ,Optional[str], Optional[Session], bool]] = []
 
         self._register_services()
         self._register_actions()
@@ -124,7 +126,7 @@ class _Environment(Environment, EnvironmentControl, EnvironmentMessaging, Enviro
     def _configure_runtime(self) -> None:
         # Environment
         data_backend = os.environ.get('CYST_DATA_BACKEND')
-        data_backend_params = []
+        data_backend_params: Dict[str, str] = dict()
         if data_backend:
             data_backend_params_serialized = os.environ.get('CYST_DATA_BACKEND_PARAMS')
             # we expect parameters to be given in the form "param1_name","param1_value","param2_name","param2_value",...
@@ -159,7 +161,7 @@ class _Environment(Environment, EnvironmentControl, EnvironmentMessaging, Enviro
 
         if args.data_backend_parameter:
             # Convert from list of lists into a list of tuples
-            data_backend_params = dict(tuple(x) for x in args.data_backend_parameter)
+            data_backend_params = dict(tuple(x) for x in args.data_backend_parameter) #MYPY: typehinting lambda not really possible this way, better to ignore?
 
         if args.run_id:
             run_id = args.run_id
@@ -202,7 +204,7 @@ class _Environment(Environment, EnvironmentControl, EnvironmentMessaging, Enviro
         return self._policy
 
     def configure(self, *config_item: ConfigItem) -> Environment:
-        return self._configuration.configure(*[copy.deepcopy(x) for x in config_item])
+        return self._configuration.configure(*[copy.deepcopy(x) for x in config_item]) #MYPY: type too loose, could be likely ignored
 
     # ------------------------------------------------------------------------------------------------------------------
     # EnvironmentMessaging
@@ -225,9 +227,9 @@ class _Environment(Environment, EnvironmentControl, EnvironmentMessaging, Enviro
     def open_session(self, request: Request) -> Session:
         return self.create_session_from_message(request)
 
-    def send_message(self, message: MessageImpl, delay: int = 0) -> None:
+    def send_message(self, message: MessageImpl, delay: int = 0) -> None:  #General in supertype, impl here
         # set a first hop for a message
-        source = self._network.get_node_by_id(message.origin.id)
+        source = self._network.get_node_by_id(message.origin.id)  #MYPY: this can really be null, should there be a check? The issue is further as well, can we make it non null in this function?
         # Find a next hop for messages without one
         if source and not message.next_hop:
             # New request with session should follow the session first
@@ -244,7 +246,7 @@ class _Environment(Environment, EnvironmentControl, EnvironmentMessaging, Enviro
                 # If this works it is a proof that the entire routing must be reviewed
                 message.set_src_ip(message.path[0].src.ip)
             elif message.type == MessageType.RESPONSE:
-                if message.session and message.current == SessionImpl.cast_from(message.session).endpoint:
+                if message.session and message.current == SessionImpl.cast_from(message.session).endpoint: #MYPY: message can be null
                     # This is stupid, but it complains...
                     if isinstance(message, ResponseImpl):
                         message.set_in_session(True)
@@ -260,7 +262,7 @@ class _Environment(Environment, EnvironmentControl, EnvironmentMessaging, Enviro
                     message.set_next_hop(Endpoint(message.origin.id, 0, localhost), Endpoint(message.origin.id, 0, localhost))
 
                 else:
-                    gateway, port = source.gateway(target)
+                    gateway, port = source.gateway(target)  #MYPY: False positive, as None is checked above in the if, can be ignored #type: ignore
                     if not gateway:
                         raise Exception("Could not send a message, no gateway to route it through.")
 
@@ -301,7 +303,7 @@ class _Environment(Environment, EnvironmentControl, EnvironmentMessaging, Enviro
 
         self._message_log.debug(f"Sending a message: {str(message)}")
 
-        if message.origin.id in self._pause_on_request:
+        if message.origin.id in self._pause_on_request: #MYPY: Same as above
             self._pause = True
 
     # ------------------------------------------------------------------------------------------------------------------
@@ -474,7 +476,8 @@ class _Environment(Environment, EnvironmentControl, EnvironmentMessaging, Enviro
 
     def add_interface(self, node: Node, interface: Interface, index: int = -1) -> int:
         if node.type == "Router":
-            return Router.cast_from(node).add_port(interface.ip, interface.mask, index)
+            return Router.cast_from(node).add_port(interface.ip, interface.mask, index) #MYPY: Mask can be null, but the add_port has "" as default for it, so i propose this:
+        #            return Router.cast_from(node).add_port(interface.ip, interface.mask if  interface.mask is not None else "", index)
         else:
             return NodeImpl.cast_from(node).add_interface(InterfaceImpl.cast_from(interface))
 
@@ -555,7 +558,7 @@ class _Environment(Environment, EnvironmentControl, EnvironmentMessaging, Enviro
         elif parameter == ServiceParameter.SESSION_ACCESS_LEVEL:
             service.set_session_access_level(value)
 
-    def create_data(self, id: Optional[str], owner: str, description: str) -> Data:
+    def create_data(self, id: Optional[str], owner: str, description: str) -> Data: #MYPY: UUID VS STR
         return DataImpl(id, owner, description)
 
     def public_data(self, service: PassiveService) -> List[Data]:
@@ -607,7 +610,7 @@ class _Environment(Environment, EnvironmentControl, EnvironmentMessaging, Enviro
                     raise RuntimeError("Both or neither services must be specified during session creation.")
 
                 src_node: Node
-                if isinstance(waypoints[0], str):
+                if isinstance(waypoints[0], str): #MYPY: Node vs NodeIMPL
                     src_node = self._network.get_node_by_id(waypoints[0])
                 else:
                     src_node = waypoints[0]
@@ -618,15 +621,15 @@ class _Environment(Environment, EnvironmentControl, EnvironmentMessaging, Enviro
                 else:
                     dst_node = waypoints[-1]
 
-                ServiceImpl.cast_from(src_node.services[src_service]).add_session(session)
-                ServiceImpl.cast_from(dst_node.services[dst_service]).add_session(session)
+                ServiceImpl.cast_from(src_node.services[src_service]).add_session(session) #type: ignore #MYPY: Both service dst and src seem like checked for None, so this should be a false positive that can be ignored
+                ServiceImpl.cast_from(dst_node.services[dst_service]).add_session(session)  # type:ignore
             return session
 
     def create_session_from_message(self, message: Message) -> Session:
         message = MessageImpl.cast_from(message)
 
         if message.auth:
-            owner = message.auth.identity
+            owner = message.auth.identity #MYPY: There can be 3 types base on annotations, only two of them do have .identity
         else:
             owner = message.dst_service
         path = message.non_session_path
@@ -655,7 +658,7 @@ class _Environment(Environment, EnvironmentControl, EnvironmentMessaging, Enviro
             src_node = self._network.get_node_by_id(path[0].src.id)
         dst_node = self._network.get_node_by_id(path[-1].dst.id)
 
-        ServiceImpl.cast_from(src_node.services[src_service]).add_session(session)
+        ServiceImpl.cast_from(src_node.services[src_service]).add_session(session) #MYPY: In theory, src_node and dst can be None
         ServiceImpl.cast_from(dst_node.services[dst_service]).add_session(session)
 
         return session
@@ -738,7 +741,7 @@ class _Environment(Environment, EnvironmentControl, EnvironmentMessaging, Enviro
     def add_authorization_to_scheme(self, auth: Authorization, scheme: AccessScheme):
         if isinstance(scheme, AccessSchemeImpl):
             scheme.add_authorization(auth)
-            scheme.add_identity(auth.identity)
+            scheme.add_identity(auth.identity) #MYPY: Authorization identity can be null. Scheme is without Nones, does it make sense to extend it?
             return True
         return False
 
@@ -748,7 +751,7 @@ class _Environment(Environment, EnvironmentControl, EnvironmentMessaging, Enviro
         for i in range(0, len(scheme.factors)):
             if scheme.factors[i][0].token_is_registered(token):
                 if i == len(scheme.factors) - 1:
-                    return next(filter(lambda auth: auth.identity == token.identity, scheme.authorizations), None)
+                    return next(filter(lambda auth: auth.identity == token.identity, scheme.authorizations), None) #MYPY: If auth is AuthenticationTarget, it will not have auth.identity. Does it matter though?
                 else:
                     return scheme.factors[i + 1][0].target
         return None
@@ -772,11 +775,11 @@ class _Environment(Environment, EnvironmentControl, EnvironmentMessaging, Enviro
     def user_auth_create(self, authorization: Authorization, service: Service, node: Node):
         if isinstance(authorization, AuthorizationImpl):
             if (authorization.nodes == ['*'] or node.id in authorization.nodes) and \
-                    (authorization.services == ['*'] or service.name in authorization.services):
+                    (authorization.services == ['*'] or service.name in authorization.services):  #MYPY: Node does not have id defined, only nodeimpl, which is probably usedhere
 
                 ret_auth = AuthorizationImpl(
                     identity=authorization.identity,
-                    nodes=[node.id],
+                    nodes=[node.id], #MYPY: Node does not have id defined, only nodeimpl, which is probably usedhere
                     services=[service.name],
                     access_level=authorization.access_level,
                     id=str(uuid4())
@@ -885,7 +888,8 @@ class _Environment(Environment, EnvironmentControl, EnvironmentMessaging, Enviro
                         routers.append(Router.cast_from(node2))
                         node2 = get_node_from_waypoint(self, i + len(routers) + 1)
 
-                    path_candidate = []
+
+                    path_candidate: List[Hop] = []
                     for elements in product(node0.interfaces, node2.interfaces):
                         node0_iface = InterfaceImpl.cast_from(elements[0])
                         node2_iface = InterfaceImpl.cast_from(elements[1])
@@ -943,7 +947,7 @@ class _Environment(Environment, EnvironmentControl, EnvironmentMessaging, Enviro
             # Sessions are always tried to be constructed in both directions, so we need to reverse the waypoints again
             waypoints.reverse()
             raise RuntimeError(
-                "Could not find connection between the following waypoints to establish a session".format(waypoints))
+                "Could not find connection between the following waypoints to establish a session".format(waypoints)) #MYPY: Missing the parameter in string
 
         # If the session was constructed from the end to front, we need to reverse the path
         if session_reversed:
@@ -951,7 +955,7 @@ class _Environment(Environment, EnvironmentControl, EnvironmentMessaging, Enviro
             for i in range(0, len(path)):
                 path[i] = path[i].swap()
 
-        return SessionImpl(owner, parent, path, src_service, dst_service, self._network)
+        return SessionImpl(owner, parent, path, src_service, dst_service, self._network) #MYPY: Services can be None, they are optional
 
     def _process_passive(self, message: Request, node: Node):
         time = 0
@@ -967,10 +971,10 @@ class _Environment(Environment, EnvironmentControl, EnvironmentMessaging, Enviro
                                                                             StatusValue.FAILURE,
                                                                             StatusDetail.AUTHENTICATION_NOT_APPLICABLE),
                                                             "Auto-authentication does not work with non-local tokens",
-                                                            session=message.session, auth=message.auth)
+                                                            session=message.session, auth=message.auth) #MYPY: AuthenticationToken is not valid type here. Depends, if they were just forgotten in annotation or not
             # TODO: assess if locality check makes sense
             original_action = message.action
-            auth_action = self.action_store.get("meta:authenticate").copy()
+            auth_action = self.action_store.get("meta:authenticate").copy() #MYPY: Get can return None
             auth_action.parameters["auth_token"].value = message.auth
             message.action = auth_action  # swap to authentication
             auth_time, auth_response = self._interpreters["meta"].evaluate(message, node)
@@ -993,7 +997,7 @@ class _Environment(Environment, EnvironmentControl, EnvironmentMessaging, Enviro
 
         # shortcut for wakeup messages
         if message.type == MessageType.TIMEOUT:
-            self._network.get_node_by_id(message.origin.id).process_message(message)
+            self._network.get_node_by_id(message.origin.id).process_message(message)  #MYPY: Node returned by get_node can be None
             return
 
         # Store it into the history
@@ -1001,16 +1005,16 @@ class _Environment(Environment, EnvironmentControl, EnvironmentMessaging, Enviro
 
         # Move message to a next hop
         message.hop()
-        current_node: NodeImpl = self._network.get_node_by_id(message.current.id)
+        current_node: NodeImpl = self._network.get_node_by_id(message.current.id) #MYPY: Get node can return None
 
         processing_time = 0
 
         # HACK: Because we want to enable actions to be able to target routers, we need to bypass the router processing
         #       if the message is at the end of its journey
-        last_hop = message.dst_ip == message.current.ip
+        last_hop = message.dst_ip == message.current.ip #MYPY: current can return None
 
         if not last_hop and current_node.type == "Router":
-            result, processing_time = current_node.process_message(message)
+            result, processing_time = current_node.process_message(message) #MYPY: This only returns one int, will crash
             if result:
                 heappush(self._tasks, (self._time + processing_time, message))
 
@@ -1025,7 +1029,7 @@ class _Environment(Environment, EnvironmentControl, EnvironmentMessaging, Enviro
                 heappush(self._tasks, (self._time + processing_time, message))
                 return
             # The session ends in the current node
-            elif message.session.endpoint.id == current_node.id or message.session.startpoint.id == current_node.id:
+            elif message.session.endpoint.id == current_node.id or message.session.startpoint.id == current_node.id:  #MYPY: here on multiple line, session only has an end and start, not endpoint and startpoint
                 # TODO bi-directional session complicate the situation soooo much
                 end_port = None
                 if message.session.endpoint.id == current_node.id:
@@ -1035,21 +1039,21 @@ class _Environment(Environment, EnvironmentControl, EnvironmentMessaging, Enviro
 
                 # Check if the node is the final destination
                 for iface in current_node.interfaces:
-                    if iface.index == end_port and iface.ip == message.dst_ip:
+                    if iface.index == end_port and iface.ip == message.dst_ip: #MYPY: Interface does not have index
                         local_processing = True
                         break
                 # It is not, this means the node was only a proxy to some other target
                 if not local_processing:
                     # Find a way to nearest switch
-                    gateway, port = current_node.gateway(message.dst_ip)
+                    gateway, port = current_node.gateway(message.dst_ip) #MYPY: If this returns None, there is only one value and it will crash on unpacking it
                     # ##################
-                    dest_node_endpoint = current_node.interfaces[port].endpoint
+                    dest_node_endpoint = current_node.interfaces[port].endpoint #MYPY: end vs endpoint
                     dest_node = self._network.get_node_by_id(dest_node_endpoint.id)
-                    dest_node_ip = dest_node.interfaces[dest_node_endpoint.port].ip
+                    dest_node_ip = dest_node.interfaces[dest_node_endpoint.port].ip #MYPY: dest_node can be None
                     message.set_next_hop(Endpoint(current_node.id, port, current_node.interfaces[port].ip),
                                          Endpoint(dest_node_endpoint.id, dest_node_endpoint.port, dest_node_ip))
                     # ##################
-                    self._message_log.debug(f"Proxying {message_type} to {message.dst_ip} via {message.next_hop.id} on a node {current_node.id}")
+                    self._message_log.debug(f"Proxying {message_type} to {message.dst_ip} via {message.next_hop.id} on a node {current_node.id}") #MYPY nexthope might in theory be None
                     heappush(self._tasks, (self._time + processing_time, message))
                     return
 
@@ -1084,13 +1088,13 @@ class _Environment(Environment, EnvironmentControl, EnvironmentMessaging, Enviro
                 self.send_message(response, processing_time)
 
             # Service exists and it is passive
-            elif current_node.services[message.dst_service].passive:
+            elif current_node.services[message.dst_service].passive:  #MYPY: passive vs .passive_service
                 # Passive services just discard the responses and only process the requests
                 if message_type == "response":
                     return
 
-                processing_time, response = self._process_passive(message, current_node)
-                if response.status.origin == StatusOrigin.SYSTEM and response.status.value == StatusValue.ERROR:
+                processing_time, response = self._process_passive(message, current_node) #MYPY:
+                if response.status.origin == StatusOrigin.SYSTEM and response.status.value == StatusValue.ERROR: #MYPY: Is it possible for response to not get created in the constructor and remain None?
                     print("Could not process the request, unknown semantics.")
                 else:
                     self.send_message(response, processing_time)
@@ -1114,11 +1118,11 @@ class _Environment(Environment, EnvironmentControl, EnvironmentMessaging, Enviro
                 return
 
             # If it is a request, then it is processed as a request for passive service and processed with the interpreter
-            processing_time, response = self._process_passive(message, current_node)
-            if response.status.origin == StatusOrigin.SYSTEM and response.status.value == StatusValue.ERROR:
+            processing_time, response = self._process_passive(message, current_node) #MYPY: messageimpl vs request
+            if response.status.origin == StatusOrigin.SYSTEM and response.status.value == StatusValue.ERROR: #MYPY: same as above, response None?
                 print("Could not process the request, unknown semantics.")
             else:
-                self.send_message(response, processing_time)
+                self.send_message(response, processing_time) #MYPY: same as above, response None?
 
     def _process(self) -> Tuple[bool, EnvironmentState]:
 
@@ -1136,7 +1140,7 @@ class _Environment(Environment, EnvironmentControl, EnvironmentMessaging, Enviro
             for task in current_tasks:
                 if task.type == MessageType.TIMEOUT:
                     # Yay!
-                    timeout = TimeoutImpl.cast_from(task.cast_to(Timeout))
+                    timeout = TimeoutImpl.cast_from(task.cast_to(Timeout)) #type:ignore #MYPY: Probably an issue with mypy, requires creation of helper class
                     timeout.service.process_message(task)
                 else:
                     self._send_message(task)
@@ -1197,7 +1201,7 @@ class _Environment(Environment, EnvironmentControl, EnvironmentMessaging, Enviro
                 provider.register_action_parameters()
 
     def create_service(self, name: str, id: str, node: Node, args: Optional[Dict[str, Any]]) -> ServiceImpl:
-        if name not in self._service_descriptions:
+        if name not in self._service_descriptions: #MYPY: service_descriptions is not defined
             raise AttributeError("Service '{}' not registered.".format(name))
 
         if not id:
@@ -1208,7 +1212,7 @@ class _Environment(Environment, EnvironmentControl, EnvironmentMessaging, Enviro
         proxy = EnvironmentProxy(self, NodeImpl.cast_from(node).id, service_name)
 
         # TODO add ownership into equation
-        act = self._service_descriptions[name].creation_fn("", proxy, args)
+        act = self._service_descriptions[name].creation_fn("", proxy, args) #MYPY: service_descriptions is not defined
         srv = ServiceImpl(service_name, act, name, "")
 
         return srv
