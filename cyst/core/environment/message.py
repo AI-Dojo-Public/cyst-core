@@ -89,13 +89,14 @@ class MessageImpl(Message):
     def sent(self) -> bool:
         return self._sent
 
+    @sent.setter
+    def sent(self, value) -> None:
+        self._sent = True
+
     @property
     def current(self) -> Optional[Endpoint]:
         return self._current
 
-    @sent.setter
-    def sent(self, value) -> None:
-        self._sent = True
 
     @property
     def in_session(self) -> bool:

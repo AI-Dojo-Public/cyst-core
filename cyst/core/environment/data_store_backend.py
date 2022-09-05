@@ -15,7 +15,7 @@ append_only_data = [Message]
 # ----------------------------------------------------------------------------------------------------------------------
 # These functions transform specific interfaces into dicts for storage in data store
 def _statistics_to_dict(item: Statistics) -> Dict[str, Any]:
-    result = dict()
+    result: Dict[str, Union[str, float, int]] = dict()
 
     result["run_id"] = item.run_id
     result["configuration_id"] = item.configuration_id
@@ -28,13 +28,14 @@ def _statistics_to_dict(item: Statistics) -> Dict[str, Any]:
 
 def _message_to_dict(item: Message) -> Dict[str, Any]:
     item: MessageImpl = MessageImpl.cast_from(item)
-    result = dict()
+    result: Dict[str, Union[str, int]] = dict()
 
     result["type"] = "REQUEST" if item.type == MessageType.REQUEST else "RESPONSE"
     result["id"] = item.id
     result["src_ip"] = str(item.src_ip)
     result["dst_ip"] = str(item.dst_ip)
-    result["hop_src_ip"] = str(item.current.ip)
+    result["hop_src_ip"] = str(item.current.ip) #MYPY: IP is not nullable, but current is. Does it make sense to assign None, if current is None, or is it required to fail in some other way to handle such situation? Is this issue even possible
+    # and if it is not, are we confidend in that?
     result["hop_src_id"] = item.current.id
     result["hop_dst_ip"] = str(item.next_hop.ip)
     result["hop_dst_id"] = item.next_hop.id
