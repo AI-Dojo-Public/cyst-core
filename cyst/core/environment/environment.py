@@ -699,23 +699,6 @@ class _Environment(Environment, EnvironmentConfiguration):
                 self._metadata_providers[provider_description.namespace] = provider
                 provider.register_action_parameters()
 
-    def create_service(self, name: str, id: str, node: Node, args: Optional[Dict[str, Any]]) -> ServiceImpl:
-        if name not in self._service_descriptions:
-            raise AttributeError("Service '{}' not registered.".format(name))
-
-        if not id:
-            service_name = "service-" + name + "-" + str(Counter().get("services"))
-        else:
-            service_name = id
-
-        proxy = EnvironmentProxy(self, NodeImpl.cast_from(node).id, service_name)
-
-        # TODO add ownership into equation
-        act = self._service_descriptions[name].creation_fn("", proxy, args)
-        srv = ServiceImpl(service_name, act, name, "")
-
-        return srv
-
 
 def create_environment() -> Environment:
     e = _Environment()
