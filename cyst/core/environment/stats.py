@@ -17,3 +17,10 @@ class StatisticsImpl(Statistics):
     # This way, everything works as expected
     def __post_init__(self):
         self.run_id = str(uuid.uuid4())
+
+    @staticmethod
+    def cast_from(o: Statistics) -> 'StatisticsImpl':
+        if isinstance(o, StatisticsImpl):
+            return o
+        else:
+            raise ValueError("Malformed underlying object passed with the Statistics interface")

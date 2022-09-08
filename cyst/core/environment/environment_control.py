@@ -10,13 +10,15 @@ from cyst.api.environment.stats import Statistics
 
 from cyst.core.host.service import ServiceImpl
 from cyst.core.network.node import NodeImpl
+from cyst.core.environment.configuration_general import GeneralConfigurationImpl
 from cyst.core.environment.serialization import Serializer
+from cyst.core.environment.stats import StatisticsImpl
 
 if TYPE_CHECKING:
     from cyst.core.environment.environment import _Environment
 
 
-class _EnvironmentControl(EnvironmentControl):
+class EnvironmentControlImpl(EnvironmentControl):
     def __init__(self, env: _Environment):
         self._env = env
 
@@ -92,9 +94,10 @@ def _init(self: _Environment, run_id: str = str(uuid.uuid4())) -> Tuple[bool, En
     _establish_sessions(self)
 
     # Set basic statistics
-    self._statistics.run_id = self._runtime_configuration.run_id if self._runtime_configuration.run_id else self._run_id
-    self._statistics.configuration_id = self._runtime_configuration.config_id
-    self._statistics.start_time_real = time.time()
+    s = StatisticsImpl.cast_from(self.resources.statistics)
+    s.run_id = self._runtime_configuration.run_id if self._runtime_configuration.run_id else self._run_id
+    s.configuration_id = self._runtime_configuration.config_id
+    s.start_time_real = time.time()
 
     self._initialized = True
 
@@ -140,7 +143,7 @@ def _run(self: _Environment) -> Tuple[bool, EnvironmentState]:
 
     # if this is the first run() after init, call all run() methods of active services
     if self._state == EnvironmentState.INIT:
-        for n in self._configuration.get_objects_by_type(NodeImpl):
+        for n in GeneralConfigurationImpl.cast_from(self.configuration.general).get_objects_by_type(NodeImpl):
             for s in n.services.values():
                 if isinstance(s, ServiceImpl) and not s.passive:
                     s.active_service.run()
@@ -173,10 +176,11 @@ def _terminate(self: _Environment) -> Tuple[bool, EnvironmentState]:
 
 
 def _commit(self: _Environment) -> None:
-    self._statistics.end_time_real = time.time()
-    self._statistics.end_time_virtual = self._time
+    s = StatisticsImpl.cast_from(self.resources.statistics)
+    s.end_time_real = time.time()
+    s.end_time_virtual = self._time
 
-    self._data_store.set(self._run_id, self._statistics, Statistics)
+    self._data_store.set(self._run_id, self.resources.statistics, Statistics)
 
 
 def _add_pause_on_request(self: _Environment, id: str) -> None:

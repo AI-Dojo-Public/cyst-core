@@ -11,6 +11,7 @@ from cyst.api.environment.stores import ExploitStore, ActionStore
 from cyst.api.host.service import ActiveService
 
 from cyst.core.environment.message import TimeoutImpl
+from cyst.core.environment.stats import StatisticsImpl
 from cyst.core.environment.stores import ActionStoreImpl, ServiceStoreImpl, ExploitStoreImpl
 
 if TYPE_CHECKING:
@@ -47,12 +48,13 @@ def _timeout(self: _Environment, service: ActiveService, delay: int, content: An
 
 
 # ----------------------------------------------------------------------------------------------------------------------
-class _EnvironmentResources(EnvironmentResources):
+class EnvironmentResourcesImpl(EnvironmentResources):
     def __init__(self, env: _Environment):
         self._env = env
         self._action_store = ActionStoreImpl()
         self._exploit_store = ExploitStoreImpl()
         self._clock = _Clock(self._env)
+        self._statistics = StatisticsImpl()
 
     @property
     def action_store(self) -> ActionStore:
@@ -68,8 +70,4 @@ class _EnvironmentResources(EnvironmentResources):
 
     @property
     def statistics(self) -> Statistics:
-        return _statistics(self._env)
-
-
-def _statistics(self: _Environment) -> Statistics:
-    return self._statistics
+        return self._statistics

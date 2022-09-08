@@ -19,7 +19,7 @@ if TYPE_CHECKING:
     from cyst.core.environment.environment import _Environment
 
 
-class _EnvironmentMessaging(EnvironmentMessaging):
+class EnvironmentMessagingImpl(EnvironmentMessaging):
     def __init__(self, env: _Environment):
         self._env = env
 
@@ -63,7 +63,7 @@ def _create_response(request: Request, status: Status, content: Optional[Any] = 
 
 
 def _open_session(self: _Environment, request: Request) -> Session:
-    return self.create_session_from_message(request)
+    return self._network_configuration.create_session_from_message(request)
 
 
 def _send_message(self, message: MessageImpl, delay: int = 0) -> None:

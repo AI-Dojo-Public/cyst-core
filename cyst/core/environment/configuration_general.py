@@ -594,7 +594,7 @@ class Configurator:
 
 
 # ----------------------------------------------------------------------------------------------------------------------
-class Configuration(GeneralConfiguration):
+class GeneralConfigurationImpl(GeneralConfiguration):
 
     def __init__(self, env: Environment) -> None:
         self._env = env
@@ -641,6 +641,13 @@ class Configuration(GeneralConfiguration):
 
     def add_object(self, id: str, obj: Any) -> None:
         self._configurator.add_object(id, obj)
+
+    @staticmethod
+    def cast_from(o: GeneralConfiguration) -> 'GeneralConfigurationImpl':
+        if isinstance(o, GeneralConfigurationImpl):
+            return o
+        else:
+            raise ValueError("Malformed underlying object passed with the GeneralConfiguration interface")
 
 
 # ----------------------------------------------------------------------------------------------------------------------
