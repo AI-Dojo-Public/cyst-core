@@ -16,8 +16,8 @@ class AccessLevel(IntEnum):
         :LIMITED: A user-level access.
         :ELEVATED: A root/superuser/administrator-level access
     """
-    NONE = 0,
-    LIMITED = 1,
+    NONE = 0
+    LIMITED = 1
     ELEVATED = 2
 
 
