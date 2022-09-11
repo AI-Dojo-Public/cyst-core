@@ -213,6 +213,9 @@ class SessionImpl(Session):
         while parent:
             full_path = parent.path_id + full_path
             parent = parent.parent
+
+        path_repr = [str(self.start)]
+        path_repr.extend([str(x[1]) for x in full_path])
         return "[ID: {}, Owner: {}, Path:({}|{}|{})]".format(self.id, self.owner, self._src_service, path_repr, self._dst_service)
 
     def __eq__(self, other: 'SessionImpl') -> bool:
