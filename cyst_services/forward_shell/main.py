@@ -19,11 +19,17 @@ class ForwardShell(ActiveService):
         self._log = get_logger("services.forward_shell")
         self._ignore_requests: bool = args is None or args.get("ignore_requests", True)
 
+        self._success_sent = False
+        if args and (origin := args.get("origin")):
+            self._origin_request: Request = origin
+        else:
+            raise ValueError("Shell requires the request which inicialized it")
+
     def run(self) -> None:
         self._log.info("Launched a forward shell service")
 
     def process_message(self, message: Message) -> Tuple[bool, int]:
-        self._log.debug(f"Processing message: {message.id} : {str(message)}")
+        self._log.debug(f"Processing message {message.id} : {message}")
 
         if message.type is not MessageType.REQUEST:
             return False, 0
@@ -33,6 +39,11 @@ class ForwardShell(ActiveService):
         if request.action.id == "cyst:active_service:open_session":
             self._log.debug(f"Openning session for {request.src_service}")
             self._respond_with_session(request)
+
+            if not self._success_sent:
+                self._send_success_to_origin()
+                self._success_sent = True
+
             return True, 1
 
         if not self._ignore_requests:
@@ -54,6 +65,15 @@ class ForwardShell(ActiveService):
 
         self._messaging.send_message(response)
 
+    def _send_success_to_origin(self) -> None:
+        request = self._origin_request
+        response = self._messaging.create_response(request,
+                                                   Status(StatusOrigin.SERVICE,
+                                                          StatusValue.SUCCESS),
+                                                   f"Session opened as a reaction to {self._origin_request.id}",
+                                                   session=request.session)
+        self._messaging.send_message(response)
+        self._success_sent = True
 
 def create_shell(msg: EnvironmentMessaging, res: EnvironmentResources,
                  args: Optional[Dict[str, Any]]) -> ActiveService:
