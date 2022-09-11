@@ -1,5 +1,5 @@
 from abc import ABC, abstractmethod
-from typing import Tuple, Optional, Dict, Any, Union, Callable
+from typing import List, Tuple, Optional, Dict, Any, Union, Callable
 
 from cyst.api.logic.action import Action
 from cyst.api.logic.access import Authorization, AuthenticationToken
@@ -77,17 +77,19 @@ class ScriptedActor(ActiveService, ScriptedActorControl):
     def get_last_message_type(self) -> Optional[MessageType]:
         return self._last_message_type
 
-    def get_last_request(self) -> Optional[Request]:
+    def get_last_request(self, count: int = 1) -> Optional[Union[Request, List[Request]]]:
         if not self._requests:
             return None
-        else:
+        if count == 1:
             return self._requests[-1]
+        return self._requests[:-count-1:-1]
 
-    def get_last_response(self) -> Optional[Response]:
+    def get_last_response(self, count: int = 1) -> Optional[Union[Response, List[Response]]]:
         if not self._responses:
             return None
-        else:
+        if count == 1:
             return self._responses[-1]
+        return self._responses[:-count-1:-1]
 
     def set_request_callback(self, fn: Callable[[EnvironmentMessaging, EnvironmentResources, Message], Tuple[bool, int]]):
         self._request_callback = fn
