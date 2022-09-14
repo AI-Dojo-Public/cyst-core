@@ -213,8 +213,8 @@ class AuthenticationTargetImpl(AuthenticationTarget):
 class AccessSchemeImpl(AccessScheme):
     def __init__(self, id: str):
         self._providers = []
-        self._authorizations = []
-        self._identities = []
+        self._authorizations: List[Authorization] = []
+        self._identities: List[str] = []
         self._id = id
 
     def add_provider(self, provider: AuthenticationProvider):

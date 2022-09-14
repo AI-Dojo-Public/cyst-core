@@ -267,7 +267,8 @@ class Log:
                         if "severity" in logger_config.keys():
                             self.severity = Log.parse_severity(logger_config["severity"])
 
-                            """ MYPY: severity can be null now, maybe something like this to use 0 instead of None?
+                            #MYPY:
+                            """ severity can be null now, maybe something like this to use 0 instead of None?
                             parsed_severity = Log.parse_severity(logger_config["severity"]) # For Mypy
                             self.severity = parsed_severity if parsed_severity is not None else 0
 """
