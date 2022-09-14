@@ -3,7 +3,7 @@ import inspect
 import json
 
 from pathlib import Path
-from typing import Optional, Any, List
+from typing import Optional, Any, List, Dict
 from enum import Enum
 from collections import OrderedDict, namedtuple
 from flags import Flags
@@ -18,7 +18,7 @@ class ClassLogSettings:
 
     def __init__(self, class_name: str) -> None:
         self.class_name = class_name
-        self.settings = OrderedDict()
+        self.settings: Dict[str, FieldInfo] = OrderedDict()
         self.min_severity = 100
         for key in self.settings.keys():
             self.min_severity = min(self.settings[key].severity, self.min_severity)
@@ -160,7 +160,7 @@ class Log:
         if self.filter(what, severity, caller):
             self.logger.log(severity, self.get_log_string(what, severity, caller))
 
-    loggers = {}
+    loggers: Dict[str, "Log"] = {}
 
     @classmethod
     def get_logger(cls, name: str = "default"):
@@ -175,9 +175,9 @@ class Log:
     def __init__(self, name: str) -> None:
         self.included_categories = Category.no_flags
         self.excluded_categories = Category.no_flags
-        self.settings = {}
+        self.settings: Dict[str, ClassLogSettings] = {}
         self.mode = LogFilteringMode.EXCLUDE_SELECTED
-        self.severities = {}
+        self.severities: Dict[str, int] = {}
         self.severity = Log.INFO
         self.name = name
 
@@ -191,7 +191,7 @@ class Log:
         if isinstance(severity, int):
             return severity
         if not isinstance(severity, str):
-            return None
+            return None #MYPY: Is this really needed, if we dont break the type conventions?
         severity = severity.lower()
         if severity == "debug":
             return logging.DEBUG
@@ -206,7 +206,7 @@ class Log:
         return None
 
     classes_configured = False
-    class_configs = {}
+    class_configs: Dict[Any, ClassLogSettings] = {}  # Any, some stronger validation for json loading is needed
 
     def configure_classes(self) -> None:
         if self.classes_configured:
@@ -223,7 +223,7 @@ class Log:
                         field_label = field["name"]
                         if "label" in field.keys():
                             field_label = field["label"]
-                        class_settings.add_setting(field_name, field_severity, field_label)
+                        class_settings.add_setting(field_name, field_severity, field_label) #MYPY: Severity might be None
                     self.class_configs[c["label"]] = class_settings
             self.classes_configured = True
         except OSError:
@@ -266,6 +266,13 @@ class Log:
                             self.set_filtering_mode(LogFilteringMode.parse(logger_config["mode"]))
                         if "severity" in logger_config.keys():
                             self.severity = Log.parse_severity(logger_config["severity"])
+
+                            """ MYPY: severity can be null now, maybe something like this to use 0 instead of None?
+                            parsed_severity = Log.parse_severity(logger_config["severity"]) # For Mypy
+                            self.severity = parsed_severity if parsed_severity is not None else 0
+"""
+
+
                         if "output_file" in logger_config.keys():
                             output_file = str(Path(__file__ + "/../../../../log/" + logger_config["output_file"]).resolve())
                         if "format" in logger_config.keys():
@@ -289,7 +296,7 @@ class Log:
                 raise Exception("Invalid config file format (loggers sections)")
 
         formatter = logging.Formatter(log_format)
-        handler = 0
+        handler = 0 #MYPY: Is this useful? It would be better to remove this for mypy
         if (output_file == ""):
             handler = logging.StreamHandler()
         else:

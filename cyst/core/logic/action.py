@@ -74,6 +74,7 @@ class ActionParameterDomainImpl(ActionParameterDomain):
 
             return False
 
+        return NotImplemented #MYPY Complains
     def default(self) -> Any:
         return self._default
 
@@ -98,6 +99,7 @@ class ActionParameterDomainImpl(ActionParameterDomain):
         if self._type == ActionParameterDomainType.OPTIONS:
             return len(self._options)
 
+        return NotImplemented #MYPY Complains
 
 class ActionImpl(Action):
 
@@ -108,7 +110,7 @@ class ActionImpl(Action):
         self._fragments = fragments[1:]
         self._description = action.description
         self._tokens = action.tokens
-        self._exploit = None
+        self._exploit: Optional[Exploit] = None
         self._parameters: Dict[str, ActionParameter] = {}
         for p in action.parameters:
             self._parameters[p.name] = p
@@ -149,7 +151,7 @@ class ActionImpl(Action):
         return self._fragments
 
     @property
-    def exploit(self) -> Exploit:
+    def exploit(self) -> Optional[Exploit]:
         return self._exploit
 
     def set_exploit(self, exploit: Optional[Exploit]) -> None:

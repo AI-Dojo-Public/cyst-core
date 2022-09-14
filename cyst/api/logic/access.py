@@ -103,7 +103,6 @@ class AuthenticationToken(ABC):
         pass
 
     @identity.setter
-    @abstractmethod
     def identity(self, value: str) -> bool:
         """
         Sets the identity of the token, i.e., who is associated with the token and which authorization would be
