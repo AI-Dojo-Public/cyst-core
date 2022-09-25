@@ -245,6 +245,10 @@ class SessionImpl(Session):
         if self._path != other._path:
             return False
 
+        # If their source or destination services don't match, they are not the same
+        if self._src_service != other._src_service or self._dst_service != other._dst_service:
+            return False
+
         return True
 
     @staticmethod

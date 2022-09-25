@@ -686,7 +686,7 @@ class _Environment(Environment, EnvironmentControl, EnvironmentMessaging, Enviro
         appended = SessionImpl.cast_from(appended_session)
 
         node = self._network.get_node_by_id(appended.startpoint.id)
-        session = SessionImpl(appended.owner, original, appended.path_id)
+        session = SessionImpl(appended.owner, original, appended.path_id, original._src_service, appended._dst_service)
 
         ServiceImpl.cast_from(node.services[original.start[1]]).add_session(session)
 
