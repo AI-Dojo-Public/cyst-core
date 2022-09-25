@@ -297,7 +297,7 @@ class _Environment(Environment, EnvironmentControl, EnvironmentMessaging, Enviro
             message.set_metadata(metadata)
 
         try:
-            heappush(self._tasks, (self._time + delay, message))
+            heappush(self._tasks, (self._time + delay, Counter().get("msg"), message))
         except Exception as e:
             self._message_log.error(f"Error sending a message, reason: {e}")
 
@@ -866,7 +866,7 @@ class _Environment(Environment, EnvironmentControl, EnvironmentMessaging, Enviro
 
     def timeout(self, service: ActiveService, delay: int, content: Any) -> None:
         m = TimeoutImpl(service, self._time, delay, content)
-        heappush(self._tasks, (self._time + delay, m))
+        heappush(self._tasks, (self._time + delay, Counter().get("msg"), m))
 
     # ------------------------------------------------------------------------------------------------------------------
     # Statistics and data access TODO: make data stores available
@@ -1065,7 +1065,7 @@ class _Environment(Environment, EnvironmentControl, EnvironmentMessaging, Enviro
         if not last_hop and current_node.type == "Router":
             result, processing_time = current_node.process_message(message)
             if result:
-                heappush(self._tasks, (self._time + processing_time, message))
+                heappush(self._tasks, (self._time + processing_time, Counter().get("msg"), message))
 
             return
 
@@ -1075,7 +1075,7 @@ class _Environment(Environment, EnvironmentControl, EnvironmentMessaging, Enviro
             # Message still in session, pass it along
             if message.in_session:
                 message.set_next_hop()
-                heappush(self._tasks, (self._time + processing_time, message))
+                heappush(self._tasks, (self._time + processing_time, Counter().get("msg"), message))
                 return
             # The session ends in the current node
             elif message.session.endpoint.id == current_node.id or message.session.startpoint.id == current_node.id:
@@ -1103,7 +1103,7 @@ class _Environment(Environment, EnvironmentControl, EnvironmentMessaging, Enviro
                                          Endpoint(dest_node_endpoint.id, dest_node_endpoint.port, dest_node_ip))
                     # ##################
                     self._message_log.debug(f"Proxying {message_type} to {message.dst_ip} via {message.next_hop.id} on a node {current_node.id}")
-                    heappush(self._tasks, (self._time + processing_time, message))
+                    heappush(self._tasks, (self._time + processing_time, Counter().get("msg"), message))
                     return
 
         # Message has to be processed locally
@@ -1190,7 +1190,7 @@ class _Environment(Environment, EnvironmentControl, EnvironmentMessaging, Enviro
 
             current_tasks: List[MessageImpl] = []
             while self._tasks and self._tasks[0][0] == self._time:
-                current_tasks.append(heappop(self._tasks)[1])
+                current_tasks.append(heappop(self._tasks)[2])
 
             for task in current_tasks:
                 if task.type == MessageType.TIMEOUT:
