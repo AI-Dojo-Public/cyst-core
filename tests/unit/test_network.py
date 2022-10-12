@@ -856,6 +856,7 @@ class TestRouting(unittest.TestCase):
         self.assertEqual(response.status, Status(StatusOrigin.NETWORK, StatusValue.FAILURE), "Network failure occurred")
         self.assertEqual(response.content, "TTL expired")
 
+
 class TestService(unittest.TestCase):
 
     def test_000_service_removal(self):
@@ -868,17 +869,17 @@ class TestService(unittest.TestCase):
         remove_service = env.configuration.node.remove_service
 
         # Create two services and a node which will house them
-        service1 = create_passive_service("service1", "service1");
-        service2 = create_passive_service("service2", "service2");
+        service1 = create_passive_service("service1", "service1")
+        service2 = create_passive_service("service2", "service2")
 
         node = create_node("node")
         add_service(node, service1, service2)
 
-        self.assertDictEqual(node.services, {"service1" : service1, "service2": service2}, "Services added")
+        self.assertDictEqual(node.services, {"service1": service1, "service2": service2}, "Services added")
 
         # Remove services one by one
         remove_service(node, service2)
-        self.assertDictEqual(node.services, {"service1" : service1}, "Removed last service")
+        self.assertDictEqual(node.services, {"service1": service1}, "Removed last service")
 
         remove_service(node, service1)
         self.assertDictEqual(node.services, {}, "Removed both services")
@@ -886,6 +887,7 @@ class TestService(unittest.TestCase):
         # No services left, silently do nothing
         remove_service(node, service1, service2)
         self.assertDictEqual(node.services, {}, "Both services still removed")
+
 
 if __name__ == '__main__':
     unittest.main()

@@ -1,7 +1,9 @@
+import uuid
 from abc import ABC, abstractmethod
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from typing import Optional
 from netaddr import IPNetwork, IPAddress
+from uuid import uuid4
 
 
 @dataclass
@@ -20,10 +22,14 @@ class Route:
 
     :param metric: A route metric used for deciding which route to use in case of network overlap.
     :type metric: int
+
+    :param id: A unique identifier of the route. You very likely don't need to set it and just let it autogenerate.
+    :type id: str
     """
     net: IPNetwork
     port: int
     metric: int = 100
+    id: str = field(default_factory=lambda: str(uuid4()))
 
     # Custom comparison to enable sorting in a priority queue
     def __lt__(self, other: 'Route') -> bool:

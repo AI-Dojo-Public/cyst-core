@@ -166,3 +166,72 @@ class EnvironmentControl(ABC):
         :return: None
         """
         pass
+
+    @abstractmethod
+    def snapshot_save(self) -> str:
+        """ Returns a complete state of the environment, from which it can be restored.
+
+        :return: String representation of the environment
+        """
+        pass
+
+    @abstractmethod
+    def snapshot_load(self, state: str) -> None:
+        """ Attempts to restore the environment into the state described by the state string.
+
+        :param state: State representation obtained by snapshot_save function. Currently, the snapshots are not
+                      guaranteed to work across versions.
+        :type state: str
+
+        :return: None
+        """
+        pass
+
+    @abstractmethod
+    def transaction_start(self) -> Tuple[int, int, str]:
+        """ Initiates a new transaction, which sets a point in time to which the environment can be reverted. The
+        transaction has to begin as a first thing in a given time slot, i.e., if there was already a message processed
+        in the time slot, the transaction will be set to start in the next time slot.
+
+        Multiple calls to transaction_start() at the same time slot start only one transaction.
+
+        Transactions can be interleaved. In case of a rollback, the state always returns to the beginning of
+        transaction that was rolled back.
+
+        Transactions do not necessarily modify the state of active services, it is up to their authors, if they want
+        to preserve, e.g., learned behavior across transactions.
+
+        :return: A tuple containing transaction_id of started transaction, the time when the transaction starts, and
+                 additional information, if there is any.
+        """
+        pass
+
+    @abstractmethod
+    def transaction_commit(self, transaction_id: int) -> Tuple[bool, str]:
+        """
+        Finalizes a transaction. Such transaction is removed from the system and cannot be rolled back.
+
+        Any transaction can be committed by anyone. There is no validation of the caller.
+
+        :param transaction_id: The id of a transaction to commit.
+        :type transaction_id: int
+
+        :return: A tuple indicating whether the transaction was successfully committed and providing additional
+                 information if present.
+        """
+        pass
+
+    @abstractmethod
+    def transaction_rollback(self, transaction_id: int) -> Tuple[bool, str]:
+        """
+        Returns the system into the state at the beginning of a transaction. After the transaction is rolled back, it is
+        removed from the system.
+
+        Any transaction can be rolled back by anyone. There is no validation of a caller.
+
+        :param transaction_id: The ID of the transaction to roll back.
+        :type transaction_id: int
+
+        :return: A tuple indicating whether a rollback was successful and providing additional information in present.
+        """
+        pass

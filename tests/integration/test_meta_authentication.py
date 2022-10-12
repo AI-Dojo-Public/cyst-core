@@ -207,7 +207,7 @@ class TestMetaAuth(unittest.TestCase):
         cls._attacker: ScriptedActorControl = cls._env.configuration.service.get_service_interface(
             attacker_service.active_service, ScriptedActorControl)
 
-        cls._env.control.add_pause_on_response("attacker_node.scripted_actor")
+        cls._env.control.add_pause_on_response("attacker_node.scripted_attacker")
 
     def test_000_no_token_provided(self):
 

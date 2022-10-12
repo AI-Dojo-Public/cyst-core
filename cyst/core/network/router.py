@@ -1,6 +1,6 @@
 from cachetools import LRUCache
 from enum import Enum
-from typing import List, Union, Optional, Tuple, Dict, NamedTuple
+from typing import List, Union, Optional, Tuple, Dict, NamedTuple, Set
 from netaddr import IPAddress, IPNetwork
 
 from cyst.api.environment.environment import EnvironmentMessaging
@@ -32,7 +32,7 @@ class Router(NodeImpl):
         self._local_ips: Dict[IPAddress, int] = {}
         self._local_nets: List[IPNetwork] = []
         self._routes: List[Route] = []
-        self._router_ips = set()
+        self._router_ips: Set[IPAddress] = set()
         # Cache storing last 64 requests
         self._request_cache: LRUCache = LRUCache(64)
 
@@ -43,6 +43,45 @@ class Router(NodeImpl):
         service = PassiveServiceImpl("router", "router", "1.2.3", False, AccessLevel.LIMITED)
         self.add_service(service)
 
+    # jsonpickle struggles with IPAddress and IPNetwork in a router, even though it has specific handlers for it,
+    # so we convert it to a string and back
+    def __getstate__(self) -> dict:
+        result = self.__dict__
+        replacement_local_ips = {}
+        for ip, index in self._local_ips.items():
+            replacement_local_ips[str(ip)] = index
+        result["_local_ips"] = replacement_local_ips
+
+        replacement_router_ips = set()
+        for ip in self._router_ips:
+            replacement_router_ips.add(str(ip))
+        result["_router_ips"] = replacement_router_ips
+
+        replacement_local_nets = []
+        for net in self._local_nets:
+            replacement_local_nets.append(str(net))
+        result["_local_nets"] = replacement_local_nets
+
+        return result
+
+    def __setstate__(self, state: dict) -> None:
+        original_local_ips = {}
+        for ip, index in state["_local_ips"].items():
+            original_local_ips[IPAddress(ip)] = index
+        state["_local_ips"] = original_local_ips
+
+        original_router_ips = set()
+        for ip in state["_router_ips"]:
+            original_router_ips.add(IPAddress(ip))
+        state["_router_ips"] = original_router_ips
+
+        original_local_nets = []
+        for net in state["_local_nets"]:
+            original_local_nets.append(IPNetwork(net))
+        state["_local_nets"] = original_local_nets
+
+        self.__dict__.update(state)
+
     # Override adding of traffic processor to register firewall for routing
     def add_traffic_processor(self, value: ActiveService) -> None:
         self._traffic_processors.append(value)
@@ -51,6 +90,8 @@ class Router(NodeImpl):
                 value.add_local_ip(ip)
             self._fw = value
 
+    # MYPY: Inheritance issue, parent has Interface, this one PortImpl, both inherit from Port.
+    # Maybe create Interface(Port) as it should be its extension or add separate ports property to Node?
     @property
     def interfaces(self) -> List[PortImpl]:
         return self._ports

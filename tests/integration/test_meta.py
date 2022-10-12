@@ -103,7 +103,7 @@ class TestMETAIntegration(unittest.TestCase):
         for action in cls._action_list:
             cls._actions[action.id] = action
 
-        cls._env.control.add_pause_on_response("attacker_node.scripted_actor")
+        cls._env.control.add_pause_on_response("attacker_node.scripted_attacker")
 
         cls._target = cls._env.configuration.general.get_object_by_id("target1", Node)
         attacker_service = cls._env.configuration.general.get_object_by_id("attacker_service", Service)
@@ -139,7 +139,7 @@ class TestMETAIntegration(unittest.TestCase):
         message = self._attacker.get_last_response()
 
         self.assertEqual((result, state), (True, EnvironmentState.PAUSED), "Task ran and was successfully paused.")
-        self.assertEqual(message.status, Status(StatusOrigin.SERVICE, StatusValue.SUCCESS), "Acction was successful")
+        self.assertEqual(message.status, Status(StatusOrigin.SERVICE, StatusValue.SUCCESS), "Action was successful")
         self.assertTrue(message.auth and isinstance(message.auth, Authorization), "Received a session back")
 
         auth = message.auth

@@ -16,7 +16,7 @@ class SeverityFilter(logging.Filter):
             "services.": logging.DEBUG
         }
 
-    def filter(self, record: logging.LogRecord) -> int:
+    def filter(self, record: logging.LogRecord) -> int:  #MYPY: Wrong return type based on parent class
         # Filter by name
         for category in self._severity_map.items():
             if record.name.startswith(category[0]):

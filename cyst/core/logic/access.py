@@ -2,7 +2,7 @@
 import uuid
 from abc import ABC
 
-from typing import List, Tuple, Optional
+from typing import List, Tuple, Optional, Set
 from netaddr import IPAddress
 
 from cyst.api.configuration.logic.access import AccessLevel
@@ -27,7 +27,9 @@ class AuthorizationImpl(Authorization):
         self._token = token
         self._expiration = -1  # TODO
 
-    def __eq__(self, other: 'Authorization') -> bool:
+    def __eq__(self, other: object) -> bool:
+        if not isinstance(other, AuthorizationImpl):
+            return NotImplemented
         if not other:
             return False
 
@@ -42,6 +44,7 @@ class AuthorizationImpl(Authorization):
 
     @property
     def id(self) -> str:
+        #MYPY: complains about optionality of the id, it is also noted, that it is suspicious in Authorization class
         return self._id
 
     @id.setter
@@ -82,11 +85,13 @@ class AuthorizationImpl(Authorization):
 
     @property
     def token(self) -> Optional[uuid.UUID]:
-        return self._token
+        return self._token #MYPY: Authorization has token as not null, however there are calls to this implementation, that do not set it and therefore it can be null. Is relaxing authorization by making token null the correct choice?
+    #Also UUID and str is not unified
+
 
     @token.setter
-    def token(self, value: uuid) -> None:
-        self._token = value
+    def token(self, value: uuid.UUID) -> None:
+        self._token = value #MYPY: uid vs str
 
     def matching_id(self, other: Authorization):
         return self.id == AuthorizationImpl.cast_from(other).id
@@ -155,7 +160,7 @@ class AuthenticationTokenImpl(AuthenticationToken):
 
     @property
     def identity(self) -> str:
-        return self._identity
+        return self._identity #MYPY: Setter is defined in AuthenticationToken, is it OK to add here? It should be here as well
 
     def copy(self) -> Optional[AuthenticationToken]:
         pass # TODO different uuid needed????
@@ -188,28 +193,30 @@ class AuthenticationTargetImpl(AuthenticationTarget):
     def address(self) -> Optional[IPAddress]:
         return self._address
 
-    @property
-    def service(self) -> str:
-        return self._service
-
-    @property
-    def tokens(self) -> List[AuthenticationTokenType]:
-        return self._tokens
-
     @address.setter
     def address(self, ip: IPAddress):
         self._address = ip
+
+    @property
+    def service(self) -> str:
+        return self._service #MYPY: Service is defined as not optional in AuthenticationTarget, but constructor of impl has it optional and is called in that way
 
     @service.setter
     def service(self, serv: str):
         self._service = serv
 
+    @property
+    def tokens(self) -> List[AuthenticationTokenType]:
+        return self._tokens
+
+
 
 class AccessSchemeImpl(AccessScheme):
-    def __init__(self):
+    def __init__(self, id: str):
         self._providers = []
-        self._authorizations = []
-        self._identities = []
+        self._authorizations: List[Authorization] = []
+        self._identities: List[str] = []
+        self._id = id
 
     def add_provider(self, provider: AuthenticationProvider):
         self._providers.append((provider, len(self._providers)))
@@ -269,6 +276,10 @@ class AccessSchemeImpl(AccessScheme):
     def authorizations(self) -> List[Authorization]:
         return self._authorizations
 
+    @property
+    def id(self) -> str:
+        return self._id
+
     @staticmethod
     def cast_from(other: AccessScheme):
         if isinstance(other, AccessSchemeImpl):
@@ -308,15 +319,17 @@ class AuthenticationProviderImpl(AuthenticationProvider):
             return self._enabled
 
     def __init__(self, provider_type: AuthenticationProviderType, token_type: AuthenticationTokenType,
-                 security: AuthenticationTokenSecurity, ip: Optional[IPAddress], timeout: int):
+                 security: AuthenticationTokenSecurity, ip: Optional[IPAddress], timeout: int, id: str):
 
         self._provider_type = provider_type
         self._token_type = token_type
         self._security = security
         self._timeout = timeout
 
-        self._tokens = set()
+        self._tokens: Set[AuthenticationToken] = set()
         self._target = self._create_target()
+
+        self._id = id
 
         if provider_type != AuthenticationProviderType.LOCAL and ip is None:
             raise RuntimeError("Non-local provider needs ip address")
@@ -337,6 +350,10 @@ class AuthenticationProviderImpl(AuthenticationProvider):
     @property
     def security(self):
         return self._security
+
+    @property
+    def id(self) -> str:
+        return self._id
 
     def token_is_registered(self, token: AuthenticationToken):
         for token_state in set(self._tokens):
