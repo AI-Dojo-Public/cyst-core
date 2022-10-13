@@ -140,7 +140,18 @@ router1 = RouterConfig(
         InterfaceConfig(IPAddress("192.168.0.1"), IPNetwork("192.168.0.1/24"), index=2),
         InterfaceConfig(IPAddress("192.168.0.1"), IPNetwork("192.168.0.1/24"), index=3)
     ],
-    traffic_processors=[],
+    traffic_processors=[
+        FirewallConfig(
+            default_policy=FirewallPolicy.DENY,
+            chains=[
+                FirewallChainConfig(
+                    type=FirewallChainType.FORWARD,
+                    policy=FirewallPolicy.ALLOW,
+                    rules=[]
+                )
+            ]
+        )
+    ],
     id="router1"
 )
 

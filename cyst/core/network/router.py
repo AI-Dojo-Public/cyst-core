@@ -301,7 +301,7 @@ class Router(NodeImpl):
         if port != -1:
             # It is and (it is in the same network or have explicit permission in the firewall/routing policy)
             # This would break when the message traversed more routers
-            if (self._ports[message.current.port].net and message.dst_ip in self._ports[message.current.port].net) or self._fw.evaluate(message.non_session_path[0].src.ip, message.dst_ip, message.dst_service)[0]:
+            if self._fw.evaluate(message.non_session_path[0].src.ip, message.dst_ip, message.dst_service)[0]:
                 src_ip = self._ports[port].ip
                 message.set_next_hop(Endpoint(self.id, port, src_ip), self._ports[port].endpoint)
                 # Store the info about incoming port to enable pass-through of responses

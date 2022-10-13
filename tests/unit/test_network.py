@@ -429,7 +429,10 @@ class TestSessions(unittest.TestCase):
                         FirewallChainConfig(
                             type=FirewallChainType.FORWARD,
                             policy=FirewallPolicy.DENY,
-                            rules=[]
+                            rules=[
+                                FirewallRule(IPNetwork("192.168.0.0/24"), IPNetwork("192.168.0.0/24"), "*", FirewallPolicy.ALLOW),
+                                FirewallRule(IPNetwork("192.168.1.0/24"), IPNetwork("192.168.0.0/24"), "*", FirewallPolicy.ALLOW)
+                            ]
                         )
                     ]
                 )
@@ -459,7 +462,12 @@ class TestSessions(unittest.TestCase):
                         FirewallChainConfig(
                             type=FirewallChainType.FORWARD,
                             policy=FirewallPolicy.DENY,
-                            rules=[]
+                            rules=[
+                                FirewallRule(IPNetwork("192.168.0.0/24"), IPNetwork("192.168.1.0/24"), "*", FirewallPolicy.ALLOW),
+                                FirewallRule(IPNetwork("192.168.1.0/24"), IPNetwork("192.168.1.0/24"), "*", FirewallPolicy.ALLOW),
+                                FirewallRule(IPNetwork("192.168.2.0/24"), IPNetwork("192.168.2.0/24"), "*", FirewallPolicy.ALLOW),
+                                FirewallRule(IPNetwork("192.168.3.0/24"), IPNetwork("192.168.3.0/24"), "*", FirewallPolicy.ALLOW)
+                            ]
                         )
                     ]
                 )
@@ -633,7 +641,10 @@ class TestSessions(unittest.TestCase):
                         FirewallChainConfig(
                             type=FirewallChainType.FORWARD,
                             policy=FirewallPolicy.DENY,
-                            rules=[]
+                            rules=[
+                                FirewallRule(src_net=IPNetwork("192.168.0.1/24"), dst_net=IPNetwork("192.168.0.1/24"), service="*", policy=FirewallPolicy.ALLOW),
+                                FirewallRule(src_net=IPNetwork("192.168.1.1/24"), dst_net=IPNetwork("192.168.1.1/24"), service="*", policy=FirewallPolicy.ALLOW)
+                            ]
                         )
                     ]
                 )

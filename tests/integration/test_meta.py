@@ -5,7 +5,7 @@ from netaddr import IPAddress, IPNetwork
 
 from cyst.api.configuration import AuthenticationProviderConfig, PassiveServiceConfig, AccessSchemeConfig, \
     AuthorizationDomainConfig, AuthorizationDomainType, AuthorizationConfig, NodeConfig, InterfaceConfig, \
-    ActiveServiceConfig, RouterConfig, ConnectionConfig
+    ActiveServiceConfig, RouterConfig, ConnectionConfig, FirewallConfig, FirewallChainConfig
 from cyst.api.host.service import Service
 from cyst.api.logic.access import AccessLevel, AuthenticationProviderType, AuthenticationTokenType, \
     AuthenticationTokenSecurity, AuthenticationProvider, Authorization
@@ -13,6 +13,7 @@ from cyst.api.environment.environment import Environment
 from cyst.api.environment.control import EnvironmentState
 from cyst.api.environment.configuration import ServiceParameter
 from cyst.api.environment.message import StatusOrigin, StatusValue, Status
+from cyst.api.network.firewall import FirewallPolicy, FirewallChainType
 from cyst.api.network.node import Node
 from cyst.api.network.session import Session
 from cyst.core.logic.access import AuthenticationTokenImpl
@@ -76,7 +77,18 @@ router1 = RouterConfig(
         InterfaceConfig(IPAddress("192.168.0.1"), IPNetwork("192.168.0.1/24"), index=0),
         InterfaceConfig(IPAddress("192.168.0.1"), IPNetwork("192.168.0.1/24"), index=1)
     ],
-    traffic_processors=[],
+    traffic_processors=[
+        FirewallConfig(
+            default_policy=FirewallPolicy.DENY,
+            chains=[
+                FirewallChainConfig(
+                    type=FirewallChainType.FORWARD,
+                    policy=FirewallPolicy.ALLOW,
+                    rules=[]
+                )
+            ]
+        )
+    ],
     id="router1"
 )
 
