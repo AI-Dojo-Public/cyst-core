@@ -750,8 +750,9 @@ class NetworkConfiguration(ABC):
         pass
 
     @abstractmethod
-    def create_session(self, owner: str, waypoints: List[Union[str, Node]], parent: Optional[Session] = None,
-                       defer: bool = False, service: Optional[str] = None, reverse: bool = False) -> Optional[Session]:
+    def create_session(self, owner: str, waypoints: List[Union[str, Node]], src_service: Optional[str] = None,
+                       dst_service: Optional[str] = None, parent: Optional[Session] = None, defer: bool = False,
+                       reverse: bool = False) -> Optional[Session]:
         """
         Creates a fixed session in the simulated infrastructure. This session ignores the routing limitations imposed
         by router configuration. However, the creation mechanism checks if there exists a connection between each of
@@ -766,6 +767,12 @@ class NetworkConfiguration(ABC):
             the description, there has to be a connection between all subsequent tuples of waypoints.
         :type waypoints: List[Union[str, Node]]
 
+        :param src_service: Name of the source service, from which the session begines.
+        :type src_service: Optional[str]
+
+        :param dst_service: Name of the destination service, in which the session ends.
+        :type dst_service: Optional[str]
+
         :param parent: A parent session that can be optionally used as a first part/head of the session.
         :type parent: Optional[Session]
 
@@ -773,10 +780,6 @@ class NetworkConfiguration(ABC):
             False, the creation is deferred to the environment init phase, when all the waypoints should already be
             instantiated.
         :type defer: bool
-
-        :param service: The ID of a service, this session should belong to, e.g., VPN tunnels instantiated beforehand
-            belonging to the VPN service, which can tear them down at will during a simulation run.
-        :type service: Optional[str]
 
         :param reverse: Construct the session in the reverse order, i.e., as if it was constructed as a reverse shell.
         :type reverse: bool
