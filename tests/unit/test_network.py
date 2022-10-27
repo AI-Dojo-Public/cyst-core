@@ -889,5 +889,102 @@ class TestService(unittest.TestCase):
         remove_service(node, service1, service2)
         self.assertDictEqual(node.services, {}, "Both services still removed")
 
+
+class TestConnection(unittest.TestCase):
+
+    @classmethod
+    def setUpClass(cls):
+        cls.SOURCE = "192.168.0.2"
+        source_node = NodeConfig(
+            active_services=[
+                ActiveServiceConfig(
+                    "scripted_actor",
+                    "attacker",
+                    "scripted_actor",
+                    AccessLevel.ELEVATED,
+                    id="attacker_service"
+                )
+            ],
+            passive_services=[],
+            traffic_processors=[],
+            shell="",
+            interfaces=[InterfaceConfig(IPAddress(cls.SOURCE), IPNetwork("192.168.0/24"))],
+            id="source_node"
+        )
+
+        cls.DESTINATION = "192.168.0.3"
+        destination_node = NodeConfig(
+            active_services=[],
+            passive_services=[],
+            traffic_processors=[],
+            shell="",
+            interfaces=[InterfaceConfig(IPAddress(cls.DESTINATION), IPNetwork("192.168.0/24"))],
+            id="destination_node"
+        )
+
+        router = RouterConfig(traffic_processors=[],
+                              interfaces=[
+                                  InterfaceConfig(IPAddress("192.168.0.1"),
+                                                  IPNetwork("192.168.0.0/24"),
+                                                  index=0),
+                                  InterfaceConfig(IPAddress("192.168.0.1"),
+                                                  IPNetwork("192.168.0.0/24"),
+                                                  index=1),
+                              ],
+                              id="router")
+
+        connections = [
+                ConnectionConfig("source_node", 0, "router", 0),
+                ConnectionConfig("destination_node", 0, "router", 1),
+        ]
+
+        cls.configs = [source_node, destination_node, router, *connections]
+
+    def setUp(self) -> None:
+        self.env = Environment.create().configure(*self.configs)
+        self.env.control.init()
+        self.source_node = self.env.configuration.general.get_object_by_id("source_node", Node)
+        self.destination_node = self.env.configuration.general.get_object_by_id("destination_node", Node)
+        self.attacker = self.env.configuration.service.get_service_interface(
+            self.env.configuration.general.get_object_by_id("attacker_service",
+                                                           Service).active_service,
+            ScriptedActorControl)
+
+    def test_0000_init(self) -> None:
+        self.assertNotIn(None, [self.env, self.source_node, self.destination_node, self.attacker],
+                         "Environment and nodes initialized")
+        self.assertEqual(self.source_node.interfaces[0].ip, IPAddress(self.SOURCE),
+                         "Source node's interface IP set correctly")
+        self.assertEqual(self.destination_node.interfaces[0].ip, IPAddress(self.DESTINATION),
+                         "Destination node's interface IP set correctly")
+
+    def test_0001_get_connections(self) -> None:
+        connections = self.env.configuration.network.get_connections(self.source_node)
+        self.assertEqual(len(connections), 1, "Got the correct number of connections")
+        self.assertEqual(connections[0], self.source_node.interfaces[0].connection, "Got the correct connection")
+        self.assertFalse(connections[0].blocked, "Connection is initialized as not blocked")
+        self.assertEqual(connections[0].delay, 0, "Connection's delay is initialized to 0")
+
+    def test_0002_set_params(self) -> None:
+        connection = self.env.configuration.network.get_connections(self.destination_node)[0]
+        connection.set_params(delay=10, blocked=True)
+        self.assertEqual(connection.delay, 10, "Delay set to 10")
+        self.assertTrue(connection.blocked, "Connection set to blocked")
+
+    def test_0003_delay(self) -> None:
+        connection = self.env.configuration.network.get_connections(self.destination_node)[0]
+        connection.set_params(delay=10)
+        action = self.env.resources.action_store.get("cyst:test:echo_success")
+        assert action
+
+        self.attacker.execute_action(self.DESTINATION, "", action)
+        self.env.control.run()
+        # Request is delayed by 10 units and it's response by another 10
+        self.assertGreaterEqual(self.env.clock.simulation_time(), 20, "Time moved by 20 seconds")
+
+    def test_0004_block(self) -> None:
+        # TODO: Blocking of connection is not yet implemented
+        pass
+
 if __name__ == '__main__':
     unittest.main()

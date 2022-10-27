@@ -4,7 +4,7 @@ from abc import ABC, abstractmethod
 from netaddr import IPAddress
 from typing import Optional, List, Dict
 
-from cyst.core.network.elements import Connection, Hop, Endpoint, Resolver, InterfaceImpl
+from cyst.core.network.elements import Connection, ConnectionImpl, Hop, Endpoint, Resolver, InterfaceImpl
 from cyst.core.network.router import Router
 from cyst.core.network.node import NodeImpl
 
@@ -33,26 +33,28 @@ class Network(Resolver):
     def update_node_ip(self, node: NodeImpl, ip: str):
         self._nodes_by_ip[ip] = node
 
-    def add_connection(self, n1: NodeImpl, n1_port_index: int, n2: NodeImpl, n2_port_index: int, net: str, connection: Connection = None) -> Connection:
+    def add_connection(self, n1: NodeImpl, n1_port_index: int, n2: NodeImpl, n2_port_index: int, net: str, connection: Optional[Connection] = None) -> Connection:
         if not n1 or not n2:
             raise Exception("Could not add connection between nonexistent nodes")
 
         if not connection:
-            connection = Connection()
+            connection = ConnectionImpl()
 
         result = True
         error = ""
         if isinstance(n1, Router):
             if isinstance(n2, Router):
-                result, error = n1._connect_router(n2, n2_port_index, n1_port_index)
+                result, error = n1._connect_router(n2, connection, n2_port_index, n1_port_index)
             else:
-                result, error = n1._connect_node(n2, n1_port_index, n2_port_index, net)
+                result, error = n1._connect_node(n2, connection, n1_port_index, n2_port_index, net)
         elif isinstance(n2, Router):
-            result, error = n2._connect_node(n1, n2_port_index, n1_port_index, net)
+            result, error = n2._connect_node(n1, connection, n2_port_index, n1_port_index, net)
         # Direct connection
         else:
-            InterfaceImpl.cast_from(n1.interfaces[n1_port_index]).connect_endpoint(Endpoint(n2.id, n2_port_index, n2.interfaces[n2_port_index].ip))
-            InterfaceImpl.cast_from(n2.interfaces[n2_port_index]).connect_endpoint(Endpoint(n1.id, n1_port_index, n1.interfaces[n1_port_index].ip))
+            InterfaceImpl.cast_from(n1.interfaces[n1_port_index]).connect_endpoint(
+                Endpoint(n2.id, n2_port_index, n2.interfaces[n2_port_index].ip), connection)
+            InterfaceImpl.cast_from(n2.interfaces[n2_port_index]).connect_endpoint(
+                Endpoint(n1.id, n1_port_index, n1.interfaces[n1_port_index].ip), connection)
 
         if not result:
             raise Exception("Could not add connection between nodes {} and {}. Reason: {}".format(n1.id, n2.id, error))

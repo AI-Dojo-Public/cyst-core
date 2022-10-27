@@ -6,7 +6,7 @@ from netaddr import IPAddress, IPNetwork
 from cyst.api.environment.environment import EnvironmentMessaging
 from cyst.api.environment.message import StatusValue, StatusOrigin, MessageType, Status
 from cyst.api.host.service import ActiveService
-from cyst.api.network.elements import Route
+from cyst.api.network.elements import Connection, Route
 from cyst.api.network.node import Node
 from cyst.api.network.firewall import FirewallPolicy, FirewallRule, FirewallChainType
 
@@ -88,7 +88,7 @@ class Router(NodeImpl):
                 return True
         return False
 
-    def _connect_node(self, node: NodeImpl, router_index: int = -1, node_index: int = 0, net: str = "") -> Tuple[bool, str]:
+    def _connect_node(self, node: NodeImpl, connection: Connection, router_index: int = -1, node_index: int = 0, net: str = "") -> Tuple[bool, str]:
         # If both a specific router index and network designation si provided, bail out
         if router_index != -1 and net:
             return False, "Cannot specify both router index and network designation"
@@ -150,12 +150,12 @@ class Router(NodeImpl):
             self._local_nets.append(router_port.net)
 
         # Set endpoints on both ends
-        router_port.connect_endpoint(Endpoint(node.id, new_node_index, node_interface.ip))
-        node_interface.connect_gateway(router_port.ip, self.id, new_router_index)
+        router_port.connect_endpoint(Endpoint(node.id, new_node_index, node_interface.ip), connection)
+        node_interface.connect_gateway(router_port.ip, connection, self.id, new_router_index)
 
         return True, ""
 
-    def _connect_router(self, router: 'Router', remote_port_index: int = -1, local_port_index: int = -1) -> Tuple[bool, str]:
+    def _connect_router(self, router: 'Router', connection: Connection, remote_port_index: int = -1, local_port_index: int = -1) -> Tuple[bool, str]:
 
         # Create missing ports if needed
         remote_port = remote_port_index
@@ -167,8 +167,8 @@ class Router(NodeImpl):
         if local_port == -1:
             local_port = self.add_port()
 
-        self._ports[local_port].connect_endpoint(Endpoint(router.id, remote_port))
-        router._ports[remote_port].connect_endpoint(Endpoint(self.id, local_port))
+        self._ports[local_port].connect_endpoint(Endpoint(router.id, remote_port), connection)
+        router._ports[remote_port].connect_endpoint(Endpoint(self.id, local_port), connection)
 
         # After routers' connection, routes must be added manually
 

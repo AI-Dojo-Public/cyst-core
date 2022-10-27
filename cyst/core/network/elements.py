@@ -1,6 +1,7 @@
 from abc import ABC, abstractmethod
 from netaddr import IPAddress, IPNetwork
-from typing import NamedTuple, Optional, Union
+from typing import NamedTuple, Optional, Tuple, Union
+from cyst.api.environment.message import Message
 
 from cyst.api.network.elements import Port, Interface, Connection
 
@@ -55,6 +56,8 @@ class Hop(NamedTuple):
 class ConnectionImpl(Connection):
     def __init__(self, hop: Optional[Hop] = None) -> None:
         self._hop = hop
+        self._blocked = False
+        self._delay = 0
 
     @property
     def hop(self) -> Hop:
@@ -64,6 +67,36 @@ class ConnectionImpl(Connection):
     def hop(self, value: Hop) -> None:
         self._hop = value
 
+    @property
+    def blocked(self) -> bool:
+        return self._blocked
+
+    @property
+    def delay(self) -> int:
+        return self._delay
+
+    def set_params(self, blocked: Optional[bool] = None, delay: Optional[int] = None) -> None:
+        if blocked is not None:
+            self._blocked = blocked
+        if delay is not None:
+            self._delay = delay
+
+    def evaluate(self, message: Message) -> Tuple[int, Message]:
+        if self.blocked:
+            # TODO: return error message
+            return -1, message
+
+        if self.delay > 0:
+            return self.delay, message
+
+        return 0, message
+
+    def __str__(self) -> str:
+        return f"Connection({self._hop}, Blocked: {self._blocked}, Delay: {self._delay})"
+
+    def __repr__(self) -> str:
+        return self.__str__()
+
 
 class PortImpl(Port):
     def __init__(self, ip: Union[str, IPAddress] = "", mask: str = "", index: int = 0) -> None:
@@ -71,6 +104,7 @@ class PortImpl(Port):
         self._net: Optional[IPNetwork] = None
         self._index: int = index
         self._endpoint: Optional[Endpoint] = None
+        self._connection: Optional[Connection] = None
 
         # Had to use more inelegant check, because IP 0.0.0.0 translates to false
         if ip is not None and ip != "":
@@ -133,8 +167,9 @@ class PortImpl(Port):
         return self._endpoint
 
     # There are no restrictions on connecting an endpoint to the port
-    def connect_endpoint(self, endpoint: Endpoint) -> None:
+    def connect_endpoint(self, endpoint: Endpoint, connection: Connection) -> None:
         self._endpoint = endpoint
+        self._connection = connection
 
     @property
     def index(self) -> int:
@@ -143,12 +178,17 @@ class PortImpl(Port):
     def set_index(self, value: int = 0) -> None:
         self._index = value
 
+    @property
+    def connection(self) -> Connection:
+        return self._connection
+
+    def set_connection(self, value: Connection) -> None:
+        self._connection = value
+
     # Returns true if given ip belongs to the network
     def routes(self, ip: Union[str, IPAddress] = ""):
-        if ip in self._net:
-            return True
-        else:
-            return False
+        ip = ip if isinstance(ip, IPAddress) else IPAddress(ip)
+        return self._net and ip in self._net
 
     @staticmethod
     def cast_from(o: Port) -> 'PortImpl':
@@ -193,14 +233,14 @@ class InterfaceImpl(PortImpl, Interface):
     def gateway_id(self) -> Optional[str]:
         return self._endpoint.id
 
-    def connect_gateway(self, ip: IPAddress, id: str, port: int = 0) -> None:
+    def connect_gateway(self, ip: IPAddress, connection: Connection, id: str, port: int = 0) -> None:
         if not self._gateway_ip:
             raise Exception("Trying to connect a gateway to an interface without first specifying network parameters")
 
         if self._gateway_ip != ip:
             raise Exception("Connecting a gateway with wrong configuration")
 
-        self._endpoint = Endpoint(id, port, ip)
+        self.connect_endpoint(Endpoint(id, port, ip), connection)
 
     @staticmethod
     def cast_from(o: Interface) -> 'InterfaceImpl':

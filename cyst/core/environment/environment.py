@@ -59,7 +59,7 @@ from cyst.core.logic.access import AuthenticationTokenImpl, AuthenticationProvid
 from cyst.core.logic.policy import Policy
 from cyst.core.logic.data import DataImpl
 from cyst.core.logic.exploit import VulnerableServiceImpl, ExploitImpl, ExploitParameterImpl
-from cyst.core.network.elements import Endpoint, Connection, InterfaceImpl, Hop
+from cyst.core.network.elements import Endpoint, Connection, InterfaceImpl, Hop, PortImpl
 from cyst.core.network.firewall import service_description as firewall_service_description
 from cyst.core.network.network import Network
 from cyst.core.network.node import NodeImpl
@@ -612,6 +612,11 @@ class _Environment(Environment, EnvironmentControl, EnvironmentMessaging, Enviro
         return self._network.add_connection(NodeImpl.cast_from(source), source_port_index, NodeImpl.cast_from(target),
                                             target_port_index, net, connection)
 
+    def get_connections(self, node: Node, port_index: Optional[int] = None) -> List[Connection]:
+        return [ifc.connection for ifc in node.interfaces if ifc.connection and
+                (not port_index or PortImpl.cast_from(ifc)._index == port_index)]
+
+
     # TODO: Decide if we want to have service association a part of the session creation, or if we rather leave it
     #       to service interface
     def create_session(self, owner: str, waypoints: List[Union[str, Node]], src_service: Optional[str] = None,
@@ -1059,14 +1064,23 @@ class _Environment(Environment, EnvironmentControl, EnvironmentMessaging, Enviro
         message.hop()
         current_node: NodeImpl = self._network.get_node_by_id(message.current.id)
 
-        processing_time = 0
+        # Evaluate the connection
+        connection = self.configuration.network.get_connections(current_node, message.current.port)[0]
+        delay, result = connection.evaluate(message)
+        if delay < 0:
+            # TODO: message dropped, what to do? Maybe send early without processing
+            pass
+
+        message = MessageImpl.cast_from(result)
+        processing_time = max(0, delay)
 
         # HACK: Because we want to enable actions to be able to target routers, we need to bypass the router processing
         #       if the message is at the end of its journey
         last_hop = message.dst_ip == message.current.ip
 
-        if not last_hop and current_node.type == "Router":
-            result, processing_time = current_node.process_message(message)
+        if not last_hop and isinstance(current_node, Router):
+            result, delay = current_node.process_message(message)
+            processing_time += delay
             if result:
                 heappush(self._tasks, (self._time + processing_time, Counter().get("msg"), message))
 
@@ -1133,7 +1147,7 @@ class _Environment(Environment, EnvironmentControl, EnvironmentMessaging, Enviro
                 if message_type == "response":
                     return
 
-                processing_time = 1
+                processing_time += 1
                 response = ResponseImpl(message, Status(StatusOrigin.NODE, StatusValue.ERROR),
                                         "Nonexistent service {} at node {}".format(message.dst_service, message.dst_ip),
                                         session=message.session, auth=message.auth)
@@ -1151,7 +1165,8 @@ class _Environment(Environment, EnvironmentControl, EnvironmentMessaging, Enviro
                                             session=message.session, auth=message.auth)
                     self.send_message(response, processing_time)
                 else:
-                    processing_time, response = self._process_passive(message, current_node)
+                    delay, response = self._process_passive(message, current_node)
+                    processing_time += delay
                     if response.status.origin == StatusOrigin.SYSTEM and response.status.value == StatusValue.ERROR:
                         print("Could not process the request, unknown semantics.")
                     else:
@@ -1176,7 +1191,8 @@ class _Environment(Environment, EnvironmentControl, EnvironmentMessaging, Enviro
                 return
 
             # If it is a request, then it is processed as a request for passive service and processed with the interpreter
-            processing_time, response = self._process_passive(message, current_node)
+            delay, response = self._process_passive(message, current_node)
+            processing_time += delay
             if response.status.origin == StatusOrigin.SYSTEM and response.status.value == StatusValue.ERROR:
                 print("Could not process the request, unknown semantics.")
             else:
