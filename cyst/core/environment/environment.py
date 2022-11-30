@@ -233,7 +233,7 @@ class _Environment(Environment, EnvironmentConfiguration):
         cmdline_parser.add_argument("-i", "--config_id", type=str,
                                     help="A unique identifier of simulation run configuration, which can be obtained from the data store.")
 
-        args = cmdline_parser.parse_args()
+        args, _ = cmdline_parser.parse_known_args()
         if args.config_file:
             config_filename = args.config_file
 
