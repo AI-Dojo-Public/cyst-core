@@ -1,8 +1,9 @@
 import argparse
+import copy
 import os
 import sys
-import time
-import uuid
+
+from cyst.api.environment.interpreter import ActionInterpreter
 
 if sys.version_info < (3, 10):
     from importlib_metadata import entry_points
@@ -11,76 +12,61 @@ else:
 
 from heapq import heappush, heappop
 from itertools import product
-from time import struct_time, localtime
-from typing import Tuple, List, Union, Optional, Any, Dict, Type
-from uuid import uuid4
-import copy
+from time import localtime
+from typing import Tuple, List, Union, Optional, Any, Dict
 
-from netaddr import IPAddress, IPNetwork
-
+from cyst.api.configuration.configuration import ConfigItem
 from cyst.api.environment.environment import Environment
-from cyst.api.environment.clock import Clock
 from cyst.api.environment.control import EnvironmentState, EnvironmentControl
 from cyst.api.environment.configuration import EnvironmentConfiguration, GeneralConfiguration, NodeConfiguration, \
-    ServiceConfiguration, NetworkConfiguration, ServiceParameter, ExploitConfiguration, ActiveServiceInterfaceType, \
-    AccessConfiguration, ActionConfiguration
+    ServiceConfiguration, NetworkConfiguration, ExploitConfiguration, AccessConfiguration, ActionConfiguration
 from cyst.api.environment.messaging import EnvironmentMessaging
 from cyst.api.environment.metadata_provider import MetadataProvider
 from cyst.api.environment.policy import EnvironmentPolicy
 from cyst.api.environment.resources import EnvironmentResources
-from cyst.api.environment.message import Message, MessageType, Request, StatusValue, StatusOrigin, Status, Response, \
-    StatusDetail, Timeout
-from cyst.api.environment.stores import ActionStore, ExploitStore
-from cyst.api.environment.stats import Statistics
-from cyst.api.network.elements import Interface, Route
+from cyst.api.environment.message import Message, MessageType, Request, StatusValue, StatusOrigin, Status, StatusDetail, Timeout
+from cyst.api.logic.access import AuthenticationToken
 from cyst.api.network.node import Node
-from cyst.api.logic.metadata import Metadata
-from cyst.api.logic.access import Authorization, AccessLevel, AuthenticationToken, AuthenticationProvider, \
-    AuthenticationTokenSecurity, AuthenticationTokenType, AuthenticationProviderType, AccessScheme, AuthenticationTarget
-from cyst.api.logic.action import Action, ActionParameterDomain
-from cyst.api.logic.data import Data
-from cyst.api.logic.exploit import VulnerableService, ExploitParameter, ExploitParameterType, ExploitLocality, \
-    ExploitCategory, Exploit
 from cyst.api.network.session import Session
 from cyst.api.network.firewall import FirewallRule, FirewallPolicy
-from cyst.api.host.service import Service, PassiveService, ActiveService
+from cyst.api.host.service import Service, PassiveService, ActiveService, ServiceState
 from cyst.api.configuration.configuration import ConfigItem
+from cyst.api.utils.counter import Counter
+from cyst.api.utils.log import get_logger
 
-from cyst.core.environment.configuration import Configuration, RuntimeConfiguration
+from cyst.core.environment.configuration_access import AccessConfigurationImpl
+from cyst.core.environment.configuration_action import ActionConfigurationImpl
+from cyst.core.environment.configuration_exploit import ExploitConfigurationImpl
+from cyst.core.environment.configuration_general import GeneralConfigurationImpl, RuntimeConfiguration
+from cyst.core.environment.configuration_network import NetworkConfigurationImpl
+from cyst.core.environment.configuration_node import NodeConfigurationImpl
+from cyst.core.environment.configuration_service import ServiceConfigurationImpl
+from cyst.core.environment.environment_control import EnvironmentControlImpl
+from cyst.core.environment.environment_messaging import EnvironmentMessagingImpl
+from cyst.core.environment.environment_resources import EnvironmentResourcesImpl
 from cyst.core.environment.data_store import DataStore
 from cyst.core.environment.message import MessageImpl, RequestImpl, ResponseImpl, TimeoutImpl
 from cyst.core.environment.proxy import EnvironmentProxy
-from cyst.core.environment.stores import ActionStoreImpl, ServiceStoreImpl, ExploitStoreImpl
-from cyst.core.environment.stats import StatisticsImpl
-from cyst.core.host.service import ServiceImpl, PassiveServiceImpl
-from cyst.core.logic.action import ActionParameterDomainImpl
-from cyst.core.logic.access import AuthenticationTokenImpl, AuthenticationProviderImpl, AuthorizationImpl, \
-    AccessSchemeImpl, AuthenticationTargetImpl
+from cyst.core.environment.stores import ServiceStoreImpl
+from cyst.core.host.service import ServiceImpl
+from cyst.core.logic.access import AuthenticationTokenImpl
 from cyst.core.logic.policy import Policy
-from cyst.core.logic.data import DataImpl
-from cyst.core.logic.exploit import VulnerableServiceImpl, ExploitImpl, ExploitParameterImpl
-from cyst.core.network.elements import Endpoint, Connection, InterfaceImpl, Hop
+from cyst.core.network.elements import Endpoint, InterfaceImpl, Hop
 from cyst.core.network.firewall import service_description as firewall_service_description
 from cyst.core.network.network import Network
 from cyst.core.network.node import NodeImpl
 from cyst.core.network.router import Router
 from cyst.core.network.session import SessionImpl
 
-from cyst.api.utils.counter import Counter
-from cyst.api.utils.log import get_logger
-
 
 # Environment is unlike other core implementation given an underscore-prefixed name to let python complain about
 # it being private if instantiated otherwise than via the create_environment()
-class _Environment(Environment, EnvironmentControl, EnvironmentMessaging, EnvironmentResources, EnvironmentConfiguration,
-                   NodeConfiguration, NetworkConfiguration, ServiceConfiguration, ExploitConfiguration, ActionConfiguration,
-                   Clock, AccessConfiguration):
+class _Environment(Environment, EnvironmentConfiguration):
 
     def __init__(self) -> None:
-        self._network = Network()
         self._time = 0
         self._start_time = localtime()
-        self._tasks = []
+        self._tasks: List[Tuple[int,MessageImpl]] = []
         self._pause = False
         self._terminate = False
         self._initialized = False
@@ -88,35 +74,134 @@ class _Environment(Environment, EnvironmentControl, EnvironmentMessaging, Enviro
 
         self._run_id = ""
 
-        self._pause_on_request = []
-        self._pause_on_response = []
+        self._pause_on_request: List[str] = []
+        self._pause_on_response: List[str] = []
 
-        self._action_store = ActionStoreImpl()
+        # Interface implementations
+        self._environment_control = EnvironmentControlImpl(self)
+        self._environment_messaging = EnvironmentMessagingImpl(self)
+        self._environment_resources = EnvironmentResourcesImpl(self)
+
         self._service_store = ServiceStoreImpl(self.messaging, self.resources)
-        self._exploit_store = ExploitStoreImpl()
 
-        self._interpreters = {}
+        self._interpreters: Dict[str, ActionInterpreter] = {}
         # TODO currently, there can be only on metadata provider for one namespace
         self._metadata_providers: Dict[str, MetadataProvider] = {}
 
         self._policy = Policy(self)
 
-        self._sessions_to_add = []
+        self._sessions_to_add: List[Tuple[ str, List[Union[str, Node]],Optional[str] ,Optional[str], Optional[Session], bool]] = []
 
+        self._access_configuration = AccessConfigurationImpl(self)
+        self._action_configuration = ActionConfigurationImpl(self)
+        self._exploit_configuration = ExploitConfigurationImpl(self)
+        self._general_configuration = GeneralConfigurationImpl(self)
+        self._network_configuration = NetworkConfigurationImpl(self)
+        self._node_configuration = NodeConfigurationImpl(self)
+        self._service_configuration = ServiceConfigurationImpl(self)
+        self._runtime_configuration = RuntimeConfiguration()
+
+        self._configure_runtime()
         self._register_services()
         self._register_actions()
         self._register_metadata_providers()
 
-        self._configuration = Configuration(self)
-        self._runtime_configuration = RuntimeConfiguration()
-        self._configure_runtime()
+        self._network = Network(self._general_configuration)
 
-        self._data_store = DataStore(self._runtime_configuration.data_backend, self._runtime_configuration.data_backend_params)
-
-        self._statistics = StatisticsImpl()
+        self._data_store = DataStore(self._runtime_configuration.data_backend,
+                                     self._runtime_configuration.data_backend_params)
 
         # Logs
         self._message_log = get_logger("messaging")
+
+    def __getstate__(self) -> dict:
+        return {
+            # Simple values
+            "_time": self._time,
+            "_start_time": self._start_time,
+            "_pause": self._pause,
+            "_terminate": self._terminate,
+            "_initialized": self._initialized,
+            "_state": self._state,
+            "_run_id": self._run_id,
+
+            # Arrays
+            "_pause_on_response": self._pause_on_response,
+            "_pause_on_request": self._pause_on_request,
+
+            # Simple objects
+            "_runtime_configuration": self._runtime_configuration,
+
+            # Complex beasts
+            "_service_store": self._service_store,
+            "_environment_resources": self._environment_resources,
+            "_metadata_providers": self._metadata_providers,
+            "_network": self._network,
+            "_general_configuration": self._general_configuration
+
+            # Ignored members
+            # Policy - is reinitialized, no need to serialize
+            # DataStore - stays the same across serializations
+            # Log - stays the same across serializations
+            # All interface implementations excluding the general configuration and environment resources
+        }
+
+    def __setstate__(self, state: dict) -> None:
+        self._time = state["_time"]
+        self._start_time = state["_start_time"]
+        self._pause = state["_pause"]
+        self._terminate = state["_terminate"]
+        self._initialized = state["_initialized"]
+        self._state = state["_state"]
+        self._run_id = state["_run_id"]
+
+        self._pause_on_response = state["_pause_on_response"]
+        self._pause_on_request = state["_pause_on_request"]
+
+        self._runtime_configuration = state["_runtime_configuration"]
+
+        self._service_store = state["_service_store"]
+        self._environment_resources = state["_environment_resources"]
+        self._metadata_providers = state["_metadata_providers"]
+        self._network = state["_network"]
+        self._general_configuration = state["_general_configuration"]
+
+        # Members reconstructed on the fly
+        self._policy = Policy(self)
+
+        self._environment_control = EnvironmentControlImpl(self)
+        self._environment_messaging = EnvironmentMessagingImpl(self)
+
+        self._access_configuration = AccessConfigurationImpl(self)
+        self._action_configuration = ActionConfigurationImpl(self)
+        self._exploit_configuration = ExploitConfigurationImpl(self)
+        self._network_configuration = NetworkConfigurationImpl(self)
+        self._node_configuration = NodeConfigurationImpl(self)
+        self._service_configuration = ServiceConfigurationImpl(self)
+
+    # Replace the environment with the state of another environment. This is used for deserialization. It is explicit to
+    # avoid replacing of ephemeral stuff, such as data store connections or whatnot
+    def _replace(self, env: "_Environment"):
+        self._time = env._time
+        self._start_time = env._start_time
+        self._pause = env._pause
+        self._terminate = env._terminate
+        self._initialized = env._initialized
+        self._state = env._state
+        self._run_id = env._run_id
+
+        self._pause_on_response = env._pause_on_response
+        self._pause_on_request = env._pause_on_request
+
+        self._runtime_configuration = env._runtime_configuration
+
+        self._service_store = env._service_store
+        self._environment_resources = env._environment_resources
+        self._metadata_providers = env._metadata_providers
+        self._network = env._network
+        self._general_configuration = env._general_configuration
+
+        self._policy = env._policy
 
     # Runtime parameters can be passed via command-line, configuration file, or through environment variables
     # In case of multiple definitions of one parameter, the order is, from the most important to least:
@@ -124,7 +209,7 @@ class _Environment(Environment, EnvironmentControl, EnvironmentMessaging, Enviro
     def _configure_runtime(self) -> None:
         # Environment
         data_backend = os.environ.get('CYST_DATA_BACKEND')
-        data_backend_params = []
+        data_backend_params: Dict[str, str] = dict()
         if data_backend:
             data_backend_params_serialized = os.environ.get('CYST_DATA_BACKEND_PARAMS')
             # we expect parameters to be given in the form "param1_name","param1_value","param2_name","param2_value",...
@@ -137,13 +222,18 @@ class _Environment(Environment, EnvironmentControl, EnvironmentMessaging, Enviro
         # Command line (only parsing)
         cmdline_parser = argparse.ArgumentParser(description="CYST runtime configuration")
 
-        cmdline_parser.add_argument("-c", "--config_file", type=str, help="Path to a file storing the configuration. Commandline overrides the items in configuration file.")
-        cmdline_parser.add_argument("-b", "--data_backend", type=str, help="The type of a backend to use. Currently supported are: REDIS")
-        cmdline_parser.add_argument("-p", "--data_backend_parameter", action="append", nargs=2, type=str, metavar=('NAME', 'VALUE'), help="Parameters to be passed to data backend.")
-        cmdline_parser.add_argument("-r", "--run_id", type=str, help="A unique identifier of a simulation run. If not specified, a UUID will be generated instead.")
-        cmdline_parser.add_argument("-i", "--config_id", type=str, help="A unique identifier of simulation run configuration, which can be obtained from the data store.")
+        cmdline_parser.add_argument("-c", "--config_file", type=str,
+                                    help="Path to a file storing the configuration. Commandline overrides the items in configuration file.")
+        cmdline_parser.add_argument("-b", "--data_backend", type=str,
+                                    help="The type of a backend to use. Currently supported are: REDIS")
+        cmdline_parser.add_argument("-p", "--data_backend_parameter", action="append", nargs=2, type=str,
+                                    metavar=('NAME', 'VALUE'), help="Parameters to be passed to data backend.")
+        cmdline_parser.add_argument("-r", "--run_id", type=str,
+                                    help="A unique identifier of a simulation run. If not specified, a UUID will be generated instead.")
+        cmdline_parser.add_argument("-i", "--config_id", type=str,
+                                    help="A unique identifier of simulation run configuration, which can be obtained from the data store.")
 
-        args = cmdline_parser.parse_args()
+        args, _ = cmdline_parser.parse_known_args()
         if args.config_file:
             config_filename = args.config_file
 
@@ -159,7 +249,7 @@ class _Environment(Environment, EnvironmentControl, EnvironmentMessaging, Enviro
 
         if args.data_backend_parameter:
             # Convert from list of lists into a list of tuples
-            data_backend_params = dict(tuple(x) for x in args.data_backend_parameter)
+            data_backend_params = dict(tuple(x) for x in args.data_backend_parameter) #MYPY: typehinting lambda not really possible this way, better to ignore?
 
         if args.run_id:
             run_id = args.run_id
@@ -180,251 +270,29 @@ class _Environment(Environment, EnvironmentControl, EnvironmentMessaging, Enviro
             self._runtime_configuration.config_id = config_id
 
     # ------------------------------------------------------------------------------------------------------------------
-    # Environment. Currently everything points back to self
+    # Environment.
     @property
     def configuration(self) -> EnvironmentConfiguration:
         return self
 
     @property
     def control(self) -> EnvironmentControl:
-        return self
+        return self._environment_control
 
     @property
     def messaging(self) -> EnvironmentMessaging:
-        return self
+        return self._environment_messaging
 
     @property
     def resources(self) -> EnvironmentResources:
-        return self
+        return self._environment_resources
 
     @property
     def policy(self) -> EnvironmentPolicy:
         return self._policy
 
     def configure(self, *config_item: ConfigItem) -> Environment:
-        return self._configuration.configure(*[copy.deepcopy(x) for x in config_item])
-
-    # ------------------------------------------------------------------------------------------------------------------
-    # EnvironmentMessaging
-    def create_request(self, dst_ip: Union[str, IPAddress], dst_service: str = "",
-                       action: Action = None, session: Session = None,
-                       auth: Optional[Union[Authorization, AuthenticationToken]] = None) -> Request:
-        request = RequestImpl(dst_ip, dst_service, action, session, auth)
-        return request
-
-    def create_response(self, request: Request, status: Status, content: Optional[Any] = None,
-                        session: Optional[Session] = None,
-                        auth: Optional[Union[Authorization, AuthenticationTarget]] = None) -> Response:
-        # Let's abuse the duck typing and "cast" Request to RequestImpl
-        if isinstance(request, RequestImpl):
-            response = ResponseImpl(request, status, content, session, auth)
-            return response
-        else:
-            raise ValueError("Malformed request passed to create a response from")
-
-    def open_session(self, request: Request) -> Session:
-        return self.create_session_from_message(request)
-
-    def send_message(self, message: MessageImpl, delay: int = 0) -> None:
-        # set a first hop for a message
-        source = self._network.get_node_by_id(message.origin.id)
-        # Find a next hop for messages without one
-        if source and not message.next_hop:
-            # New request with session should follow the session first
-            # Response should either follow newly established session, or route to session endpoint
-            # TODO rearrange it to reflect changes in response set_next_hop handling
-            if message.type == MessageType.REQUEST and message.session:
-                message.set_next_hop()
-                # Not a pretty thing, but I am not sure how to make it better
-                # it = SessionImpl.cast_from(message.session).forward_iterator
-                # hop = next(it)
-                # port = hop.src.port
-                # iface = source.interfaces[port]
-
-                # If this works it is a proof that the entire routing must be reviewed
-                message.set_src_ip(message.path[0].src.ip)
-            elif message.type == MessageType.RESPONSE:
-                if message.session and message.current == SessionImpl.cast_from(message.session).endpoint:
-                    # This is stupid, but it complains...
-                    if isinstance(message, ResponseImpl):
-                        message.set_in_session(True)
-                message.set_next_hop()
-            # Others go to a gateway
-            else:
-                target = message.dst_ip
-                localhost = IPAddress("127.0.0.1")
-
-                # Shortcut for localhost request
-                if target == localhost:
-                    message.set_src_ip(localhost)
-                    message.set_next_hop(Endpoint(message.origin.id, 0, localhost), Endpoint(message.origin.id, 0, localhost))
-
-                else:
-                    gateway, port = source.gateway(target)
-                    if not gateway:
-                        raise Exception("Could not send a message, no gateway to route it through.")
-
-                    iface = InterfaceImpl.cast_from(source.interfaces[port])
-                    message.set_src_ip(iface.ip)
-
-                    message.set_origin(Endpoint(source.id, port, iface.ip))
-
-                    # First sending is specific, because the current value is set to origin
-                    message.set_next_hop(message.origin, iface.endpoint)
-
-        # metadata are appended only for requests ATM. This is to test waters, as there are many different design
-        # holes and things which need clarification
-        if isinstance(message, Request):
-            action = message.action
-
-            if self._metadata_providers and action.namespace in self._metadata_providers:
-                provider = self._metadata_providers[action.namespace]
-                if provider:
-                    metadata = provider.get_metadata(action)
-                else:
-                    metadata = Metadata()
-
-                metadata.dst_ip = message.dst_ip
-                metadata.dst_service = message.dst_service
-                metadata.src_ip = message.src_ip
-            else:
-                metadata = Metadata()
-
-            message.set_metadata(metadata)
-
-        try:
-            heappush(self._tasks, (self._time + delay, message))
-        except Exception as e:
-            self._message_log.error(f"Error sending a message, reason: {e}")
-
-        message.sent = True
-
-        self._message_log.debug(f"Sending a message: {str(message)}")
-
-        if message.origin.id in self._pause_on_request:
-            self._pause = True
-
-    # ------------------------------------------------------------------------------------------------------------------
-    # EnvironmentControl
-    @property
-    def state(self):
-        return self._state
-
-    def reset(self, run_id: str = str(uuid.uuid4())) -> Tuple[bool, EnvironmentState]:
-        if self._state != EnvironmentState.FINISHED and self._state != EnvironmentState.TERMINATED:
-            return False, self._state
-
-        self._network.reset()
-        self._time = 0
-        self._start_time = localtime()
-        self._tasks.clear()
-        self._pause = False
-        self._terminate = False
-        self._run_id = run_id
-        self._state = EnvironmentState.INIT
-
-        return True, self._state
-
-    def _establish_sessions(self) -> None:
-        for session in self._sessions_to_add:
-            owner = session[0]
-            waypoints = session[1]
-            src_service = session[2]
-            dst_service = session[3]
-            parent = session[4]
-            reverse = session[5]
-
-            self.create_session(owner, waypoints, src_service, dst_service, parent, False, reverse)
-
-    def init(self, run_id: str = str(uuid.uuid4())) -> Tuple[bool, EnvironmentState]:
-        if self._initialized:
-            return True, self._state
-
-        if self._state == EnvironmentState.RUNNING or self._state == EnvironmentState.PAUSED:
-            return False, self._state
-
-        self._pause = False
-        self._terminate = False
-        self._run_id = run_id
-        self._state = EnvironmentState.INIT
-
-        self._establish_sessions()
-
-        # Set basic statistics
-        self._statistics.run_id = self._runtime_configuration.run_id if self._runtime_configuration.run_id else self._run_id
-        self._statistics.configuration_id = self._runtime_configuration.config_id
-        self._statistics.start_time_real = time.time()
-
-        self._initialized = True
-
-        return True, self._state
-
-    def run(self) -> Tuple[bool, EnvironmentState]:
-
-        if not self._initialized:
-            return False, self._state
-
-        # if paused, unpause
-        if self._state == EnvironmentState.PAUSED:
-            self._pause = False
-
-        # if this is the first run() after init, call all run() methods of active services
-        if self._state == EnvironmentState.INIT:
-            for n in self._network.get_nodes_by_type("Node"):
-                for s in n.services.values():
-                    if isinstance(s, ServiceImpl) and not s.passive:
-                        s.active_service.run()
-
-        # Run
-        self._state = EnvironmentState.RUNNING
-        self._process()
-
-        return True, self._state
-
-    def pause(self) -> Tuple[bool, EnvironmentState]:
-
-        if self._state != EnvironmentState.RUNNING:
-            return False, self._state
-
-        self._pause = True
-        # This will return True + running state, but it will be returned to an actor other than the one who called
-        # Environment.run() in the first place. Or I hope so...
-        return True, self._state
-
-    def terminate(self) -> Tuple[bool, EnvironmentState]:
-
-        if self._state != EnvironmentState.RUNNING:
-            return False, self._state
-
-        self._terminate = True
-        return True, self._state
-
-    def commit(self) -> None:
-        self._statistics.end_time_real = time.time()
-        self._statistics.end_time_virtual = self._time
-
-        self._data_store.set(self._run_id, self._statistics, Statistics)
-
-    def add_pause_on_request(self, id: str) -> None:
-        self._pause_on_request.append(id)
-
-    def remove_pause_on_request(self, id: str) -> None:
-        self._pause_on_request = [x for x in self._pause_on_request if x != id]
-
-    def add_pause_on_response(self, id: str) -> None:
-        self._pause_on_response.append(id)
-
-    def remove_pause_on_response(self, id: str) -> None:
-        self._pause_on_response = [x for x in self._pause_on_response if x != id]
-
-    # ------------------------------------------------------------------------------------------------------------------
-    @property
-    def action_store(self) -> ActionStore:
-        return self._action_store
-
-    @property
-    def exploit_store(self) -> ExploitStore:
-        return self._exploit_store
+        return self._general_configuration.configure(*[copy.deepcopy(x) for x in config_item])
 
     # ------------------------------------------------------------------------------------------------------------------
     # EnvironmentConfiguration
@@ -432,394 +300,31 @@ class _Environment(Environment, EnvironmentControl, EnvironmentMessaging, Enviro
     # Just point on itself
     @property
     def general(self) -> GeneralConfiguration:
-        return self._configuration
+        return self._general_configuration
 
     @property
     def node(self) -> NodeConfiguration:
-        return self
+        return self._node_configuration
 
     @property
     def service(self) -> ServiceConfiguration:
-        return self
+        return self._service_configuration
 
     @property
     def network(self) -> NetworkConfiguration:
-        return self
+        return self._network_configuration
 
     @property
     def exploit(self) -> ExploitConfiguration:
-        return self
+        return self._exploit_configuration
 
     @property
     def action(self) -> ActionConfiguration:
-        return self
+        return self._action_configuration
 
     @property
     def access(self) -> AccessConfiguration:
-        return self
-
-    # ------------------------------------------------------------------------------------------------------------------
-    # NodeConfiguration
-    def create_node(self, id: str, ip: Union[str, IPAddress] = "", mask: str = "", shell: Service = None) -> Node:
-        return NodeImpl(id, "Node", ip, mask, shell)
-
-    def create_router(self, id: str, messaging: EnvironmentMessaging) -> Node:
-        return Router(id, messaging)
-
-    def create_interface(self, ip: Union[str, IPAddress] = "", mask: str = "", index: int = 0):
-        return InterfaceImpl(ip, mask, index)
-
-    def create_route(self, net: IPNetwork, port: int, metric: int) -> Route:
-        return Route(net, port, metric)
-
-    def add_interface(self, node: Node, interface: Interface, index: int = -1) -> int:
-        if node.type == "Router":
-            return Router.cast_from(node).add_port(interface.ip, interface.mask, index)
-        else:
-            return NodeImpl.cast_from(node).add_interface(InterfaceImpl.cast_from(interface))
-
-    def set_interface(self, interface: Interface, ip: Union[str, IPAddress] = "", mask: str = "") -> None:
-        iface = InterfaceImpl.cast_from(interface)
-
-        if ip:
-            iface.set_ip(ip)
-
-        if mask:
-            iface.set_mask(mask)
-
-    def add_service(self, node: Node, *service: Service) -> None:
-        node = NodeImpl.cast_from(node)
-
-        for srv in service:
-            node.add_service(ServiceImpl.cast_from(srv))
-
-    def add_traffic_processor(self, node: Node, processor: ActiveService) -> None:
-        node = NodeImpl.cast_from(node)
-
-        node.add_traffic_processor(processor)
-
-    def set_shell(self, node: Node, service: Service) -> None:
-        NodeImpl.cast_from(node).set_shell(service)
-
-    def add_route(self, node: Node, *route: Route) -> None:
-        if node.type != "Router":
-            raise RuntimeError("Attempting to add route to non-router node")
-
-        for r in route:
-            Router.cast_from(node).add_route(r)
-
-    def add_routing_rule(self, node: Node, rule: FirewallRule) -> None:
-        if node.type != "Router":
-            raise RuntimeError("Attempting to add route to non-router node")
-
-        Router.cast_from(node).add_routing_rule(rule)
-
-    def set_routing_policy(self, node: Node, policy: FirewallPolicy) -> None:
-        if node.type != "Router":
-            raise RuntimeError("Attempting to set routing policy to non-router node")
-
-        Router.cast_from(node).set_default_routing_policy(policy)
-
-    def list_routes(self, node: Node) -> List[Route]:
-        if node.type != "Router":
-            raise RuntimeError("Attempting to add route to non-router node")
-
-        return Router.cast_from(node).list_routes()
-
-    # ------------------------------------------------------------------------------------------------------------------
-    # ServiceConfiguration
-    def create_active_service(self, id: str, owner: str, name: str, node: Node,
-                              service_access_level: AccessLevel = AccessLevel.LIMITED,
-                              configuration: Optional[Dict[str, Any]] = None) -> Optional[Service]:
-        return self._service_store.create_active_service(id, owner, name, node, service_access_level, configuration)
-
-    def get_service_interface(self, service: ActiveService,
-                              interface_type: Type[ActiveServiceInterfaceType]) -> ActiveServiceInterfaceType:
-        if isinstance(service, interface_type):
-            return service
-        else:
-            raise RuntimeError("Given active service does not provide control interface of given type.")
-
-    def create_passive_service(self, id: str, owner: str, version: str = "0.0.0", local: bool = False,
-                               service_access_level: AccessLevel = AccessLevel.LIMITED) -> Service:
-        return PassiveServiceImpl(id, owner, version, local, service_access_level)
-
-    def update_service_version(self, service: PassiveService, version: str = "0.0.0") -> None:
-        service = PassiveServiceImpl.cast_from(service)
-        service.version = version
-
-    def set_service_parameter(self, service: PassiveService, parameter: ServiceParameter, value: Any) -> None:
-        service = PassiveServiceImpl.cast_from(service)
-        if parameter == ServiceParameter.ENABLE_SESSION:
-            service.set_enable_session(value)
-        elif parameter == ServiceParameter.SESSION_ACCESS_LEVEL:
-            service.set_session_access_level(value)
-
-    def create_data(self, id: Optional[str], owner: str, description: str) -> Data:
-        return DataImpl(id, owner, description)
-
-    def public_data(self, service: PassiveService) -> List[Data]:
-        return PassiveServiceImpl.cast_from(service).public_data
-
-    def private_data(self, service: PassiveService) -> List[Data]:
-        return PassiveServiceImpl.cast_from(service).private_data
-
-    def public_authorizations(self, service: PassiveService) -> List[Authorization]:
-        return PassiveServiceImpl.cast_from(service).public_authorizations
-
-    def private_authorizations(self, service: PassiveService) -> List[Authorization]:
-        return PassiveServiceImpl.cast_from(service).private_authorizations
-
-    def sessions(self, service: PassiveService) -> List[Session]:
-        return PassiveServiceImpl.cast_from(service).sessions
-
-    def provides_auth(self, service: Service, auth_provider: AuthenticationProvider):
-        # TODO: This can't work. A passive service is in service.passive_service
-        if isinstance(service, PassiveService):
-            return PassiveServiceImpl.cast_from(service).add_provider(auth_provider)
-
-    def set_scheme(self, service: PassiveService, scheme: AccessScheme):
-        return PassiveServiceImpl.cast_from(service).add_access_scheme(scheme)
-
-    # ------------------------------------------------------------------------------------------------------------------
-    # NetworkConfiguration
-    def add_node(self, node: Node) -> None:
-        self._network.add_node(NodeImpl.cast_from(node))
-
-    def add_connection(self, source: Node, target: Node, source_port_index: int = -1, target_port_index: int = -1,
-                       net: str = "", connection: Connection = None) -> Connection:
-        return self._network.add_connection(NodeImpl.cast_from(source), source_port_index, NodeImpl.cast_from(target),
-                                            target_port_index, net, connection)
-
-    # TODO: Decide if we want to have service association a part of the session creation, or if we rather leave it
-    #       to service interface
-    def create_session(self, owner: str, waypoints: List[Union[str, Node]], src_service: Optional[str] = None,
-                       dst_service: Optional[str] = None, parent: Optional[Session] = None, defer: bool = False,
-                       reverse: bool = False) -> Optional[Session]:
-
-        if defer:
-            self._sessions_to_add.append((owner, waypoints, src_service, dst_service, parent, reverse))
-            return None
-        else:
-            session = self._create_session(owner, waypoints, src_service, dst_service, parent, reverse)
-            if src_service or dst_service:
-                if not src_service and dst_service:
-                    raise RuntimeError("Both or neither services must be specified during session creation.")
-
-                src_node: Node
-                if isinstance(waypoints[0], str):
-                    src_node = self._network.get_node_by_id(waypoints[0])
-                else:
-                    src_node = waypoints[0]
-
-                dst_node: Node
-                if isinstance(waypoints[-1], str):
-                    dst_node = self._network.get_node_by_id(waypoints[-1])
-                else:
-                    dst_node = waypoints[-1]
-
-                ServiceImpl.cast_from(src_node.services[src_service]).add_session(session)
-                ServiceImpl.cast_from(dst_node.services[dst_service]).add_session(session)
-            return session
-
-    def create_session_from_message(self, message: Message) -> Session:
-        message = MessageImpl.cast_from(message)
-
-        if message.auth:
-            owner = message.auth.identity
-        else:
-            owner = message.dst_service
-        path = message.non_session_path
-        parent = message.session
-
-        # In case someone attempts to create another session in the endpoint of already provided session, just return
-        # that session instead.
-        # TODO: Document this behavior
-        if not path:
-            return parent
-
-        session = SessionImpl(owner, parent, path, message.src_service, message.dst_service, self._network)
-
-        # Source and destination services are taken from message and the session reference is inserted to both
-        if message.type == MessageType.REQUEST:
-            src_service = message.src_service
-            dst_service = message.dst_service
-        else:
-            src_service = message.dst_service
-            dst_service = message.src_service
-
-        if parent:
-            p = SessionImpl.cast_from(parent)
-            src_node = self._network.get_node_by_id(p.startpoint.id)
-        else:
-            src_node = self._network.get_node_by_id(path[0].src.id)
-        dst_node = self._network.get_node_by_id(path[-1].dst.id)
-
-        ServiceImpl.cast_from(src_node.services[src_service]).add_session(session)
-        ServiceImpl.cast_from(dst_node.services[dst_service]).add_session(session)
-
-        return session
-
-    def append_session(self, original_session: Session, appended_session: Session) -> Session:
-        original = SessionImpl.cast_from(original_session)
-        appended = SessionImpl.cast_from(appended_session)
-
-        return SessionImpl(appended.owner, original, appended.path_id)
-
-    # ------------------------------------------------------------------------------------------------------------------
-    # Exploit configuration
-    def create_vulnerable_service(self, id: str, min_version: str = "0.0.0",
-                                  max_version: str = "0.0.0") -> VulnerableService:
-        return VulnerableServiceImpl(id, min_version, max_version)
-
-    def create_exploit_parameter(self, exploit_type: ExploitParameterType, value: str = "",
-                                 immutable: bool = False) -> ExploitParameter:
-        return ExploitParameterImpl(exploit_type, value, immutable)
-
-    def create_exploit(self, id: str = "", services: List[VulnerableService] = None, locality:
-    ExploitLocality = ExploitLocality.NONE, category: ExploitCategory = ExploitCategory.NONE,
-                       *parameters: ExploitParameter) -> Exploit:
-        return ExploitImpl(id, services, locality, category, *parameters)
-
-    def add_exploit(self, *exploits: Exploit) -> None:
-        self._exploit_store.add_exploit(*exploits)
-
-    def clear_exploits(self) -> None:
-        self._exploit_store.clear()
-
-    # ------------------------------------------------------------------------------------------------------------------
-    # Access configuration
-    def create_authentication_provider(self, provider_type: AuthenticationProviderType,
-                                       token_type: AuthenticationTokenType, security: AuthenticationTokenSecurity,
-                                       ip: Optional[IPAddress], timeout: int) -> AuthenticationProvider:
-        return AuthenticationProviderImpl(provider_type, token_type, security, ip, timeout)
-
-    def create_authentication_token(self, type: AuthenticationTokenType, security: AuthenticationTokenSecurity,
-                                    identity: str, is_local: bool) -> AuthenticationToken:
-        return AuthenticationTokenImpl(type, security, identity, is_local)._set_content(uuid.uuid4())
-                # contetn setting is temporary until encrypted/hashed data is implemented
-
-    def register_authentication_token(self, provider: AuthenticationProvider, token: AuthenticationToken) -> bool:
-        if isinstance(provider, AuthenticationProviderImpl):
-            provider.add_token(token)
-            return True
-
-        return False
-
-    def create_and_register_authentication_token(self, provider: AuthenticationProvider, identity: str) -> Optional[AuthenticationToken]:
-        if isinstance(provider, AuthenticationProviderImpl):
-            token = self.create_authentication_token(provider.token_type, provider.security, identity,
-                                                True if provider.type == AuthenticationProviderType.LOCAL else False)
-            self.register_authentication_token(provider, token)
-            return token
-
-        return None
-
-    def create_authorization(self, identity: str, access_level: AccessLevel, id: str, nodes: Optional[List[str]] = None,
-                             services: Optional[List[str]] = None) -> Authorization:
-        return AuthorizationImpl(
-            identity=identity,
-            access_level=access_level,
-            id=id,
-            nodes=nodes,
-            services=services
-        )
-
-    def create_access_scheme(self) -> AccessScheme:
-        scheme = AccessSchemeImpl()
-        return scheme
-
-    def add_provider_to_scheme(self, provider: AuthenticationProvider, scheme: AccessScheme):
-        if isinstance(scheme, AccessSchemeImpl):
-            scheme.add_provider(provider)
-            return True
-        return False
-
-    def add_authorization_to_scheme(self, auth: Authorization, scheme: AccessScheme):
-        if isinstance(scheme, AccessSchemeImpl):
-            scheme.add_authorization(auth)
-            scheme.add_identity(auth.identity)
-            return True
-        return False
-
-    def assess_token(self, scheme: AccessScheme, token: AuthenticationToken) \
-            -> Optional[Union[Authorization, AuthenticationTarget]]:
-
-        for i in range(0, len(scheme.factors)):
-            if scheme.factors[i][0].token_is_registered(token):
-                if i == len(scheme.factors) - 1:
-                    return next(filter(lambda auth: auth.identity == token.identity, scheme.authorizations), None)
-                else:
-                    return scheme.factors[i + 1][0].target
-        return None
-
-    def evaluate_token_for_service(self, service: Service, token: AuthenticationToken, node: Node,
-                                   fallback_ip: Optional[IPAddress]) \
-            -> Optional[Union[Authorization, AuthenticationTarget]]:
-        # check if node has the service is in interpreter
-        if isinstance(service, PassiveServiceImpl):
-            for scheme in service.access_schemes:
-                result = self.assess_token(scheme, token)
-                if isinstance(result, Authorization):
-                    return self.user_auth_create(result, service, node)
-                if isinstance(result, AuthenticationTargetImpl):
-                    if result.address is None:
-                        result.address = fallback_ip
-                    return result
-
-        return None
-
-    def user_auth_create(self, authorization: Authorization, service: Service, node: Node):
-        if isinstance(authorization, AuthorizationImpl):
-            if (authorization.nodes == ['*'] or node.id in authorization.nodes) and \
-                    (authorization.services == ['*'] or service.name in authorization.services):
-
-                ret_auth = AuthorizationImpl(
-                    identity=authorization.identity,
-                    nodes=[node.id],
-                    services=[service.name],
-                    access_level=authorization.access_level,
-                    id=str(uuid4())
-                )
-
-                if isinstance(service, PassiveServiceImpl):
-                    service.add_active_authorization(ret_auth)  # TODO: check if this can go to public/private auths
-                return ret_auth
-        return None
-
-    # ------------------------------------------------------------------------------------------------------------------
-    # Action configuration
-    def create_action_parameter_domain_any(self) -> ActionParameterDomain:
-        return ActionParameterDomainImpl()
-
-    def create_action_parameter_domain_range(self, default: int, range_min: int, range_max: int, range_step: int = 1) -> ActionParameterDomain:
-        return ActionParameterDomainImpl.bind_range(default, range_min, range_max, range_step)
-
-    def create_action_parameter_domain_options(self, default: Any, options: List[Any]) -> ActionParameterDomain:
-        return ActionParameterDomainImpl.bind_options(default, options)
-
-    # ------------------------------------------------------------------------------------------------------------------
-    # Clock functions
-    @property
-    def clock(self) -> Clock:
-        return self
-
-    def simulation_time(self) -> int:
-        return self._time
-
-    def hybrid_time(self) -> struct_time:
-        # TODO this should be local time + self._time miliseconds
-        return self._start_time
-
-    def timeout(self, service: ActiveService, delay: int, content: Any) -> None:
-        m = TimeoutImpl(service, self._time, delay, content)
-        heappush(self._tasks, (self._time + delay, m))
-
-    # ------------------------------------------------------------------------------------------------------------------
-    # Statistics and data access TODO: make data stores available
-    @property
-    def statistics(self) -> Statistics:
-        return self._statistics
+        return self._access_configuration
 
     # ------------------------------------------------------------------------------------------------------------------
     # Internal functions
@@ -885,7 +390,8 @@ class _Environment(Environment, EnvironmentControl, EnvironmentMessaging, Enviro
                         routers.append(Router.cast_from(node2))
                         node2 = get_node_from_waypoint(self, i + len(routers) + 1)
 
-                    path_candidate = []
+
+                    path_candidate: List[Hop] = []
                     for elements in product(node0.interfaces, node2.interfaces):
                         node0_iface = InterfaceImpl.cast_from(elements[0])
                         node2_iface = InterfaceImpl.cast_from(elements[1])
@@ -943,7 +449,7 @@ class _Environment(Environment, EnvironmentControl, EnvironmentMessaging, Enviro
             # Sessions are always tried to be constructed in both directions, so we need to reverse the waypoints again
             waypoints.reverse()
             raise RuntimeError(
-                "Could not find connection between the following waypoints to establish a session".format(waypoints))
+                "Could not find connection between the following waypoints to establish a session".format(waypoints)) #MYPY: Missing the parameter in string
 
         # If the session was constructed from the end to front, we need to reverse the path
         if session_reversed:
@@ -951,7 +457,7 @@ class _Environment(Environment, EnvironmentControl, EnvironmentMessaging, Enviro
             for i in range(0, len(path)):
                 path[i] = path[i].swap()
 
-        return SessionImpl(owner, parent, path, src_service, dst_service, self._network)
+        return SessionImpl(owner, parent, path, src_service, dst_service, self._network) #MYPY: Services can be None, they are optional
 
     def _process_passive(self, message: Request, node: Node):
         time = 0
@@ -967,10 +473,10 @@ class _Environment(Environment, EnvironmentControl, EnvironmentMessaging, Enviro
                                                                             StatusValue.FAILURE,
                                                                             StatusDetail.AUTHENTICATION_NOT_APPLICABLE),
                                                             "Auto-authentication does not work with non-local tokens",
-                                                            session=message.session, auth=message.auth)
+                                                            session=message.session, auth=message.auth) #MYPY: AuthenticationToken is not valid type here. Depends, if they were just forgotten in annotation or not
             # TODO: assess if locality check makes sense
             original_action = message.action
-            auth_action = self.action_store.get("meta:authenticate").copy()
+            auth_action = self._environment_resources.action_store.get("meta:authenticate").copy()
             auth_action.parameters["auth_token"].value = message.auth
             message.action = auth_action  # swap to authentication
             auth_time, auth_response = self._interpreters["meta"].evaluate(message, node)
@@ -979,7 +485,7 @@ class _Environment(Environment, EnvironmentControl, EnvironmentMessaging, Enviro
                 return auth_time, auth_response
 
             message.auth = auth_response.auth  # if authentication successful, swap auth token for authorization
-            message.action = original_action   # swap back original action
+            message.action = original_action  # swap back original action
         #  and continue to action
 
         # TODO: In light of tags abandonment, how to deal with splitting id into namespace and action name
@@ -993,7 +499,7 @@ class _Environment(Environment, EnvironmentControl, EnvironmentMessaging, Enviro
 
         # shortcut for wakeup messages
         if message.type == MessageType.TIMEOUT:
-            self._network.get_node_by_id(message.origin.id).process_message(message)
+            self._network.get_node_by_id(message.origin.id).process_message(message)  #MYPY: Node returned by get_node can be None
             return
 
         # Store it into the history
@@ -1001,16 +507,16 @@ class _Environment(Environment, EnvironmentControl, EnvironmentMessaging, Enviro
 
         # Move message to a next hop
         message.hop()
-        current_node: NodeImpl = self._network.get_node_by_id(message.current.id)
+        current_node: NodeImpl = self._network.get_node_by_id(message.current.id) #MYPY: Get node can return None
 
         processing_time = 0
 
         # HACK: Because we want to enable actions to be able to target routers, we need to bypass the router processing
         #       if the message is at the end of its journey
-        last_hop = message.dst_ip == message.current.ip
+        last_hop = message.dst_ip == message.current.ip #MYPY: current can return None
 
         if not last_hop and current_node.type == "Router":
-            result, processing_time = current_node.process_message(message)
+            result, processing_time = current_node.process_message(message) #MYPY: This only returns one int, will crash
             if result:
                 heappush(self._tasks, (self._time + processing_time, message))
 
@@ -1025,7 +531,7 @@ class _Environment(Environment, EnvironmentControl, EnvironmentMessaging, Enviro
                 heappush(self._tasks, (self._time + processing_time, message))
                 return
             # The session ends in the current node
-            elif message.session.endpoint.id == current_node.id or message.session.startpoint.id == current_node.id:
+            elif message.session.endpoint.id == current_node.id or message.session.startpoint.id == current_node.id:  #MYPY: here on multiple line, session only has an end and start, not endpoint and startpoint
                 # TODO bi-directional session complicate the situation soooo much
                 end_port = None
                 if message.session.endpoint.id == current_node.id:
@@ -1035,21 +541,22 @@ class _Environment(Environment, EnvironmentControl, EnvironmentMessaging, Enviro
 
                 # Check if the node is the final destination
                 for iface in current_node.interfaces:
-                    if iface.index == end_port and iface.ip == message.dst_ip:
+                    if iface.index == end_port and iface.ip == message.dst_ip: #MYPY: Interface does not have index
                         local_processing = True
                         break
                 # It is not, this means the node was only a proxy to some other target
                 if not local_processing:
                     # Find a way to nearest switch
-                    gateway, port = current_node.gateway(message.dst_ip)
+                    gateway, port = current_node.gateway(message.dst_ip) #MYPY: If this returns None, there is only one value and it will crash on unpacking it
                     # ##################
-                    dest_node_endpoint = current_node.interfaces[port].endpoint
+                    dest_node_endpoint = current_node.interfaces[port].endpoint #MYPY: end vs endpoint
                     dest_node = self._network.get_node_by_id(dest_node_endpoint.id)
-                    dest_node_ip = dest_node.interfaces[dest_node_endpoint.port].ip
+                    dest_node_ip = dest_node.interfaces[dest_node_endpoint.port].ip #MYPY: dest_node can be None
                     message.set_next_hop(Endpoint(current_node.id, port, current_node.interfaces[port].ip),
                                          Endpoint(dest_node_endpoint.id, dest_node_endpoint.port, dest_node_ip))
                     # ##################
-                    self._message_log.debug(f"Proxying {message_type} to {message.dst_ip} via {message.next_hop.id} on a node {current_node.id}")
+                    self._message_log.debug(
+                        f"Proxying {message_type} to {message.dst_ip} via {message.next_hop.id} on a node {current_node.id}")
                     heappush(self._tasks, (self._time + processing_time, message))
                     return
 
@@ -1081,20 +588,25 @@ class _Environment(Environment, EnvironmentControl, EnvironmentMessaging, Enviro
                 response = ResponseImpl(message, Status(StatusOrigin.NODE, StatusValue.ERROR),
                                         "Nonexistent service {} at node {}".format(message.dst_service, message.dst_ip),
                                         session=message.session, auth=message.auth)
-                self.send_message(response, processing_time)
+                self._environment_messaging.send_message(response, processing_time)
 
             # Service exists and it is passive
-            elif current_node.services[message.dst_service].passive:
+            elif current_node.services[message.dst_service].passive:  #MYPY: passive vs .passive_service
                 # Passive services just discard the responses and only process the requests
                 if message_type == "response":
                     return
 
-                processing_time, response = self._process_passive(message, current_node)
-                if response.status.origin == StatusOrigin.SYSTEM and response.status.value == StatusValue.ERROR:
-                    print("Could not process the request, unknown semantics.")
+                if current_node.services[message.dst_service].passive_service.state != ServiceState.RUNNING:
+                    response = ResponseImpl(message, Status(StatusOrigin.NODE, StatusValue.ERROR),
+                                            "Service {} at node {} is not running".format(message.dst_service, message.dst_ip),
+                                            session=message.session, auth=message.auth)
+                    self._environment_messaging.send_message(response, processing_time)
                 else:
-                    self.send_message(response, processing_time)
-
+                    processing_time, response = self._process_passive(message, current_node)
+                    if response.status.origin == StatusOrigin.SYSTEM and response.status.value == StatusValue.ERROR:
+                        print("Could not process the request, unknown semantics.")
+                    else:
+                        self._environment_messaging.send_message(response, processing_time)
             # Service exists and it is active
             else:
                 # An active service does not necessarily produce Responses, so we should just move time
@@ -1114,11 +626,11 @@ class _Environment(Environment, EnvironmentControl, EnvironmentMessaging, Enviro
                 return
 
             # If it is a request, then it is processed as a request for passive service and processed with the interpreter
-            processing_time, response = self._process_passive(message, current_node)
-            if response.status.origin == StatusOrigin.SYSTEM and response.status.value == StatusValue.ERROR:
+            processing_time, response = self._process_passive(message, current_node) #MYPY: messageimpl vs request
+            if response.status.origin == StatusOrigin.SYSTEM and response.status.value == StatusValue.ERROR: #MYPY: same as above, response None?
                 print("Could not process the request, unknown semantics.")
             else:
-                self.send_message(response, processing_time)
+                self._environment_messaging.send_message(response, processing_time)
 
     def _process(self) -> Tuple[bool, EnvironmentState]:
 
@@ -1136,7 +648,7 @@ class _Environment(Environment, EnvironmentControl, EnvironmentMessaging, Enviro
             for task in current_tasks:
                 if task.type == MessageType.TIMEOUT:
                     # Yay!
-                    timeout = TimeoutImpl.cast_from(task.cast_to(Timeout))
+                    timeout = TimeoutImpl.cast_from(task.cast_to(Timeout)) #type:ignore #MYPY: Probably an issue with mypy, requires creation of helper class
                     timeout.service.process_message(task)
                 else:
                     self._send_message(task)
@@ -1178,9 +690,11 @@ class _Environment(Environment, EnvironmentControl, EnvironmentMessaging, Enviro
             model_description = s.load()
 
             if model_description.namespace in self._interpreters:
-                print("Behavioral model with namespace {} already registered, skipping it ...".format(model_description.namespace))
+                print("Behavioral model with namespace {} already registered, skipping it ...".format(
+                    model_description.namespace))
             else:
-                model = model_description.creation_fn(self, self, self._policy, self)
+                model = model_description.creation_fn(self, self._environment_resources, self._policy,
+                                                      self._environment_messaging)
                 self._interpreters[model_description.namespace] = model
 
     def _register_metadata_providers(self) -> None:
@@ -1190,28 +704,12 @@ class _Environment(Environment, EnvironmentControl, EnvironmentMessaging, Enviro
             provider_description = s.load()
 
             if provider_description.namespace in self._metadata_providers:
-                print("Metadata provider with namespace {} already registered, skipping ...".format(provider_description.namespace))
+                print("Metadata provider with namespace {} already registered, skipping ...".format(
+                    provider_description.namespace))
             else:
-                provider = provider_description.creation_fn(self.action_store, self)
+                provider = provider_description.creation_fn(self._environment_resources.action_store, self)
                 self._metadata_providers[provider_description.namespace] = provider
                 provider.register_action_parameters()
-
-    def create_service(self, name: str, id: str, node: Node, args: Optional[Dict[str, Any]]) -> ServiceImpl:
-        if name not in self._service_descriptions:
-            raise AttributeError("Service '{}' not registered.".format(name))
-
-        if not id:
-            service_name = "service-" + name + "-" + str(Counter().get("services"))
-        else:
-            service_name = id
-
-        proxy = EnvironmentProxy(self, NodeImpl.cast_from(node).id, service_name)
-
-        # TODO add ownership into equation
-        act = self._service_descriptions[name].creation_fn("", proxy, args)
-        srv = ServiceImpl(service_name, act, name, "")
-
-        return srv
 
 
 def create_environment() -> Environment:

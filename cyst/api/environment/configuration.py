@@ -1,8 +1,10 @@
+import uuid
 from abc import ABC, abstractmethod
 from typing import Any, List, Optional, Union, Dict, TypeVar, Type
 from netaddr import IPAddress, IPNetwork
 from flags import Flags
 
+from cyst.api.configuration.configuration import ConfigItem
 from cyst.api.environment.messaging import EnvironmentMessaging
 from cyst.api.environment.message import Message
 from cyst.api.host.service import Service, PassiveService, ActiveService
@@ -110,6 +112,45 @@ class GeneralConfiguration(ABC):
     all objects that are present in the simulation run.
     """
     @abstractmethod
+    def get_configuration(self) -> List[ConfigItem]:
+        """
+        Get the entire configuration of the environment in form of a list containing top level configuration objects,
+        i.e., nodes, connections, and exploits. There are no inter-object references, they are all resolved, so there
+        is a potential duplication.
+
+        :return: A complete environment configuration.
+        """
+        pass
+
+    @abstractmethod
+    def save_configuration(self, indent: Optional[int]) -> str:
+        """
+        Serializes a configuration into a string representation, that can be saved and later loaded and passed to the
+        configure() method.
+
+        :param indent: The indentation level for pretty-printing. If not provided, the configuration is serialized onto
+                       one line. If indent is set to 0, only line breaks are inserted. If indent is set to 1 or more
+                       the text is indented accordingly.
+        :type indent: Optional[int]
+
+        :return: A string representation of the environment's configuration.
+        """
+        pass
+
+    @abstractmethod
+    def load_configuration(self, config: str) -> List[ConfigItem]:
+        """
+        Deserializes a string configuration into corresponding configuration items. These are currently not guaranteed
+        to work across versions.
+
+        :param config: The serialized configuration.
+        :type config: str
+
+        :return: A list of configuration items that can be fed to the configure() function.
+        """
+        pass
+
+    @abstractmethod
     def get_configuration_by_id(self, id: str, configuration_type: Type[ConfigurationObjectType]) -> ConfigurationObjectType:
         """
         Get a ...Config object by ID.
@@ -190,7 +231,7 @@ class NodeConfiguration(ABC):
         pass
 
     @abstractmethod
-    def create_interface(self, ip: Union[str, IPAddress] = "", mask: str = "", index: int = 0) -> Interface:
+    def create_interface(self, ip: Union[str, IPAddress] = "", mask: str = "", index: int = 0, id: str = "") -> Interface:
         """
         Create a network interface, which can then be used to connect nodes to routers or routers to routers.
 
@@ -207,12 +248,16 @@ class NodeConfiguration(ABC):
             is assigned a lowest possible index.
         :type index: int
 
+        :param id: A unique identification of the interface within the simulation. If no value is provided, the system
+                   will generate a unique one.
+        :type id: str
+
         :return: An instance of a network interface.
         """
         pass
 
     @abstractmethod
-    def create_route(self, net: IPNetwork, port: int, metric: int) -> Route:
+    def create_route(self, net: IPNetwork, port: int, metric: int, id: str = "") -> Route:
         """
         Create a route, which determines through which port messages directed to particular network get sent.
 
@@ -226,6 +271,10 @@ class NodeConfiguration(ABC):
         :param metric: A metric for the route. Routes with lower metric get selected when there is an overlap in
             their networks. In case of metric equivalence, more specific routes are selected.
         :type metric: int
+
+        :param id: A unique identification of the route within the simulation. If no value is provided, the system
+                   will generate a unique one.
+        :type id: str
 
         :return: A route to be used in router.
         """
@@ -278,6 +327,21 @@ class NodeConfiguration(ABC):
         :type node: Node
 
         :param service: One or more service instances to assign.
+        :type service: Service
+
+        :return: None
+        """
+        pass
+
+    @abstractmethod
+    def remove_service(self, node: Node, *service: Service) -> None:
+        """
+        Remove a service from the node.
+
+        :param node: An instance of a node to remove the service from.
+        :type node: Node
+
+        :param sertice: One or more service instances to remove.
         :type service: Service
 
         :return: None
@@ -416,11 +480,14 @@ class ServiceConfiguration(ABC):
     Service configuration enables management of passive and active services.
     """
     @abstractmethod
-    def create_active_service(self, id: str, owner: str, name: str, node: Node,
+    def create_active_service(self, type: str, owner: str, name: str, node: Node,
                               service_access_level: AccessLevel = AccessLevel.LIMITED,
-                              configuration: Optional[Dict[str, Any]] = None) -> Optional[Service]:
+                              configuration: Optional[Dict[str, Any]] = None, id: str = "") -> Optional[Service]:
         """
         Creates an active service. These include anything from traffic processors to agents.
+
+        :param type: A type of the service, which is a unique identification among services.
+        :type type: str
 
         :param id: An ID that will be given to the service and which must be unique within the simulation environment.
         :type id: str
@@ -444,6 +511,10 @@ class ServiceConfiguration(ABC):
         :param configuration: A dictionary of configuration parameters. There are no limitations to the param/value
             pairs, as they are directly passed to function creation function. (see cyst.api.host.service.ActiveServiceDescription)
         :type configuration: Optional[Dict[str, Any]]
+
+        :param id: An ID that will be given to the service and which must be unique within the simulation environment.
+                   If no ID is provided a unique one is generated.
+        :type id: str
 
         :return: An instance of an active service, or null if failed to create one.
         """
@@ -486,13 +557,13 @@ class ServiceConfiguration(ABC):
         pass
 
     @abstractmethod
-    def create_passive_service(self, id: str, owner: str, version: str = "0.0.0", local: bool = False,
-                               service_access_level: AccessLevel = AccessLevel.LIMITED) -> Service:
+    def create_passive_service(self, type: str, owner: str, version: str = "0.0.0", local: bool = False,
+                               service_access_level: AccessLevel = AccessLevel.LIMITED, id: str = "") -> Service:
         """
         Create a passive service.
 
-        :param id: A unique ID within the simulation.
-        :type id: str
+        :param type: A type of the service, such as lighttpd or bash. The type is relevant for mapping exploits.
+        :type type: str
 
         :param owner: An identity that will own the service at the node. While it should be an identity that is present
             at the node, this is currently not controlled in any way, because the whole identity business is not yet
@@ -509,6 +580,9 @@ class ServiceConfiguration(ABC):
         :param service_access_level: An access level of the service. This mostly concerns the resources than can be
             accessed in case of service compromise.
         :type service_access_level: AccessLevel
+
+        :param id: A unique ID within the simulation. An ID is generated if not provided.
+        :type id: str
 
         :return: An instance of passive service.
         """
@@ -735,8 +809,9 @@ class NetworkConfiguration(ABC):
         pass
 
     @abstractmethod
-    def create_session(self, owner: str, waypoints: List[Union[str, Node]], parent: Optional[Session] = None,
-                       defer: bool = False, service: Optional[str] = None, reverse: bool = False) -> Optional[Session]:
+    def create_session(self, owner: str, waypoints: List[Union[str, Node]], src_service: Optional[str] = None,
+                       dst_service: Optional[str] = None, parent: Optional[Session] = None,
+                       defer: bool = False, reverse: bool = False) -> Optional[Session]:
         """
         Creates a fixed session in the simulated infrastructure. This session ignores the routing limitations imposed
         by router configuration. However, the creation mechanism checks if there exists a connection between each of
@@ -751,6 +826,14 @@ class NetworkConfiguration(ABC):
             the description, there has to be a connection between all subsequent tuples of waypoints.
         :type waypoints: List[Union[str, Node]]
 
+        :param src_service: An ID of the service that is the anchor at the origin of the session. This service can
+                            tear down the session at will.
+        :type src_service: Optional[str]
+
+        :param dst_service: An ID of the service that is the anchor at the destination of the session. This service can
+                            tear down the session at will.
+        :type dst_service: Optional[str]
+
         :param parent: A parent session that can be optionally used as a first part/head of the session.
         :type parent: Optional[Session]
 
@@ -758,10 +841,6 @@ class NetworkConfiguration(ABC):
             False, the creation is deferred to the environment init phase, when all the waypoints should already be
             instantiated.
         :type defer: bool
-
-        :param service: The ID of a service, this session should belong to, e.g., VPN tunnels instantiated beforehand
-            belonging to the VPN service, which can tear them down at will during a simulation run.
-        :type service: Optional[str]
 
         :param reverse: Construct the session in the reverse order, i.e., as if it was constructed as a reverse shell.
         :type reverse: bool
@@ -963,7 +1042,7 @@ class AccessConfiguration(ABC):
     @abstractmethod
     def create_authentication_provider(self, provider_type: AuthenticationProviderType,
                                        token_type: AuthenticationTokenType, security: AuthenticationTokenSecurity,
-                                       ip: Optional[IPAddress], timeout: int) -> AuthenticationProvider:
+                                       ip: Optional[IPAddress], timeout: int, id: str = "") -> AuthenticationProvider:
         """
         Authentication provider represents an authentication mechanism that can be employed in services via the access
         scheme mechanism.
@@ -984,6 +1063,10 @@ class AccessConfiguration(ABC):
         :param timeout: A number of simulated time units that can elapse from the initiation of authentication exchange
             before the attempt is discarded as unsuccessful.
         :type timeout: int
+
+        :param id: A unique identification of the provider within the simulation. If no value is provided, the system
+                   will generate a unique one.
+        :type id: str
 
         :return: An authentication provider instance.
         """
@@ -1028,6 +1111,21 @@ class AccessConfiguration(ABC):
         :type token: AuthenticationToken
 
         :return: Indication, whether registration was successful.
+        """
+        pass
+
+    @abstractmethod
+    def unregister_authentication_token(self, token_identity: str, provider: AuthenticationProvider) -> None:
+        """
+        Unregisters authentication token from given provider based on given token identity.
+
+        :param token_identity: An identity for token to be unregistered from provider.
+        :type token_identity: str
+
+        :param provider: An authentication provider to unregister token from.
+        :type provider: AuthenticationProvider
+
+        :return: None
         """
         pass
 
@@ -1079,11 +1177,15 @@ class AccessConfiguration(ABC):
         pass
 
     @abstractmethod
-    def create_access_scheme(self) -> AccessScheme:
+    def create_access_scheme(self, id: str = "") -> AccessScheme:
         """
         Creates an empty access scheme. The access scheme is a combination of authentication providers, which use a
         supplied authorizations. The access scheme provides means to describe multiple authentication schemes
         within one service or multi-factor authentication.
+
+        :param id: A unique identification of the scheme within the simulation. If no value is provided, the system
+                   will generate a unique one.
+        :type id: str
 
         :return: An empty access scheme.
         """
@@ -1120,6 +1222,20 @@ class AccessConfiguration(ABC):
         pass
 
     @abstractmethod
+    def remove_authorization_from_scheme(self, auth: Authorization, scheme: AccessScheme) -> None:
+        """
+        Removes given authorization from given scheme by setting its access level to AccessLevel.NONE
+
+        :param auth: An authorization to be removed from scheme.
+        :type auth: Authorization
+
+        :param scheme: A scheme.
+        :type scheme: AccessScheme
+
+        :return: None
+        """
+
+    @abstractmethod
     def evaluate_token_for_service(self, service: Service, token: AuthenticationToken, node: Node,
                                    fallback_ip: Optional[IPAddress])\
             -> Optional[Union[Authorization, AuthenticationTarget]]:
@@ -1148,3 +1264,82 @@ class AccessConfiguration(ABC):
         """
         pass
 
+    @abstractmethod
+    def disable_authentication_token(self, provider: AuthenticationProvider, token: AuthenticationToken, time: int) -> None:
+        """
+        Disables given token until given simulation time.
+
+        :param provider: An authentication provider that contains token to be disabled.
+        :type provider: AuthenticationProvider
+
+        :param token: An authentication token to be disabled.
+        :type token: AuthenticationToken
+
+        :param time: Simulation time
+        :type time: int
+
+        :return: None
+        """
+        pass
+
+    @abstractmethod
+    def enable_authentication_token(self, provider: AuthenticationProvider, token: AuthenticationToken) -> None:
+        """
+        Enables given token.
+
+        :param provider: An authentication provider that contains token to be enabled.
+        :type provider: AuthenticationProvider
+
+        :param token: An authentication token to be enabled.
+        :type token: AuthenticationToken
+
+        :return: None
+        """
+        pass
+
+    @abstractmethod
+    def create_service_access(self, service: Service, identity: str, access_level: AccessLevel,
+                              tokens: List[AuthenticationToken] = None) -> Optional[List[AuthenticationToken]]:
+        """
+        Create a means to access the given passive service by registering authentication tokens
+        under the given identity.
+
+        TODO: Currently works only for local providers.
+
+        :param service: A passive service to grant access to.
+        :type service: PassiveService
+
+        :param identity: An identity of the user which will gain the access.
+                         It must not be already present in one of the access schemes.
+        :type identity: str
+
+        :param access_level: The level of access which will be created.
+        :type access_level: AccessLevel
+
+        :param tokens: Tokens to be optionally used instead of creating new ones.
+        :type tokens: List[AuthenticationToken]
+
+        :return: List of authentication tokens if successful, None otherwise.
+        """
+        pass
+
+    @abstractmethod
+    def modify_existing_access(self, service: Service, identity: str, access_level: AccessLevel) -> bool:
+        """
+        Modify the access level of the given passive service. No new tokens are created.
+
+        TODO: Currently works only for local providers.
+
+        :param service: A passive service to grant access to.
+        :type service: PassiveService
+
+        :param identity: An identity of the user which access will be modified.
+                         It must be already present at one of the access scheme.
+        :type identity: str
+
+        :param access_level: The level of access which will be modified.
+        :type access_level: AccessLevel
+
+        :return: True if successful, False otherwise.
+        """
+        pass

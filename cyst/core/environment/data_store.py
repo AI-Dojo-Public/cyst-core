@@ -20,7 +20,7 @@ class DataStore:
             return
 
         fn = getattr(self, "configure_" + self._backend_type, self.configure_default)
-        self._backend: DataStoreBackend = fn(backend_params)
+        self._backend: DataStoreBackend = fn(backend_params) #MYPY: Probably too complex to handle properly? Might be easier to just ignore
 
     def configure_default(self) -> None:
         raise RuntimeError("Could not find configuration function for backend " + self._backend_type)

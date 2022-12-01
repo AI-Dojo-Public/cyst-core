@@ -4,34 +4,25 @@ from abc import ABC, abstractmethod
 from netaddr import IPAddress
 from typing import Optional, List, Dict
 
+from cyst.api.environment.configuration import GeneralConfiguration
 from cyst.core.network.elements import Connection, Hop, Endpoint, Resolver, InterfaceImpl
 from cyst.core.network.router import Router
 from cyst.core.network.node import NodeImpl
 
 
+# TODO: The network is largely useless after moving the object store into configuration. I should probably think about
+#       whether to keep it or not
 class Network(Resolver):
-    def __init__(self):
-        self._nodes_by_id: Dict[str, NodeImpl] = {}
-        self._nodes_by_ip: Dict[str, NodeImpl] = {}  # TODO: Does it make sense to have nodes_by_ip?
+    def __init__(self, conf: GeneralConfiguration):
         self._graph = nx.Graph()
+        self._conf = conf
 
     def add_node(self, node: NodeImpl) -> None:
         # Ignore already present nodes
-        if node.id in self._nodes_by_id:
+        if self._graph.has_node(node.id):
             return
 
-        self._nodes_by_id[node.id] = node
-
-        for ip in node.ips:
-            if ip not in self._nodes_by_ip:
-                self._nodes_by_ip[ip] = []
-
-            self._nodes_by_ip[ip].append(node)
-
-        self._graph.add_node(node.id, node=node)
-
-    def update_node_ip(self, node: NodeImpl, ip: str):
-        self._nodes_by_ip[ip] = node
+        self._graph.add_node(node.id)
 
     def add_connection(self, n1: NodeImpl, n1_port_index: int, n2: NodeImpl, n2_port_index: int, net: str, connection: Connection = None) -> Connection:
         if not n1 or not n2:
@@ -58,37 +49,18 @@ class Network(Resolver):
             raise Exception("Could not add connection between nodes {} and {}. Reason: {}".format(n1.id, n2.id, error))
 
         connection.hop = Hop(Endpoint(n1.id, n1_port_index), Endpoint(n2.id, n2_port_index))
-        self._graph.add_edge(n1.id, n2.id, connection=connection)
+        self._graph.add_edge(n1.id, n2.id)
 
         return connection
-
-    def get_node_by_ip(self, ip: str = "") -> Optional[str]:
-        if not ip:
-            return None
-        else:
-            return self._nodes_by_ip.get(ip, None)
-
-    # TODO: Is this useful at all?
-    def get_neighbor_by_ip(self, node_id: str, ip: str) -> Optional[str]:
-        neighbors = self._graph.neighbors(node_id)
-        for neighbor in neighbors:
-            if ip in neighbor["ips"]:
-                return neighbor
 
     def get_node_by_id(self, id: str = "") -> Optional[NodeImpl]:
         if not id:
             return None
         else:
-            return self._nodes_by_id.get(id, None)
-
-    def get_nodes_by_type(self, type: str = "") -> List[NodeImpl]:
-        if not type:
-            return list(self._nodes_by_id.values())
-        else:
-            return [x for x in self._nodes_by_id.values() if x.type == type]
+            return self._conf.get_object_by_id(id, NodeImpl)
 
     def reset(self) -> None:
-        self._nodes_by_id.clear()
+        # self._nodes_by_id.clear()
         self._graph.clear()
 
     def resolve_ip(self, id: str, port: int) -> IPAddress:

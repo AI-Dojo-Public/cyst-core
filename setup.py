@@ -60,7 +60,8 @@ setup(
         'networkx',
         'cachetools',
         'pyserde',
-        'importlib_metadata'
+        'importlib_metadata',
+        'jsonpickle'
     ],
 
     # To provide executable scripts, use entry points in preference to the

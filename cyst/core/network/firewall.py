@@ -14,7 +14,7 @@ class FirewallImpl(ActiveService, Firewall):
         def __init__(self, type: FirewallChainType, policy: FirewallPolicy = FirewallPolicy.DENY) -> None:
             self._type = type
             self._default_policy = policy
-            self._rules = []
+            self._rules: List[FirewallRule] = []
 
         @property
         def default_policy(self) -> FirewallPolicy:
@@ -60,7 +60,7 @@ class FirewallImpl(ActiveService, Firewall):
             FirewallChainType.FORWARD: FirewallImpl.FirewallChain(FirewallChainType.FORWARD, default_policy)
         }
 
-        self._local_ips = []
+        self._local_ips: List[IPAddress] = []
 
     def run(self):
         pass
@@ -81,6 +81,8 @@ class FirewallImpl(ActiveService, Firewall):
     def list_rules(self, chain: Optional[FirewallChainType] = None) -> List[Tuple[FirewallChainType, FirewallPolicy, List[FirewallRule]]]:
         if not chain:
             return [(x.type, x.default_policy, x.list_rules()) for x in self._chains.values()]
+
+        return NotImplemented  #MYPY:  Case not Handled
 
     def set_default_policy(self, chain: FirewallChainType, policy: FirewallPolicy) -> None:
         self._chains[chain].set_default_policy(policy)

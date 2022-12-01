@@ -15,6 +15,8 @@ class SessionImpl(Session):
     def __init__(self, owner: str, parent: Optional[Session] = None, path: Optional[List[Hop]] = None,
                  src_service: str = "", dst_service: str = "", resolver: Optional[Resolver] = None) -> None:
         self._id = uuid.uuid4()
+        self._enabled = True
+
         # TODO Remove owners. They don't work and the are not needed
         if not owner:
             raise Exception("Cannot create a session without an owner")
@@ -51,6 +53,7 @@ class SessionImpl(Session):
         def __init__(self, session: 'SessionImpl') -> None:
             self._session = session
             self._path_index = 0
+            self._parent_iterator: Optional['ForwardIterator'] = None #type: ignore #Seems like mypy struggles with nested classes
             if session.parent:
                 self._parent_iterator = SessionImpl.cast_from(session.parent).forward_iterator
             else:
@@ -88,6 +91,7 @@ class SessionImpl(Session):
         def __init__(self, session: 'SessionImpl') -> None:
             self._session = session
             self._path_index = len(self._session.path_id) - 1
+            self._parent_iterator: Optional['ForwardIterator'] = None #type: ignore #Seems like mypy struggles with nested classes
             if session.parent:
                 self._parent_iterator = SessionImpl.cast_from(session.parent).reverse_iterator
             else:
@@ -151,6 +155,16 @@ class SessionImpl(Session):
         else:
             return self._path[0].src.ip, self._src_service
 
+    @property
+    def enabled(self) -> bool:
+        return self._enabled
+
+    def disable(self) -> None:
+        self._enabled = False
+
+    def enable(self) -> None:
+        self._enabled = True
+
     def terminates_at(self, node: Node) -> bool:
         end_ip = self.end
         for iface in node.interfaces:
@@ -210,7 +224,7 @@ class SessionImpl(Session):
 
         # Hard type check
         if not isinstance(other, SessionImpl):
-            return False
+            return False #MYPY: Do we need this, if we follow anotations?
 
         # Owner comparison - to be removed
         if self.owner != other.owner:
