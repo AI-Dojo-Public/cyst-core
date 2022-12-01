@@ -43,8 +43,9 @@ def get_file_handler() -> logging.Handler:
 
 def get_logger(logger_name) -> logging.Logger:
     logger = logging.getLogger(logger_name)
+    logger.propagate = False
 
-    logger.setLevel(logging.DEBUG) # better to have too much log than not enough
+    logger.setLevel(logging.DEBUG)  # better to have too much log than not enough
 
     if not logger.hasHandlers():
         logger.addHandler(get_console_handler())
