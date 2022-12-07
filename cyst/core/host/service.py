@@ -3,7 +3,7 @@ from typing import List, Set, Union, Tuple
 
 import cyst
 from cyst.api.host.service import Service, ActiveService, PassiveService, ServiceState
-from cyst.api.logic.access import AccessLevel, Authorization, AuthenticationProvider, AccessScheme
+from cyst.api.logic.access import AccessLevel, AuthenticationToken, Authorization, AuthenticationProvider, AccessScheme
 from cyst.api.logic.data import Data
 from cyst.api.network.node import Node
 from cyst.api.network.session import Session
@@ -93,6 +93,7 @@ class PassiveServiceImpl(ServiceImpl, PassiveService):
         self._provided_auths = []
         self._access_schemes = []
         self._active_authorizations = []
+        self._authentication_tokens = set()
 
     # ------------------------------------------------------------------------------------------------------------------
     # PassiveService
@@ -150,6 +151,8 @@ class PassiveServiceImpl(ServiceImpl, PassiveService):
     def add_active_authorization(self, auth: Authorization):
         self._active_authorizations.append(auth)
 
+    def add_authentication_token(self, token: AuthenticationToken):
+        self._authentication_tokens.add(token)
     def assess_authorization(self, auth: Authorization, access_level: AccessLevel, node: str,
                              service: str) -> Tuple[bool, str]:
         auth = AuthorizationImpl.cast_from(auth)
@@ -175,6 +178,9 @@ class PassiveServiceImpl(ServiceImpl, PassiveService):
     def public_authorizations(self) -> List[Authorization]:
         return self._public_authorizations
 
+    @property
+    def authentication_tokens(self) -> Set[AuthenticationToken]:
+        return self._authentication_tokens
     @property
     def enable_session(self) -> bool:
         return self._enable_session
