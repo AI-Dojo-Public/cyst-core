@@ -153,9 +153,15 @@ class PassiveServiceImpl(ServiceImpl, PassiveService):
 
     def add_authentication_token(self, token: AuthenticationToken):
         self._authentication_tokens.add(token)
+
     def assess_authorization(self, auth: Authorization, access_level: AccessLevel, node: str,
                              service: str) -> Tuple[bool, str]:
         auth = AuthorizationImpl.cast_from(auth)
+
+        # workaround for federated authorization
+        if auth.services == ["*"] and (auth.nodes == ["*"] or node in auth.nodes):
+            return True, "Federated authorization is valid"
+
         for active_auth in map(AuthorizationImpl.cast_from, self._active_authorizations):
             if auth.matching_id(active_auth) and access_level <= active_auth.access_level and \
                     node in active_auth.nodes and service in active_auth.services:
@@ -181,6 +187,7 @@ class PassiveServiceImpl(ServiceImpl, PassiveService):
     @property
     def authentication_tokens(self) -> Set[AuthenticationToken]:
         return self._authentication_tokens
+
     @property
     def enable_session(self) -> bool:
         return self._enable_session
