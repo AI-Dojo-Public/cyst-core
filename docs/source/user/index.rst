@@ -31,6 +31,13 @@ there. CYST is being developed in the context of several research projects:
     - BEAST (https://www.muni.cz/en/research/projects/49127)
     - C4e (https://c4e.cz/)
 
+.. figure:: ../_static/visualization_preview.png
+        :width: 800px
+        :align: center
+
+        Preview of a visualization of a single simulation run (to be added soon)
+
+
 First steps
 ===========
 
