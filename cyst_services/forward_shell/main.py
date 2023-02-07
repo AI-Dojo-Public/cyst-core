@@ -20,10 +20,8 @@ class ForwardShell(ActiveService):
         self._ignore_requests: bool = args is None or args.get("ignore_requests", True)
 
         self._success_sent = False
-        if args and (origin := args.get("origin")):
-            self._origin_request: Request = origin
-        else:
-            raise ValueError("Shell requires the request which inicialized it")
+        self._origin_request = None
+        self._session = None
 
     def run(self) -> None:
         self._log.info("Launched a forward shell service")
@@ -38,6 +36,7 @@ class ForwardShell(ActiveService):
 
         if request.action.id == "cyst:active_service:open_session":
             self._log.debug(f"Openning session for {request.src_service}")
+            self._origin_request = request
             self._respond_with_session(request)
 
             if not self._success_sent:
@@ -52,11 +51,11 @@ class ForwardShell(ActiveService):
         return False, 1
 
     def _respond_with_session(self, request: Request) -> None:
-        session = self._messaging.open_session(request)
+        self._session = self._messaging.open_session(request)
         response = self._messaging.create_response(request,
                                                    Status(StatusOrigin.SERVICE,
                                                           StatusValue.SUCCESS),
-                                                   session=session)
+                                                   session=self._session)
         self._messaging.send_message(response)
 
     def _respond_with_error(self, request: Request, error: str) -> None:
@@ -71,9 +70,10 @@ class ForwardShell(ActiveService):
                                                    Status(StatusOrigin.SERVICE,
                                                           StatusValue.SUCCESS),
                                                    f"Session opened as a reaction to {self._origin_request.id}",
-                                                   session=request.session)
+                                                   session=self._session)
         self._messaging.send_message(response)
         self._success_sent = True
+
 
 def create_shell(msg: EnvironmentMessaging, res: EnvironmentResources,
                  args: Optional[Dict[str, Any]]) -> ActiveService:

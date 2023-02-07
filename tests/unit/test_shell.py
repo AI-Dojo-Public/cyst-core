@@ -17,7 +17,7 @@ from cyst.core.network.elements import Endpoint
 from cyst_services.forward_shell.main import ForwardShell
 from cyst_services.scripted_actor.main import ScriptedActorControl
 
-# Constants for readibility
+# Constants for readability
 TARGET = "192.168.0.2"
 ATTACKER = "192.168.0.3"
 
@@ -34,7 +34,7 @@ target = NodeConfig(
             AccessLevel.LIMITED,
             id="forward_shell_service",
             configuration=
-            {  # to get meaningfull resposne on invalid requests
+            {  # to get meaningful response on invalid requests
                 "ignore_requests": False,
             })
     ],
@@ -97,7 +97,7 @@ class TestForwardShell(unittest.TestCase):
 
     def test_0000_init(self) -> None:
         self.assertEqual(self.env.control.state, EnvironmentState.INIT,
-                         "Environment not instanciated")
+                         "Environment not instantiated")
         self.assertNotIn(None, [self.attacker, self.node], "Environment not configured properly")
 
     def test_0001_send_action(self) -> None:
@@ -121,11 +121,11 @@ class TestForwardShell(unittest.TestCase):
         self.env.control.run()
         response = self.attacker.get_last_response()
 
-        self.assertEqual(response.status, FAILURE, "Invalid action executed successfuly")
+        self.assertEqual(response.status, FAILURE, "Invalid action executed successfully")
 
     @unittest.skip("find out how to send dummy response")
     def test_0003_send_response(self) -> None:
-        # create dummy request and point it's origin to attacker
+        # create dummy request and point its origin to attacker
         request = self.env.messaging.create_request(ATTACKER, "active_service")
         if isinstance(request, MessageImpl):
             request.set_origin(Endpoint("foo", 0, IPAddress(TARGET)))
@@ -135,7 +135,7 @@ class TestForwardShell(unittest.TestCase):
         self.env.messaging.send_message(response)
         ok, _ = self.env.control.run()
 
-        self.assertTrue(ok, "Response was successfull")
+        self.assertTrue(ok, "Response was successful")
 
 
 class TestReverseShell(unittest.TestCase):
@@ -162,7 +162,7 @@ class TestReverseShell(unittest.TestCase):
         configuration = {
             "ignore_requests": False,
             "target": (IPAddress(ATTACKER), "scripted_actor"),
-            "delay": 30,  # not usefull in this synthetic test
+            "delay": 30,  # not useful in this synthetic test
             "origin": request
         }
 
@@ -177,7 +177,7 @@ class TestReverseShell(unittest.TestCase):
 
     def test_0000_init(self) -> None:
         self.assertEqual(self.env.control.state, EnvironmentState.INIT,
-                         "Environment not instanciated")
+                         "Environment not instantiated")
         self.assertNotIn(None, [self.attacker, self.node, self.reverse_shell],
                          "Environment not configured properly")
 
@@ -194,7 +194,7 @@ class TestReverseShell(unittest.TestCase):
         request = self.attacker.get_last_request()
 
         self.assertIsNotNone(request, "No request received")
-        self.assertIsNotNone(request.action, "Request does not contain any aciton")
+        self.assertIsNotNone(request.action, "Request does not contain any action")
         self.assertEqual(request.action.id, "cyst:active_service:open_session",
                          "Got incorrect action")
 
@@ -216,8 +216,3 @@ class TestReverseShell(unittest.TestCase):
             bad_shell = self.env.configuration.service.create_active_service(
                 "_reverse_shell", "attacker", "reverse_shell", self.node)
             self.env.configuration.node.add_service(self.node, bad_shell)
-
-
-# WARN: DONT FORGET TO REMOVE THIS BEFORE MERGING!!!
-if __name__ == "__main__":
-    unittest.main()
