@@ -1,5 +1,5 @@
 from abc import ABC, abstractmethod
-from collections import Sequence
+from collections.abc import Sequence
 from dataclasses import dataclass, field
 from enum import Enum
 from flags import Flags
