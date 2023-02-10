@@ -77,7 +77,9 @@ setup(
             'meta=cyst_models.meta.main:action_interpreter_description'
         ],
         'cyst.services': [
-            'scripted_actor=cyst_services.scripted_actor.main:service_description'
+            'scripted_actor=cyst_services.scripted_actor.main:service_description',
+            'forward_shell=cyst_services.forward_shell.main:service_description',
+            'reverse_shell=cyst_services.reverse_shell.main:service_description'
         ]
     },
 

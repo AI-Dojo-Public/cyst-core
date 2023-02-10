@@ -809,9 +809,24 @@ class NetworkConfiguration(ABC):
         pass
 
     @abstractmethod
+    def get_connections(self, node: Node, port_index: Optional[int] = None) -> List[Connection]:
+        """
+        Gets connections that are connected to the node at the port index, if specified.
+
+        :param node: An instance of the node.
+        :type node: Node
+
+        :param port_index: An index of the port.
+        :type port_index: Optional[int]
+
+        :return: A list of connections that are connected to the node.
+        """
+        pass
+
+    @abstractmethod
     def create_session(self, owner: str, waypoints: List[Union[str, Node]], src_service: Optional[str] = None,
-                       dst_service: Optional[str] = None, parent: Optional[Session] = None,
-                       defer: bool = False, reverse: bool = False) -> Optional[Session]:
+                       dst_service: Optional[str] = None, parent: Optional[Session] = None, defer: bool = False,
+                       reverse: bool = False) -> Optional[Session]:
         """
         Creates a fixed session in the simulated infrastructure. This session ignores the routing limitations imposed
         by router configuration. However, the creation mechanism checks if there exists a connection between each of

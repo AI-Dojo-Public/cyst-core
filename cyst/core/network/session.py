@@ -215,6 +215,9 @@ class SessionImpl(Session):
         while parent:
             full_path = parent.path_id + full_path
             parent = parent.parent
+
+        path_repr = [str(self.start)]
+        path_repr.extend([str(x[1]) for x in full_path])
         return "[ID: {}, Owner: {}, Path:({}|{}|{})]".format(self.id, self.owner, self._src_service, path_repr, self._dst_service)
 
     def __eq__(self, other: 'SessionImpl') -> bool:
@@ -242,6 +245,10 @@ class SessionImpl(Session):
 
         # If their paths don't match, they are not the same
         if self._path != other._path:
+            return False
+
+        # If their source or destination services don't match, they are not the same
+        if self._src_service != other._src_service or self._dst_service != other._dst_service:
             return False
 
         return True

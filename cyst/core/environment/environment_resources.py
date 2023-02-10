@@ -9,6 +9,7 @@ from cyst.api.environment.resources import EnvironmentResources
 from cyst.api.environment.stats import Statistics
 from cyst.api.environment.stores import ExploitStore, ActionStore
 from cyst.api.host.service import ActiveService
+from cyst.api.utils.counter import Counter
 
 from cyst.core.environment.message import TimeoutImpl
 from cyst.core.environment.stats import StatisticsImpl
@@ -44,7 +45,7 @@ def _hybrid_time(self: _Environment) -> struct_time:
 
 def _timeout(self: _Environment, service: ActiveService, delay: int, content: Any) -> None:
     m = TimeoutImpl(service, self._time, delay, content)
-    heappush(self._tasks, (self._time + delay, m))
+    heappush(self._tasks, (self._time + delay, Counter().get("msg"), m))
 
 
 # ----------------------------------------------------------------------------------------------------------------------

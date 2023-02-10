@@ -52,11 +52,14 @@ class StatusValue(Enum):
             values.
         :ERROR: The action intended in the original request was not successful because of missing parameters or because
             the action could not be evaluated.
+        :PARTIAL: The action intended in the original request was partially successful and another response should be
+            expected to arrive soon.
 
     """
     SUCCESS = 0
     FAILURE = 1
     ERROR = 2
+    PARTIAL = 3
 
 
 class StatusDetail(Enum):

@@ -1,5 +1,5 @@
 from abc import ABC, abstractmethod
-from typing import List, Optional, Union
+from typing import List, Optional, Tuple, Union
 
 from cyst.api.environment.message import Message
 from cyst.api.logic.action import Action, ActionDescription
@@ -101,7 +101,7 @@ class ExploitStore(ABC):
         pass
 
     @abstractmethod
-    def evaluate_exploit(self, exploit: Union[str, Exploit], message: Message, node: Node) -> bool:
+    def evaluate_exploit(self, exploit: Union[str, Exploit], message: Message, node: Node) -> Tuple[bool, str]:
         """
         Evaluates, whether the provided exploit is applicable, given the message which carries the relevant action and
         a concrete node. TODO: This interface is cumbersome. While this is best fit for the data that interpreters
@@ -116,6 +116,6 @@ class ExploitStore(ABC):
         :param node: An instance of the node, where the exploit is being applied.
         :type node: Node
 
-        :return: True if exploit is applicable, False otherwise.
+        :return: (True, _) if exploit is applicable, (False, reason) otherwise.
         """
         pass

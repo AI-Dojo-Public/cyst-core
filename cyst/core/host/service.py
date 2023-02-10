@@ -3,7 +3,7 @@ from typing import List, Set, Union, Tuple
 
 import cyst
 from cyst.api.host.service import Service, ActiveService, PassiveService, ServiceState
-from cyst.api.logic.access import AccessLevel, Authorization, AuthenticationProvider, AccessScheme
+from cyst.api.logic.access import AccessLevel, AuthenticationToken, Authorization, AuthenticationProvider, AccessScheme
 from cyst.api.logic.data import Data
 from cyst.api.network.node import Node
 from cyst.api.network.session import Session
@@ -98,6 +98,7 @@ class PassiveServiceImpl(ServiceImpl, PassiveService):
         self._provided_auths: List[AuthenticationProvider] = []
         self._access_schemes: List[AccessScheme] = []
         self._active_authorizations: List[Authorization] = []
+        self._authentication_tokens = set()
 
     # ------------------------------------------------------------------------------------------------------------------
     # PassiveService
@@ -155,9 +156,17 @@ class PassiveServiceImpl(ServiceImpl, PassiveService):
     def add_active_authorization(self, auth: Authorization):
         self._active_authorizations.append(auth)
 
+    def add_authentication_token(self, token: AuthenticationToken):
+        self._authentication_tokens.add(token)
+
     def assess_authorization(self, auth: Authorization, access_level: AccessLevel, node: str,
                              service: str) -> Tuple[bool, str]:
         auth = AuthorizationImpl.cast_from(auth)
+
+        # workaround for federated authorization
+        if auth.services == ["*"] and (auth.nodes == ["*"] or node in auth.nodes):
+            return True, "Federated authorization is valid"
+
         for active_auth in map(AuthorizationImpl.cast_from, self._active_authorizations):
             if auth.matching_id(active_auth) and access_level <= active_auth.access_level and \
                     node in active_auth.nodes and service in active_auth.services:
@@ -179,6 +188,10 @@ class PassiveServiceImpl(ServiceImpl, PassiveService):
     @property
     def public_authorizations(self) -> List[Authorization]:
         return self._public_authorizations
+
+    @property
+    def authentication_tokens(self) -> Set[AuthenticationToken]:
+        return self._authentication_tokens
 
     @property
     def enable_session(self) -> bool:

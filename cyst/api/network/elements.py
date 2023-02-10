@@ -1,9 +1,11 @@
 import uuid
 from abc import ABC, abstractmethod
 from dataclasses import dataclass, field
-from typing import Optional
+from typing import Optional, Tuple
 from netaddr import IPNetwork, IPAddress
 from uuid import uuid4
+
+from cyst.api.environment.message import Message
 
 
 @dataclass
@@ -83,6 +85,14 @@ class Port(ABC):
         """
         pass
 
+    @property
+    @abstractmethod
+    def connection(self) -> Optional['Connection']:
+        """
+        Returns the connection of the port.
+        """
+        pass
+
 
 class Interface(Port, ABC):
     """
@@ -103,7 +113,55 @@ class Interface(Port, ABC):
 
 class Connection(ABC):
     """
-    Represents a connection between two network ports/interfaces. A connection will in future support setting of
-    connection properties, such as delay or packet drops. Right now, it is only an empty interface.
+    Represents a connection between two network ports/interfaces. Connection supports setting of
+    connection properties, such as delay or packet drops.
     """
-    pass
+
+    @property
+    @abstractmethod
+    def delay(self) -> int:
+        """
+        Returns the delay of the connection in simulated time units.
+
+        :rtype: int
+        """
+        pass
+
+    @property
+    @abstractmethod
+    def blocked(self) -> bool:
+        """
+        Returns whether the connection is blocked or not.
+
+        :rtype: bool
+        """
+        pass
+
+    @abstractmethod
+    def set_params(self, delay: Optional[int] = None, blocked: Optional[bool] = None) -> None:
+        """
+        Sets the connection parameters, such as delay and blocked.
+
+        :param delay: The delay of the connection in simulated time units.
+        :type delay: int
+
+        :param blocked: Whether the connection is blocked or not.
+        :type blocked: bool
+        """
+        pass
+
+    @abstractmethod
+    def evaluate(self, message: Message) -> Tuple[int, Message]:
+        """
+        Evaluates the message based on the connection properties. The properties are checked in this order:
+
+        1. The message is dropped: new response is formed from the message and delay is set to -1
+        2. The message is delayed: the original message is returned alongside connections's delay
+        3. The message is passed through: the original message is returned alongside 0 delay
+
+        :param message: A message to evaluate.
+        :type message: Message
+
+        :return: A tuple of delay and message.
+        """
+        pass

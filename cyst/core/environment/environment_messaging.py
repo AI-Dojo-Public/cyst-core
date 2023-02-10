@@ -10,6 +10,7 @@ from cyst.api.logic.access import Authorization, AuthenticationTarget, Authentic
 from cyst.api.logic.action import Action
 from cyst.api.logic.metadata import Metadata
 from cyst.api.network.session import Session
+from cyst.api.utils.counter import Counter
 
 from cyst.core.environment.message import RequestImpl, ResponseImpl, MessageImpl, MessageType
 from cyst.core.network.elements import Endpoint, InterfaceImpl
@@ -134,7 +135,7 @@ def _send_message(self, message: MessageImpl, delay: int = 0) -> None:
         message.set_metadata(metadata)
 
     try:
-        heappush(self._tasks, (self._time + delay, message))
+        heappush(self._tasks, (self._time + delay, Counter().get("msg"), message))
     except Exception as e:
         self._message_log.error(f"Error sending a message, reason: {e}")
 
@@ -142,5 +143,5 @@ def _send_message(self, message: MessageImpl, delay: int = 0) -> None:
 
     self._message_log.debug(f"Sending a message: {str(message)}")
 
-    if message.origin.id in self._pause_on_request:
+    if message.type is MessageType.REQUEST and f"{message.origin.id}.{message.src_service}" in self._pause_on_request:
         self._pause = True

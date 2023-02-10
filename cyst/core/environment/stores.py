@@ -123,12 +123,12 @@ class ExploitStoreImpl(ExploitStore):
 
     def evaluate_exploit(self, exploit: Union[str, Exploit], message: Message, node: Node) -> Tuple[bool, str]:
         if isinstance(exploit, str):
-            exploit = self.get_exploit(exploit)
-            if not exploit:
+            exploits = self.get_exploit(exploit)
+            if not exploits:
                 return False, "Could not find exploit by id"
             else:
                 # Gah!
-                exploit = exploit[0]
+                exploit = exploits[0]
 
         # For exploit to be applicable, a number of conditions must be satisfied.
         # 1) Local exploits can only be used at the session end

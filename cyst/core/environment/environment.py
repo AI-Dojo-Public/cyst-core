@@ -66,7 +66,7 @@ class _Environment(Environment, EnvironmentConfiguration):
     def __init__(self) -> None:
         self._time = 0
         self._start_time = localtime()
-        self._tasks: List[Tuple[int,MessageImpl]] = []
+        self._tasks: List[Tuple[int, int, MessageImpl]] = []
         self._pause = False
         self._terminate = False
         self._initialized = False
@@ -509,16 +509,24 @@ class _Environment(Environment, EnvironmentConfiguration):
         message.hop()
         current_node: NodeImpl = self._network.get_node_by_id(message.current.id) #MYPY: Get node can return None
 
-        processing_time = 0
+        connection = self.configuration.network.get_connections(current_node, message.current.port)[0]
+        delay, result = connection.evaluate(message)
+        if delay < 0:
+            # TODO: message dropped, what to do? Maybe send early without processing
+            pass
 
-        # HACK: Because we want to enable actions to be able to target routers, we need to bypass the router processing
+        message = MessageImpl.cast_from(result)
+        processing_time = max(0, delay)
+
+    # HACK: Because we want to enable actions to be able to target routers, we need to bypass the router processing
         #       if the message is at the end of its journey
         last_hop = message.dst_ip == message.current.ip #MYPY: current can return None
 
         if not last_hop and current_node.type == "Router":
-            result, processing_time = current_node.process_message(message) #MYPY: This only returns one int, will crash
+            result, delay = current_node.process_message(message) #MYPY: This only returns one int, will crash
+            processing_time += delay
             if result:
-                heappush(self._tasks, (self._time + processing_time, message))
+                heappush(self._tasks, (self._time + processing_time, Counter().get("msg"), message))
 
             return
 
@@ -528,7 +536,7 @@ class _Environment(Environment, EnvironmentConfiguration):
             # Message still in session, pass it along
             if message.in_session:
                 message.set_next_hop()
-                heappush(self._tasks, (self._time + processing_time, message))
+                heappush(self._tasks, (self._time + processing_time, Counter().get("msg"), message))
                 return
             # The session ends in the current node
             elif message.session.endpoint.id == current_node.id or message.session.startpoint.id == current_node.id:  #MYPY: here on multiple line, session only has an end and start, not endpoint and startpoint
@@ -557,7 +565,7 @@ class _Environment(Environment, EnvironmentConfiguration):
                     # ##################
                     self._message_log.debug(
                         f"Proxying {message_type} to {message.dst_ip} via {message.next_hop.id} on a node {current_node.id}")
-                    heappush(self._tasks, (self._time + processing_time, message))
+                    heappush(self._tasks, (self._time + processing_time, Counter().get("msg"), message))
                     return
 
         # Message has to be processed locally
@@ -584,7 +592,7 @@ class _Environment(Environment, EnvironmentConfiguration):
                 if message_type == "response":
                     return
 
-                processing_time = 1
+                processing_time += 1
                 response = ResponseImpl(message, Status(StatusOrigin.NODE, StatusValue.ERROR),
                                         "Nonexistent service {} at node {}".format(message.dst_service, message.dst_ip),
                                         session=message.session, auth=message.auth)
@@ -602,7 +610,8 @@ class _Environment(Environment, EnvironmentConfiguration):
                                             session=message.session, auth=message.auth)
                     self._environment_messaging.send_message(response, processing_time)
                 else:
-                    processing_time, response = self._process_passive(message, current_node)
+                    delay, response = self._process_passive(message, current_node)
+                    processing_time += delay
                     if response.status.origin == StatusOrigin.SYSTEM and response.status.value == StatusValue.ERROR:
                         print("Could not process the request, unknown semantics.")
                     else:
@@ -626,7 +635,8 @@ class _Environment(Environment, EnvironmentConfiguration):
                 return
 
             # If it is a request, then it is processed as a request for passive service and processed with the interpreter
-            processing_time, response = self._process_passive(message, current_node) #MYPY: messageimpl vs request
+            delay, response = self._process_passive(message, current_node) #MYPY: messageimpl vs request
+            processing_time += delay
             if response.status.origin == StatusOrigin.SYSTEM and response.status.value == StatusValue.ERROR: #MYPY: same as above, response None?
                 print("Could not process the request, unknown semantics.")
             else:
@@ -643,7 +653,7 @@ class _Environment(Environment, EnvironmentConfiguration):
 
             current_tasks: List[MessageImpl] = []
             while self._tasks and self._tasks[0][0] == self._time:
-                current_tasks.append(heappop(self._tasks)[1])
+                current_tasks.append(heappop(self._tasks)[2])
 
             for task in current_tasks:
                 if task.type == MessageType.TIMEOUT:
