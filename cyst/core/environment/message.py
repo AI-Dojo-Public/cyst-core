@@ -44,8 +44,8 @@ class MessageImpl(Message):
         self._session = session
         self._auth = auth
 
-        self._path = []
-        self._non_session_path = []
+        self._path: List[Hop] = []
+        self._non_session_path: List[Hop] = []
 
         self._sent = False
         self._next_hop = None
@@ -92,13 +92,14 @@ class MessageImpl(Message):
     def sent(self) -> bool:
         return self._sent
 
+    @sent.setter
+    def sent(self, value) -> None:
+        self._sent = True
+
     @property
     def current(self) -> Optional[Endpoint]:
         return self._current
 
-    @sent.setter
-    def sent(self, value) -> None:
-        self._sent = True
 
     @property
     def in_session(self) -> bool:
@@ -116,7 +117,7 @@ class MessageImpl(Message):
         if origin_endpoint and destination_endpoint:
             self._non_session_path.append(Hop(origin_endpoint, destination_endpoint))
             self._path.append(Hop(origin_endpoint, destination_endpoint))
-            self._next_hop = destination_endpoint
+            self._next_hop = destination_endpoint #type:ignore #MYPY: Should be fine
         else:
             # If it does not have a session then something is very wrong
             if not self._session:
@@ -125,27 +126,31 @@ class MessageImpl(Message):
             # Get a session iterator if the message did not enter session yet
             if not self._session_iterator:
                 if self.type == MessageType.REQUEST:
-                    self._session_iterator = SessionImpl.cast_from(self._session).forward_iterator
+                    self._session_iterator = SessionImpl.cast_from(self._session).forward_iterator #type:ignore #MYPY: Should be fine
                 elif self.type == MessageType.RESPONSE:
-                    self._session_iterator = SessionImpl.cast_from(self._session).reverse_iterator
+                    self._session_iterator = SessionImpl.cast_from(self._session).reverse_iterator #type:ignore #MYPY: Should be fine
                 else:
                     raise Exception("Attempting to send message other than request/response through session")
 
                 self._in_session = True
 
-            hop = next(self._session_iterator)
+            hop = next(self._session_iterator) #type: ignore #MYPY: probably fine
             src: Endpoint = hop.src
             self._next_hop = hop.dst
+
+            """MYPY: something like this?             if self._current is not None and self._current.port == -1:
+                self.set_origin(src)
+"""
 
             if self._current.port == -1:
                 self.set_origin(src)
 
-            self._path.append(Hop(src, self._next_hop))
+            self._path.append(Hop(src, self._next_hop)) #MYPY: issue with hop, might currently return None, but should not based on annotation
 
             # If the next hop is one of the session's end, turn off session flag
             if (self.type == MessageType.REQUEST and self._next_hop.id == SessionImpl.cast_from(self._session).endpoint.id) or \
                 (self.type == MessageType.RESPONSE and self._next_hop.id == SessionImpl.cast_from(self._session).startpoint.id):
-                self._in_session = False
+                self._in_session = False #MYPY: if next hop really is None, then the call to id will fail
 
     # Can't really type it other then using string literal, because of dependency issues
     @property
@@ -223,7 +228,7 @@ class MessageImpl(Message):
 
     def cast_to(self, type: Type[T]) -> T:
         if isinstance(self, type):
-            return self
+            return self #MYPY: if this works, then probably ignore
         else:
             raise ValueError("Casting to a wrong derived type")
 
@@ -253,6 +258,17 @@ class RequestImpl(MessageImpl, Request):
                    .format(self.id, self.type.name, self._origin.ip, self.src_ip, self.dst_ip, self.dst_service, self.src_service, self.action.id,
                            self.session, self.auth)
         return result
+
+
+        """#MYPY: Maybe something liket this:
+            def __str__(self) -> str:
+        result = "Request: [ID: {}, Type: {}, Origin: {}, Source: {}, Target: {}, Destination service: {}, Source service: {}, Action: {}, Session: {}, Authorization: {}]"\
+                   .format(self.id, self.type.name, self._origin.ip if self._origin is not None else None, self.src_ip, self.dst_ip, self.dst_service, self.src_service, self.action.id if self.action is not None else None,
+                           self.session, self.auth)
+        return result
+        """
+
+
 
     @staticmethod
     def cast_from(o: Request) -> 'RequestImpl':

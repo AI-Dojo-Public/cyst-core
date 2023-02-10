@@ -90,7 +90,12 @@ class NodeImpl(Node):
 
     def add_service(self, service: Service) -> None:
         s = ServiceImpl.cast_from(service)
-        self._services[s.id] = s
+        # Passive services are identified by their type, active by their name,
+        if s.passive:
+            self._services[s.type] = s
+        else:
+            self._services[s.name] = s
+
         s.set_node(self._id)
         # TODO: create a mechanism for reasonable running of active services
         # Initiate active services
@@ -99,8 +104,11 @@ class NodeImpl(Node):
 
     def remove_service(self, service: Service) -> None:
         s = ServiceImpl.cast_from(service)
-        if s.id in self._services:
-            del self._services[s.id]
+        # Passive services are identified by their type, active by their name,
+        if s.passive and s.type in self._services:
+            del self._services[s.type]
+        elif not s.passive and s.name in self._services:
+            del self._services[s.name]
 
     def add_traffic_processor(self, value: ActiveService) -> None:
         self._traffic_processors.append(value)

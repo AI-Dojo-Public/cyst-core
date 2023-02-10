@@ -1,4 +1,4 @@
-from typing import Any, Type
+from typing import Any, Type, Dict, Union, List
 
 from cyst.core.environment.data_store_backend import DataStoreBackend, append_only_data, to_dict
 
@@ -6,7 +6,7 @@ from cyst.core.environment.data_store_backend import DataStoreBackend, append_on
 class DataStoreMemoryBackend(DataStoreBackend):
 
     def __init__(self) -> None:
-        self._store = {}
+        self._store: Dict[str,Dict[str, Union[List[Dict[str, Any]], Dict[str, Any]]]] = {}
 
     def set(self, run_id: str, item: Any, item_type: Type) -> None:
         if run_id not in self._store:
@@ -17,7 +17,7 @@ class DataStoreMemoryBackend(DataStoreBackend):
         if item_type in append_only_data:
             if item_name not in self._store[run_id]:
                 self._store[run_id][item_name] = []
-            self._store[run_id][item_name].append(to_dict(item))
+            self._store[run_id][item_name].append(to_dict(item)) #type: ignore #append on list may in theory happen, but should not
         else:
             if item_name in self._store[run_id]:
                 raise RuntimeError("Object with name {} already in the data store. Use update if you want to overwrite it".format(item_name))

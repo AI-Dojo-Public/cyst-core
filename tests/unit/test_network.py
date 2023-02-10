@@ -429,7 +429,10 @@ class TestSessions(unittest.TestCase):
                         FirewallChainConfig(
                             type=FirewallChainType.FORWARD,
                             policy=FirewallPolicy.DENY,
-                            rules=[]
+                            rules=[
+                                FirewallRule(IPNetwork("192.168.0.0/24"), IPNetwork("192.168.0.0/24"), "*", FirewallPolicy.ALLOW),
+                                FirewallRule(IPNetwork("192.168.1.0/24"), IPNetwork("192.168.0.0/24"), "*", FirewallPolicy.ALLOW)
+                            ]
                         )
                     ]
                 )
@@ -459,7 +462,12 @@ class TestSessions(unittest.TestCase):
                         FirewallChainConfig(
                             type=FirewallChainType.FORWARD,
                             policy=FirewallPolicy.DENY,
-                            rules=[]
+                            rules=[
+                                FirewallRule(IPNetwork("192.168.0.0/24"), IPNetwork("192.168.1.0/24"), "*", FirewallPolicy.ALLOW),
+                                FirewallRule(IPNetwork("192.168.1.0/24"), IPNetwork("192.168.1.0/24"), "*", FirewallPolicy.ALLOW),
+                                FirewallRule(IPNetwork("192.168.2.0/24"), IPNetwork("192.168.2.0/24"), "*", FirewallPolicy.ALLOW),
+                                FirewallRule(IPNetwork("192.168.3.0/24"), IPNetwork("192.168.3.0/24"), "*", FirewallPolicy.ALLOW)
+                            ]
                         )
                     ]
                 )
@@ -635,7 +643,10 @@ class TestSessions(unittest.TestCase):
                         FirewallChainConfig(
                             type=FirewallChainType.FORWARD,
                             policy=FirewallPolicy.DENY,
-                            rules=[]
+                            rules=[
+                                FirewallRule(src_net=IPNetwork("192.168.0.1/24"), dst_net=IPNetwork("192.168.0.1/24"), service="*", policy=FirewallPolicy.ALLOW),
+                                FirewallRule(src_net=IPNetwork("192.168.1.1/24"), dst_net=IPNetwork("192.168.1.1/24"), service="*", policy=FirewallPolicy.ALLOW)
+                            ]
                         )
                     ]
                 )
@@ -858,6 +869,7 @@ class TestRouting(unittest.TestCase):
         self.assertEqual(response.status, Status(StatusOrigin.NETWORK, StatusValue.FAILURE), "Network failure occurred")
         self.assertEqual(response.content, "TTL expired")
 
+
 class TestService(unittest.TestCase):
 
     def test_000_service_removal(self):
@@ -870,17 +882,17 @@ class TestService(unittest.TestCase):
         remove_service = env.configuration.node.remove_service
 
         # Create two services and a node which will house them
-        service1 = create_passive_service("service1", "service1");
-        service2 = create_passive_service("service2", "service2");
+        service1 = create_passive_service("service1", "service1")
+        service2 = create_passive_service("service2", "service2")
 
         node = create_node("node")
         add_service(node, service1, service2)
 
-        self.assertDictEqual(node.services, {"service1" : service1, "service2": service2}, "Services added")
+        self.assertDictEqual(node.services, {"service1": service1, "service2": service2}, "Services added")
 
         # Remove services one by one
         remove_service(node, service2)
-        self.assertDictEqual(node.services, {"service1" : service1}, "Removed last service")
+        self.assertDictEqual(node.services, {"service1": service1}, "Removed last service")
 
         remove_service(node, service1)
         self.assertDictEqual(node.services, {}, "Removed both services")
@@ -922,16 +934,29 @@ class TestConnection(unittest.TestCase):
             id="destination_node"
         )
 
-        router = RouterConfig(traffic_processors=[],
-                              interfaces=[
-                                  InterfaceConfig(IPAddress("192.168.0.1"),
-                                                  IPNetwork("192.168.0.0/24"),
-                                                  index=0),
-                                  InterfaceConfig(IPAddress("192.168.0.1"),
-                                                  IPNetwork("192.168.0.0/24"),
-                                                  index=1),
-                              ],
-                              id="router")
+        router = RouterConfig(
+            traffic_processors=[
+                FirewallConfig(
+                    default_policy=FirewallPolicy.DENY,
+                    chains=[
+                        FirewallChainConfig(
+                            type=FirewallChainType.FORWARD,
+                            policy=FirewallPolicy.ALLOW,
+                            rules=[]
+                        )
+                    ]
+                )
+            ],
+            interfaces=[
+                InterfaceConfig(IPAddress("192.168.0.1"),
+                                IPNetwork("192.168.0.0/24"),
+                                index=0),
+                InterfaceConfig(IPAddress("192.168.0.1"),
+                                IPNetwork("192.168.0.0/24"),
+                                index=1),
+            ],
+            id="router"
+        )
 
         connections = [
                 ConnectionConfig("source_node", 0, "router", 0),
@@ -980,11 +1005,12 @@ class TestConnection(unittest.TestCase):
         self.attacker.execute_action(self.DESTINATION, "", action)
         self.env.control.run()
         # Request is delayed by 10 units and it's response by another 10
-        self.assertGreaterEqual(self.env.clock.simulation_time(), 20, "Time moved by 20 seconds")
+        self.assertGreaterEqual(self.env.resources.clock.simulation_time(), 20, "Time moved by 20 seconds")
 
     def test_0004_block(self) -> None:
         # TODO: Blocking of connection is not yet implemented
         pass
+
 
 if __name__ == '__main__':
     unittest.main()

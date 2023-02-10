@@ -4,6 +4,7 @@ from netaddr import IPAddress, IPNetwork
 from cyst.api.configuration.host.service import ActiveServiceConfig
 from cyst.api.configuration.network.elements import ConnectionConfig, InterfaceConfig
 
+from cyst.api.configuration.network.firewall import FirewallConfig, FirewallChainConfig
 from cyst.api.configuration.network.node import NodeConfig
 from cyst.api.configuration.network.router import RouterConfig
 from cyst.api.environment.control import EnvironmentState
@@ -11,6 +12,7 @@ from cyst.api.environment.environment import Environment
 from cyst.api.environment.message import Status, StatusOrigin, StatusValue
 from cyst.api.host.service import Service
 from cyst.api.logic.access import AccessLevel
+from cyst.api.network.firewall import FirewallPolicy, FirewallChainType
 from cyst.api.network.node import Node
 from cyst.core.environment.message import MessageImpl
 from cyst.core.network.elements import Endpoint
@@ -57,16 +59,29 @@ attacker = NodeConfig(active_services=[
                       interfaces=[InterfaceConfig(IPAddress(ATTACKER), IPNetwork("192.168.0/24"))],
                       id="attacker")
 
-router = RouterConfig(traffic_processors=[],
-                      interfaces=[
-                          InterfaceConfig(IPAddress("192.168.0.1"),
-                                          IPNetwork("192.168.0.0/24"),
-                                          index=0),
-                          InterfaceConfig(IPAddress("192.168.0.1"),
-                                          IPNetwork("192.168.0.0/24"),
-                                          index=1),
-                      ],
-                      id="router")
+router = RouterConfig(
+    traffic_processors=[
+        FirewallConfig(
+            default_policy=FirewallPolicy.DENY,
+            chains=[
+                FirewallChainConfig(
+                    type=FirewallChainType.FORWARD,
+                    policy=FirewallPolicy.ALLOW,
+                    rules=[]
+                )
+            ]
+        )
+    ],
+    interfaces=[
+        InterfaceConfig(IPAddress("192.168.0.1"),
+                        IPNetwork("192.168.0.0/24"),
+                        index=0),
+        InterfaceConfig(IPAddress("192.168.0.1"),
+                        IPNetwork("192.168.0.0/24"),
+                        index=1),
+      ],
+    id="router"
+)
 
 connections = [
     ConnectionConfig("target", 0, "router", 0),
@@ -80,7 +95,7 @@ class TestForwardShell(unittest.TestCase):
     def setUpClass(cls) -> None:
         cls.env = Environment.create().configure(target, attacker, router, *connections)
         cls.env.control.init()
-        cls.env.control.add_pause_on_response("attacker.scripted_actor")
+        cls.env.control.add_pause_on_response("attacker.scripted_attacker")
 
         cls.attacker = cls.env.configuration.service.get_service_interface(
             cls.env.configuration.general.get_object_by_id("attacker_service",
@@ -103,21 +118,21 @@ class TestForwardShell(unittest.TestCase):
     def test_0001_send_action(self) -> None:
         open_session = self.actions["cyst:active_service:open_session"]
 
-        self.attacker.execute_action(TARGET, "forward_shell", open_session)
+        self.attacker.execute_action(TARGET, "forward_shell_service", open_session)
         self.env.control.run()
         response = self.attacker.get_last_response()
 
         self.assertEqual(response.status, SUCCESS, "Action did not succeed")
         self.assertIsNotNone(response.session, "Session was not received")
-        self.assertTupleEqual(response.session.start, (IPAddress(ATTACKER), "scripted_actor"),
+        self.assertTupleEqual(response.session.start, (IPAddress(ATTACKER), "scripted_attacker"),
                               "Session should start at the attacker service")
-        self.assertTupleEqual(response.session.end, (IPAddress(TARGET), "forward_shell"),
+        self.assertTupleEqual(response.session.end, (IPAddress(TARGET), "forward_shell_service"),
                               "Session should end at the forward shell")
 
     def test_0002_invalid_action(self) -> None:
         invalid_action = self.actions["cyst:active_service:action_1"]
 
-        self.attacker.execute_action(TARGET, "forward_shell", invalid_action)
+        self.attacker.execute_action(TARGET, "forward_shell_service", invalid_action)
         self.env.control.run()
         response = self.attacker.get_last_response()
 
@@ -144,7 +159,7 @@ class TestReverseShell(unittest.TestCase):
     def setUpClass(cls) -> None:
         cls.env = Environment.create().configure(target, attacker, router, *connections)
         cls.env.control.init()
-        cls.env.control.add_pause_on_response("attacker.scripted_actor")
+        cls.env.control.add_pause_on_response("attacker.scripted_attacker")
         cls.env.control.add_pause_on_response("target.reverse_shell")
 
         cls.attacker = cls.env.configuration.service.get_service_interface(
@@ -156,12 +171,12 @@ class TestReverseShell(unittest.TestCase):
         cls.actions = {a.id: a for a in cls.env.resources.action_store.get_prefixed("cyst")}
 
         # dummy request from which a response will be formed
-        request = cls.env.messaging.create_request(TARGET, "scripted_actor",
+        request = cls.env.messaging.create_request(TARGET, "scripted_attacker",
                                                    cls.actions["cyst:active_service:action_1"])
 
         configuration = {
             "ignore_requests": False,
-            "target": (IPAddress(ATTACKER), "scripted_actor"),
+            "target": (IPAddress(ATTACKER), "scripted_attacker"),
             "delay": 30,  # not useful in this synthetic test
             "origin": request
         }
@@ -208,7 +223,7 @@ class TestReverseShell(unittest.TestCase):
         self.assertIsNotNone(session, "Session was not received")
         self.assertTupleEqual(session.start, (IPAddress(TARGET), "reverse_shell"),
                               "Session should start at the reverse shell")
-        self.assertTupleEqual(session.end, (IPAddress(ATTACKER), "scripted_actor"),
+        self.assertTupleEqual(session.end, (IPAddress(ATTACKER), "scripted_attacker"),
                               "Session should end at the attacker service")
 
     def test_0004_invalid_configuration_no_target(self) -> None:

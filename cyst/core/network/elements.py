@@ -1,3 +1,4 @@
+import uuid
 from abc import ABC, abstractmethod
 from netaddr import IPAddress, IPNetwork
 from typing import NamedTuple, Optional, Tuple, Union
@@ -40,7 +41,7 @@ class Endpoint:
     def __repr__(self) -> str:
         return self.__str__()
 
-    def __eq__(self, other: 'Endpoint') -> bool:
+    def __eq__(self, other: 'Endpoint') -> bool: #type: ignore
         return self.id == other.id and self.port == other.port and self.ip == other.ip
 
 
@@ -61,7 +62,7 @@ class ConnectionImpl(Connection):
 
     @property
     def hop(self) -> Hop:
-        return self._hop
+        return self._hop #MYPY: might return optional
 
     @hop.setter
     def hop(self, value: Hop) -> None:
@@ -99,7 +100,8 @@ class ConnectionImpl(Connection):
 
 
 class PortImpl(Port):
-    def __init__(self, ip: Union[str, IPAddress] = "", mask: str = "", index: int = 0) -> None:
+    def __init__(self, ip: Union[str, IPAddress] = "", mask: str = "", index: int = 0, id: str = "") -> None:
+        self._id: str = id
         self._ip: Optional[IPAddress] = None
         self._net: Optional[IPNetwork] = None
         self._index: int = index
@@ -164,7 +166,7 @@ class PortImpl(Port):
 
     @property
     def endpoint(self) -> Endpoint:
-        return self._endpoint
+        return self._endpoint #MYPY: might return optional
 
     # There are no restrictions on connecting an endpoint to the port
     def connect_endpoint(self, endpoint: Endpoint, connection: Connection) -> None:
@@ -190,6 +192,9 @@ class PortImpl(Port):
         ip = ip if isinstance(ip, IPAddress) else IPAddress(ip)
         return self._net and ip in self._net
 
+    def id(self) -> str:
+        return self._id
+
     @staticmethod
     def cast_from(o: Port) -> 'PortImpl':
         if isinstance(o, PortImpl):
@@ -201,8 +206,8 @@ class PortImpl(Port):
 # Interface is just a port, which preserves gateway information (that is a port for end devices)
 class InterfaceImpl(PortImpl, Interface):
 
-    def __init__(self, ip: Union[str, IPAddress] = "", mask: str = "", index: int = 0):
-        super(InterfaceImpl, self).__init__(ip, mask, index)
+    def __init__(self, ip: Union[str, IPAddress] = "", mask: str = "", index: int = 0, id: str = ""):
+        super(InterfaceImpl, self).__init__(ip, mask, index, id)
 
         self._gateway_ip: Optional[IPAddress] = None
 
@@ -231,7 +236,7 @@ class InterfaceImpl(PortImpl, Interface):
 
     @property
     def gateway_id(self) -> Optional[str]:
-        return self._endpoint.id
+        return self._endpoint.id #MYPY: endpoint might be None
 
     def connect_gateway(self, ip: IPAddress, connection: Connection, id: str, port: int = 0) -> None:
         if not self._gateway_ip:
@@ -244,7 +249,7 @@ class InterfaceImpl(PortImpl, Interface):
 
     @staticmethod
     def cast_from(o: Interface) -> 'InterfaceImpl':
-        if isinstance(o, InterfaceImpl):
+        if isinstance(o, InterfaceImpl):  #MYPY: Incorrect type in this method and in parent class
             return o
         else:
             raise ValueError("Malformed underlying object passed with the Interface interface")

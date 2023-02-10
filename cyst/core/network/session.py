@@ -53,6 +53,7 @@ class SessionImpl(Session):
         def __init__(self, session: 'SessionImpl') -> None:
             self._session = session
             self._path_index = 0
+            self._parent_iterator: Optional['ForwardIterator'] = None #type: ignore #Seems like mypy struggles with nested classes
             if session.parent:
                 self._parent_iterator = SessionImpl.cast_from(session.parent).forward_iterator
             else:
@@ -90,6 +91,7 @@ class SessionImpl(Session):
         def __init__(self, session: 'SessionImpl') -> None:
             self._session = session
             self._path_index = len(self._session.path_id) - 1
+            self._parent_iterator: Optional['ForwardIterator'] = None #type: ignore #Seems like mypy struggles with nested classes
             if session.parent:
                 self._parent_iterator = SessionImpl.cast_from(session.parent).reverse_iterator
             else:
@@ -225,7 +227,7 @@ class SessionImpl(Session):
 
         # Hard type check
         if not isinstance(other, SessionImpl):
-            return False
+            return False #MYPY: Do we need this, if we follow anotations?
 
         # Owner comparison - to be removed
         if self.owner != other.owner:

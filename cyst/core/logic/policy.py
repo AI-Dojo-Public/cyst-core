@@ -21,14 +21,15 @@ class Policy(EnvironmentPolicy):
         if not nodes or not services:
             return None
 
-        auth = AuthorizationImpl(identity, list(map(lambda node: node if isinstance(node, str) else node.id, nodes)),
+        auth = AuthorizationImpl(identity, list(map(lambda node: node if isinstance(node, str) else node.id, nodes)), #MYPY: add cast to nodeimpl Node itself does not have ID, not IMPL has?
                                  list(map(lambda service: service if isinstance(service, str) else service.name, services)),
                                  access_level, id, token)
 
         if len(nodes) > 1 or services == ["*"]: # federated, temporary solution
             return auth
 
-        actual_node = nodes[0] if isinstance(nodes[0], Node) else self._config.general.get_object_by_id(nodes[0], Node)
+        actual_node = nodes[0] if isinstance(nodes[0], Node) else self._config.general.get_object_by_id(nodes[0], Node) #type: ignore
+
         # if nodes is a [str], is it id, ip or else??
 
         for service in services:
@@ -44,7 +45,8 @@ class Policy(EnvironmentPolicy):
     List[Authorization]:
         """ This only return the Authorization templates"""
 
-        actual_node = node if isinstance(node, Node) else self._config.general.get_object_by_id(node, Node)
+        actual_node = node if isinstance(node, Node) else self._config.general.get_object_by_id(node, Node) #type: ignore
+
 
         actual_service = actual_node.services.get(service)
 

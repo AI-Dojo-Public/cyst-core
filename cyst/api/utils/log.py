@@ -16,7 +16,7 @@ class SeverityFilter(logging.Filter):
             "services.": logging.DEBUG
         }
 
-    def filter(self, record: logging.LogRecord) -> int:
+    def filter(self, record: logging.LogRecord) -> int:  #MYPY: Wrong return type based on parent class
         # Filter by name
         for category in self._severity_map.items():
             if record.name.startswith(category[0]):
@@ -43,8 +43,9 @@ def get_file_handler() -> logging.Handler:
 
 def get_logger(logger_name) -> logging.Logger:
     logger = logging.getLogger(logger_name)
+    logger.propagate = False
 
-    logger.setLevel(logging.DEBUG) # better to have too much log than not enough
+    logger.setLevel(logging.DEBUG)  # better to have too much log than not enough
 
     if not logger.hasHandlers():
         logger.addHandler(get_console_handler())

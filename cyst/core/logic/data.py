@@ -6,22 +6,22 @@ from cyst.api.logic.data import Data
 
 
 class DataImpl(Data):
-    def __init__(self, id: Optional[uuid.UUID], owner: str, description: str = ""):
+    def __init__(self, id: Optional[str], owner: str, description: str = ""):
         if id:
             self._id = id
         else:
-            self._id = uuid.uuid4()
+            self._id = str(uuid.uuid4())
         self._owner = owner
         self._description = description
 
     @property
-    def id(self):
+    def id(self) -> str:
         return self._id
 
     @property
-    def owner(self):
+    def owner(self) -> str:
         return self._owner
 
     @property
-    def description(self):
+    def description(self) -> str:
         return self._description

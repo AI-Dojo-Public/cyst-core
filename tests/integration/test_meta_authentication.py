@@ -140,7 +140,18 @@ router1 = RouterConfig(
         InterfaceConfig(IPAddress("192.168.0.1"), IPNetwork("192.168.0.1/24"), index=2),
         InterfaceConfig(IPAddress("192.168.0.1"), IPNetwork("192.168.0.1/24"), index=3)
     ],
-    traffic_processors=[],
+    traffic_processors=[
+        FirewallConfig(
+            default_policy=FirewallPolicy.DENY,
+            chains=[
+                FirewallChainConfig(
+                    type=FirewallChainType.FORWARD,
+                    policy=FirewallPolicy.ALLOW,
+                    rules=[]
+                )
+            ]
+        )
+    ],
     id="router1"
 )
 
@@ -207,7 +218,7 @@ class TestMetaAuth(unittest.TestCase):
         cls._attacker: ScriptedActorControl = cls._env.configuration.service.get_service_interface(
             attacker_service.active_service, ScriptedActorControl)
 
-        cls._env.control.add_pause_on_response("attacker_node.scripted_actor")
+        cls._env.control.add_pause_on_response("attacker_node.scripted_attacker")
 
     def test_000_no_token_provided(self):
 

@@ -1,13 +1,33 @@
-image: python:3.9-slim-buster
+default:
+  image: python:3.9-slim-buster
+  before_script:
+    - apt update
+    - pip install --upgrade pip
+    - pip install -e .
+
+stages:
+  - test
+  - deploy
+
+test:
+  stage: test
+  script:
+    - pip install coverage pytest pytest-cov
+    - coverage run -m pytest
+    - coverage report
+    - coverage xml
+  coverage: '/(?i)total.*? (100(?:\.0+)?\%|[1-9]?\d(?:\.\d+)?\%)$/'
+  artifacts:
+    reports:
+      coverage_report:
+        coverage_format: cobertura
+        path: coverage.xml
 
 pages:
   stage: deploy
   script:
-  - apt-get update
-  - pip install --upgrade pip
   - pip install -U sphinx
   - pip install sphinx-rtd-theme sphinx-tabs
-  - pip install -e .
   - sphinx-build -b html docs/source public/
   artifacts:
     paths:

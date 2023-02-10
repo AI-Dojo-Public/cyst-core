@@ -172,23 +172,23 @@ class AuthenticationProcessTestSSH(unittest.TestCase):
         cls.token = token
 
     def test_000_invalid_token(self):
-        result = self.env.evaluate_token_for_service(self.service,  # the method is not in the Environment API, so we need to know we are dealing with an _Environment, is that ok?
-                                                     AuthenticationTokenImpl(
-                                                         AuthenticationTokenType.PASSWORD,
-                                                         AuthenticationTokenSecurity.OPEN,
-                                                         identity="user1",
-                                                         is_local=True
-                                                     ),  # everything ok except id
-                                                     self.node,
-                                                     IPAddress("0.0.0.0"))
+        result = self.env.configuration.access.evaluate_token_for_service(self.service,  # the method is not in the Environment API, so we need to know we are dealing with an _Environment, is that ok?
+                                                                          AuthenticationTokenImpl(
+                                                                              AuthenticationTokenType.PASSWORD,
+                                                                              AuthenticationTokenSecurity.OPEN,
+                                                                              identity="user1",
+                                                                              is_local=True
+                                                                          ),  # everything ok except id
+                                                                          self.node,
+                                                                          IPAddress("0.0.0.0"))
 
         self.assertIsNone(result, "Process returned an object for a bad token")
 
     def test_001_valid_token_get_auth(self):
-        result = self.env.evaluate_token_for_service(self.service,
-                                                     self.token,
-                                                     self.node,
-                                                     IPAddress("0.0.0.0"))
+        result = self.env.configuration.access.evaluate_token_for_service(self.service,
+                                                                          self.token,
+                                                                          self.node,
+                                                                          IPAddress("0.0.0.0"))
 
         self.assertIsInstance(result, Authorization, "The object is not an authorization")
         self.assertEqual(result.identity, self.token.identity, "Identities of token and auth do not match")
@@ -221,10 +221,10 @@ class AuthenticationProcessTestCustomService(unittest.TestCase):
         cls.token = token
 
     def test_000_valid_token_get_next_target(self):
-        result = self.env.evaluate_token_for_service(self.service,
-                                                     self.token,
-                                                     self.node,
-                                                     IPAddress("0.0.0.0"))
+        result = self.env.configuration.access.evaluate_token_for_service(self.service,
+                                                                          self.token,
+                                                                          self.node,
+                                                                          IPAddress("0.0.0.0"))
 
         target_service = next(filter(lambda s: s.name == "email_srv",
                                      self.env.configuration.general.get_object_by_id(
@@ -236,17 +236,18 @@ class AuthenticationProcessTestCustomService(unittest.TestCase):
         self.assertEqual(result.address, remote_email_auth.ip, "Target ip mismatch")
 
     def test_001_invalid_token(self):
-        result = self.env.evaluate_token_for_service(self.service,
-                                                     AuthenticationTokenImpl(
-                                                         AuthenticationTokenType.PASSWORD,
-                                                         AuthenticationTokenSecurity.OPEN,
-                                                         identity="user1",
-                                                         is_local=True
-                                                     ),  # everything ok except id
-                                                     self.node,
-                                                     IPAddress("0.0.0.0"))
+        result = self.env.configuration.access.evaluate_token_for_service(self.service,
+                                                                          AuthenticationTokenImpl(
+                                                                              AuthenticationTokenType.PASSWORD,
+                                                                              AuthenticationTokenSecurity.OPEN,
+                                                                              identity="user1",
+                                                                              is_local=True
+                                                                          ),  # everything ok except id
+                                                                          self.node,
+                                                                          IPAddress("0.0.0.0"))
 
         self.assertIsNone(result, "Process returned an object for a bad token")
+
 
 class AuthenticationAccessManipulationTest(unittest.TestCase):
 
@@ -287,10 +288,10 @@ class AuthenticationAccessManipulationTest(unittest.TestCase):
         self.assertEqual(token.identity, identity, f"Resulting token's identity should be {identity}")
         self.assertTrue(self.provider.token_is_registered(token), "Token should be registered")
 
-        result = self.env.evaluate_token_for_service(self.service_local_1fa,
-                                                     token,
-                                                     self.node,
-                                                     IPAddress("0.0.0.0"))
+        result = self.env.configuration.access.evaluate_token_for_service(self.service_local_1fa,
+                                                                          token,
+                                                                          self.node,
+                                                                          IPAddress("0.0.0.0"))
 
         self.assertIsInstance(result, Authorization, "Resulting object should be authorization")
 
@@ -309,10 +310,10 @@ class AuthenticationAccessManipulationTest(unittest.TestCase):
         self.assertTrue(self.provider.token_is_registered(token), "Token should be registered")
         self.assertEqual(result[0], token, "Token should be the one supplied")
 
-        result = self.env.evaluate_token_for_service(self.service_local_1fa,
-                                                     token,
-                                                     self.node,
-                                                     IPAddress("0.0.0.0"))
+        result = self.env.configuration.access.evaluate_token_for_service(self.service_local_1fa,
+                                                                          token,
+                                                                          self.node,
+                                                                          IPAddress("0.0.0.0"))
 
         self.assertIsInstance(result, Authorization, "Resulting object should be authorization")
 
@@ -327,19 +328,19 @@ class AuthenticationAccessManipulationTest(unittest.TestCase):
     def test_004_modify_account(self) -> None:
         # Two rounds of authentication with modify inbetween
         identity = self.token.identity
-        auth_before = self.env.evaluate_token_for_service(self.service_local_1fa,
-                                                          self.token,
-                                                          self.node,
-                                                          IPAddress("0.0.0.0"))
+        auth_before = self.env.configuration.access.evaluate_token_for_service(self.service_local_1fa,
+                                                                               self.token,
+                                                                               self.node,
+                                                                               IPAddress("0.0.0.0"))
         self.assertIsInstance(auth_before, Authorization, "Resulting object should be authorization")
 
         result = self.modify_existing_access(self.service_local_1fa, identity, AccessLevel.ELEVATED)
         self.assertTrue(result, "Access creation should succeed")
 
-        auth_after: Authorization = self.env.evaluate_token_for_service(self.service_local_1fa,
-                                                                        self.token,
-                                                                        self.node,
-                                                                        IPAddress("0.0.0.0"))
+        auth_after: Authorization = self.env.configuration.access.evaluate_token_for_service(self.service_local_1fa,
+                                                                                             self.token,
+                                                                                             self.node,
+                                                                                             IPAddress("0.0.0.0"))
         self.assertIsInstance(auth_after, Authorization, "Resulting object should be authorization")
 
         self.assertGreater(auth_after.access_level, auth_before.access_level, "Access level should be higher")
