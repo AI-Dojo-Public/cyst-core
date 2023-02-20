@@ -24,7 +24,7 @@ copyright = '2022, Martin Drasar et al.'
 author = 'Martin Drasar et al.'
 
 # The full version, including alpha/beta/rc tags
-release = '0.2.x'
+release = '0.4.x'
 
 
 # -- General configuration ---------------------------------------------------
