@@ -52,6 +52,7 @@ from cyst.core.environment.data_store import DataStore
 from cyst.core.environment.message import MessageImpl, RequestImpl, ResponseImpl, TimeoutImpl
 from cyst.core.environment.proxy import EnvironmentProxy
 from cyst.core.environment.stores import ServiceStoreImpl
+from cyst.core.environment.external_resources import ExternalResourcesImpl
 from cyst.core.host.service import ServiceImpl
 from cyst.core.logic.access import AuthenticationTokenImpl
 from cyst.core.logic.action import ActionImpl, ActionType
@@ -86,6 +87,7 @@ class _Environment(Environment, EnvironmentConfiguration, EnvironmentPlatform):
         # Interface implementations
         self._environment_control = EnvironmentControlImpl(self)
         self._environment_messaging = EnvironmentMessagingImpl(self)
+        self._environment_resources = EnvironmentResourcesImpl(self)
 
         self._behavioral_models: Dict[str, BehavioralModel] = {}
         # TODO currently, there can be only on metadata provider for one namespace
@@ -159,7 +161,7 @@ class _Environment(Environment, EnvironmentConfiguration, EnvironmentPlatform):
         # Services and actions depend on platform being initialized
         self._register_services()
         self._register_actions()
-
+        self._register_metadata_providers()
         self._network = Network(self._general_configuration)
 
         self._data_store = DataStore(self._runtime_configuration.data_backend,
@@ -579,6 +581,16 @@ class _Environment(Environment, EnvironmentConfiguration, EnvironmentPlatform):
             self._network.get_node_by_id(message.origin.id).process_message(message)  #MYPY: Node returned by get_node can be None
             return
 
+        # Traffic processor are affecting request before they are even sent out (not on routers, as that would double
+        # the processing)
+        if message_type == "request":
+            current_node: NodeImpl = self._network.get_node_by_id(message.current.id)
+            if current_node.type != "Router":
+                for processor in current_node.traffic_processors:
+                    result, delay = processor.process_message(message)
+                    if not result:
+                        return
+
         # Store it into the history
         self._data_store.set(self._run_id, message, Message)
 
@@ -740,7 +752,12 @@ class _Environment(Environment, EnvironmentConfiguration, EnvironmentPlatform):
             else:
                 self._environment_messaging.send_message(response, processing_time)
 
+    # Resource tasks are always collected as a first thing in the timeslot to supply services with data on time.
+    def add_resource_task_collection(self, virtual_time: int):
+        heappush(self._tasks, (virtual_time, -1, MessageImpl(MessageType.RESOURCE)))
+
     def _process(self) -> Tuple[bool, EnvironmentState]:
+        ri = ExternalResourcesImpl.cast_from(self._environment_resources.external)
 
         # The processing runs as long as there are tasks to do, composite events to process and no one ordered pause
         # or termination.
@@ -761,6 +778,8 @@ class _Environment(Environment, EnvironmentConfiguration, EnvironmentPlatform):
             # Moving to another time window
             self._time += delta
 
+            resources_collected = False
+
             current_tasks: List[MessageImpl] = []
             while self._tasks and self._tasks[0][0] == self._time:
                 current_tasks.append(heappop(self._tasks)[2])
@@ -770,6 +789,13 @@ class _Environment(Environment, EnvironmentConfiguration, EnvironmentPlatform):
                     # Yay!
                     timeout = TimeoutImpl.cast_from(task.cast_to(Timeout)) #type:ignore #MYPY: Probably an issue with mypy, requires creation of helper class
                     timeout.service.process_message(task)
+                # Resource messages are never traveling through the virtual network, so there can't be an issue with
+                # them not being sent
+                elif task.type == MessageType.RESOURCE:
+                    # Resources are collected only once per timeslot
+                    if not resources_collected:
+                        ri.collect_tasks(self._time)
+                        resources_collected = True
                 else:
                     self._send_message(task)
 

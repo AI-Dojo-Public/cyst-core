@@ -23,7 +23,6 @@ class Clock(ABC):
 
         :return: Hybrid time.
         """
-        pass
 
     @abstractmethod
     def real_time(self) -> struct_time:

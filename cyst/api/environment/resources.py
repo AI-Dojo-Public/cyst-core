@@ -1,5 +1,6 @@
 from abc import ABC, abstractmethod
 
+from cyst.api.environment.external import ExternalResources
 from cyst.api.environment.stores import ActionStore, ExploitStore
 from cyst.api.environment.stats import Statistics
 from cyst.api.environment.clock import Clock
@@ -44,4 +45,13 @@ class EnvironmentResources(ABC):
         Statistics track basic information about the simulation runs.
 
         :rtype: Statistics
+        """
+
+    @property
+    @abstractmethod
+    def external(self) -> ExternalResources:
+        """
+        External resources enable to interface simulation with data and services outside.
+
+        :rtype: ExternalResources
         """

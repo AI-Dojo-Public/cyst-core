@@ -1,9 +1,10 @@
 from __future__ import annotations
 
 from heapq import heappush
-from time import struct_time
+from time import struct_time, localtime
 from typing import TYPE_CHECKING, Any, Optional
 
+from cyst.api.environment.external import ExternalResources
 from cyst.api.environment.clock import Clock
 from cyst.api.environment.resources import EnvironmentResources
 from cyst.api.environment.platform import PlatformSpecification
@@ -15,6 +16,7 @@ from cyst.api.utils.counter import Counter
 from cyst.core.environment.message import TimeoutImpl
 from cyst.core.environment.stats import StatisticsImpl
 from cyst.core.environment.stores import ActionStoreImpl, ServiceStoreImpl, ExploitStoreImpl
+from cyst.core.environment.external_resources import ExternalResourcesImpl
 
 if TYPE_CHECKING:
     from cyst.core.environment.environment import _Environment
@@ -30,6 +32,9 @@ class _Clock(Clock):
 
     def hybrid_time(self) -> struct_time:
         return _hybrid_time(self._env)
+
+    def real_time(self) -> struct_time:
+        return localtime()
 
     def timeout(self, service: ActiveService, delay: int, content: Any) -> None:
         return _timeout(self._env, service, delay, content)
@@ -57,6 +62,7 @@ class EnvironmentResourcesImpl(EnvironmentResources):
         self._exploit_store = ExploitStoreImpl()
         self._clock = _Clock(self._env)
         self._statistics = StatisticsImpl()
+        self._external_resources = ExternalResourcesImpl(self._clock, env.add_resource_task_collection)
 
     @property
     def action_store(self) -> ActionStore:
@@ -73,3 +79,7 @@ class EnvironmentResourcesImpl(EnvironmentResources):
     @property
     def statistics(self) -> Statistics:
         return self._statistics
+
+    @property
+    def external(self) -> ExternalResources:
+        return self._external_resources
