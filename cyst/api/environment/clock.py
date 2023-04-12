@@ -21,7 +21,15 @@ class Clock(ABC):
         """ Returns a current time of simulation in pseudo-real time, which is calculated as a base time, given during
         initialization + (clock factor * simulation time).
 
-        :return: Simulation time.
+        :return: Hybrid time.
+        """
+        pass
+
+    @abstractmethod
+    def real_time(self) -> struct_time:
+        """ Returns a current real time.
+
+        :return: Real time
         """
 
     @abstractmethod
