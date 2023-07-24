@@ -17,7 +17,6 @@ class Data(ABC):
 
         :rtype: str
         """
-        pass
 
     @property
     @abstractmethod
@@ -27,7 +26,6 @@ class Data(ABC):
 
         :rtype: str
         """
-        pass
 
     @property
     @abstractmethod
@@ -38,4 +36,3 @@ class Data(ABC):
 
         :rtype: str
         """
-        pass

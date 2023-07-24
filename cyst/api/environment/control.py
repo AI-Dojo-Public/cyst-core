@@ -61,7 +61,6 @@ class EnvironmentControl(ABC):
         :return: State of the environment
         :rtype: EnvironmentState
         """
-        pass
 
     @abstractmethod
     def init(self, run_id: str = str(uuid.uuid4())) -> Tuple[bool, EnvironmentState]:
@@ -74,7 +73,6 @@ class EnvironmentControl(ABC):
 
         :return: A tuple indicating, whether the operation was successful and which state the environment ended in.
         """
-        pass
 
     @abstractmethod
     def commit(self) -> None:
@@ -83,7 +81,6 @@ class EnvironmentControl(ABC):
 
         :return: None
         """
-        pass
 
     @abstractmethod
     def reset(self, run_id: str = str(uuid.uuid4())) -> Tuple[bool, EnvironmentState]:
@@ -95,7 +92,6 @@ class EnvironmentControl(ABC):
 
         :return: A tuple indicating, whether the operation was successful and which state the environment ended in.
         """
-        pass
 
     @abstractmethod
     def run(self) -> Tuple[bool, EnvironmentState]:
@@ -105,7 +101,6 @@ class EnvironmentControl(ABC):
 
         :return: A tuple indicating, whether the operation was successful and which state the environment ended in.
         """
-        pass
 
     @abstractmethod
     def pause(self) -> Tuple[bool, EnvironmentState]:
@@ -114,7 +109,6 @@ class EnvironmentControl(ABC):
 
         :return: A tuple indicating, whether the operation was successful and which state the environment ended in.
         """
-        pass
 
     @abstractmethod
     def terminate(self) -> Tuple[bool, EnvironmentState]:
@@ -123,7 +117,6 @@ class EnvironmentControl(ABC):
 
         :return: A tuple indicating, whether the operation was successful and which state the environment ended in.
         """
-        pass
 
     @abstractmethod
     def add_pause_on_request(self, id: str) -> None:
@@ -134,7 +127,6 @@ class EnvironmentControl(ABC):
 
         :return: None
         """
-        pass
 
     @abstractmethod
     def remove_pause_on_request(self, id: str) -> None:
@@ -144,7 +136,6 @@ class EnvironmentControl(ABC):
 
         :return: None
         """
-        pass
 
     @abstractmethod
     def add_pause_on_response(self, id: str) -> None:
@@ -155,7 +146,6 @@ class EnvironmentControl(ABC):
 
         :return: None
         """
-        pass
 
     @abstractmethod
     def remove_pause_on_response(self, id: str) -> None:
@@ -165,7 +155,6 @@ class EnvironmentControl(ABC):
 
         :return: None
         """
-        pass
 
     @abstractmethod
     def snapshot_save(self) -> str:
@@ -173,7 +162,6 @@ class EnvironmentControl(ABC):
 
         :return: String representation of the environment
         """
-        pass
 
     @abstractmethod
     def snapshot_load(self, state: str) -> None:
@@ -185,7 +173,6 @@ class EnvironmentControl(ABC):
 
         :return: None
         """
-        pass
 
     @abstractmethod
     def transaction_start(self) -> Tuple[int, int, str]:
@@ -204,7 +191,6 @@ class EnvironmentControl(ABC):
         :return: A tuple containing transaction_id of started transaction, the time when the transaction starts, and
                  additional information, if there is any.
         """
-        pass
 
     @abstractmethod
     def transaction_commit(self, transaction_id: int) -> Tuple[bool, str]:
@@ -219,7 +205,6 @@ class EnvironmentControl(ABC):
         :return: A tuple indicating whether the transaction was successfully committed and providing additional
                  information if present.
         """
-        pass
 
     @abstractmethod
     def transaction_rollback(self, transaction_id: int) -> Tuple[bool, str]:
@@ -234,4 +219,3 @@ class EnvironmentControl(ABC):
 
         :return: A tuple indicating whether a rollback was successful and providing additional information in present.
         """
-        pass

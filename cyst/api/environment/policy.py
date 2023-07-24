@@ -46,7 +46,6 @@ class EnvironmentPolicy(ABC):
 
         :return: An authorization token
         """
-        pass
 
     @abstractmethod
     def get_authorizations(self, node: Union[str, Node], service: str, access_level: AccessLevel = AccessLevel.NONE) -> List[Authorization]:
@@ -65,7 +64,6 @@ class EnvironmentPolicy(ABC):
 
         :return: A list of authorization templates.
         """
-        pass
 
     @abstractmethod
     def decide(self, node: Union[str, Node], service: str, access_level: AccessLevel, authorization: Authorization) -> Tuple[bool, str]:
@@ -91,7 +89,6 @@ class EnvironmentPolicy(ABC):
             :Wrong authorization: (False, "Reason")
 
         """
-        pass
 
     @abstractmethod
     def get_schemas(self, node: Union[str, Node], service: str) -> List[AccessScheme]:
@@ -99,7 +96,6 @@ class EnvironmentPolicy(ABC):
         schemas under which the service is accessible
         TODO
         """
-        pass
 
     @abstractmethod
     def get_nodes(self, authorization: Authorization) -> List[str]:
@@ -110,7 +106,6 @@ class EnvironmentPolicy(ABC):
         :param authorization: An instance of the authorization.
         :type authorization: Authorization
         """
-        pass
 
     @abstractmethod
     def get_services(self, authorization: Authorization) -> List[str]:
@@ -121,7 +116,6 @@ class EnvironmentPolicy(ABC):
         :param authorization: An instance of the authorization.
         :type authorization: Authorization
         """
-        pass
 
     @abstractmethod
     def get_access_level(self, authorization: Authorization) -> AccessLevel:
@@ -132,4 +126,3 @@ class EnvironmentPolicy(ABC):
         :param authorization: An instance of the authorization.
         :type authorization: Authorization
         """
-        pass

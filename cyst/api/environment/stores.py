@@ -23,7 +23,6 @@ class ActionStore(ABC):
 
         :return: An action, if there is one with such ID.
         """
-        pass
 
     @abstractmethod
     def get_ref(self, id: str = "") -> Optional[Action]:
@@ -36,7 +35,6 @@ class ActionStore(ABC):
 
         :return: An action, if there is one with such ID.
         """
-        pass
 
     @abstractmethod
     def get_prefixed(self, prefix: str = "") -> List[Action]:
@@ -52,7 +50,6 @@ class ActionStore(ABC):
 
         :return: A list of actions with the same prefix.
         """
-        pass
 
     @abstractmethod
     def add(self, action: ActionDescription) -> None:
@@ -71,7 +68,6 @@ class ActionStore(ABC):
 
         :return: None
         """
-        pass
 
 
 class ExploitStore(ABC):
@@ -98,7 +94,6 @@ class ExploitStore(ABC):
 
         :return: A list of exploits satisfying the parameters.
         """
-        pass
 
     @abstractmethod
     def evaluate_exploit(self, exploit: Union[str, Exploit], message: Message, node: Node) -> Tuple[bool, str]:
@@ -118,4 +113,3 @@ class ExploitStore(ABC):
 
         :return: (True, _) if exploit is applicable, (False, reason) otherwise.
         """
-        pass

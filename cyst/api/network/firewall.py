@@ -71,7 +71,6 @@ class Firewall(ABC):
 
         :return: A collection of rules with associated chain and the default policy.
         """
-        pass
 
     @abstractmethod
     def add_local_ip(self, ip: IPAddress) -> None:
@@ -81,7 +80,6 @@ class Firewall(ABC):
         :param ip: The IP address to add.
         :type ip: IPAddress
         """
-        pass
 
     @abstractmethod
     def remove_local_ip(self, ip: IPAddress) -> None:
@@ -91,7 +89,6 @@ class Firewall(ABC):
         :param ip: The IP address to remove.
         :type ip: IPAddress
         """
-        pass
 
     @abstractmethod
     def add_rule(self, chain: FirewallChainType, rule: FirewallRule) -> None:
@@ -104,7 +101,6 @@ class Firewall(ABC):
         :param rule: The rule to add.
         :type rule: FirewallRule
         """
-        pass
 
     @abstractmethod
     def remove_rule(self, chain: FirewallChainType, index: int) -> None:
@@ -117,7 +113,6 @@ class Firewall(ABC):
         :param index: An index of the rule within the chain.
         :type index: int
         """
-        pass
 
     @abstractmethod
     def set_default_policy(self, chain: FirewallChainType, policy: FirewallPolicy) -> None:
@@ -130,7 +125,6 @@ class Firewall(ABC):
         :param policy: The default policy to set.
         :type policy: FirewallPolicy
         """
-        pass
 
     @abstractmethod
     def get_default_policy(self, chain: FirewallChainType) -> FirewallPolicy:
@@ -142,7 +136,6 @@ class Firewall(ABC):
 
         :return: The default policy.
         """
-        pass
 
     @abstractmethod
     def evaluate(self, src_ip: IPAddress, dst_ip: IPAddress, dst_service: str) -> Tuple[bool, int]:
@@ -160,4 +153,3 @@ class Firewall(ABC):
 
         :return: A tuple indicating if the traffic should pass and how long the processing took.
         """
-        pass

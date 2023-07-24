@@ -186,7 +186,6 @@ class Message(ABC):
 
         :rtype: int
         """
-        pass
 
     @property
     @abstractmethod
@@ -196,7 +195,6 @@ class Message(ABC):
 
         :rtype: MessageType
         """
-        pass
 
     @property
     @abstractmethod
@@ -206,7 +204,6 @@ class Message(ABC):
 
         :rtype: Optional[IPAddress]
         """
-        pass
 
     @property
     @abstractmethod
@@ -216,7 +213,6 @@ class Message(ABC):
 
         :rtype: Optional[IPAddress]
         """
-        pass
 
     @property
     @abstractmethod
@@ -227,7 +223,6 @@ class Message(ABC):
 
         :rtype: Optional[str]
         """
-        pass
 
     @property
     @abstractmethod
@@ -237,7 +232,6 @@ class Message(ABC):
 
         :rtype: str
         """
-        pass
 
     @property
     @abstractmethod
@@ -247,7 +241,6 @@ class Message(ABC):
 
         :rtype: Session
         """
-        pass
 
     @property
     @abstractmethod
@@ -261,7 +254,6 @@ class Message(ABC):
 
         :rtype: Optional[Union[Authorization, AuthenticationToken, AuthenticationTarget]]
         """
-        pass
 
     @property
     @abstractmethod
@@ -273,7 +265,6 @@ class Message(ABC):
 
         :rtype: int
         """
-        pass
 
     @property
     @abstractmethod
@@ -286,7 +277,6 @@ class Message(ABC):
 
         :rtype: Metadata
         """
-        pass
 
     @abstractmethod
     def set_metadata(self, metadata: Metadata) -> None:
@@ -297,7 +287,6 @@ class Message(ABC):
         :param metadata: A new value of the metadata.
         :type metdata: Metadata
         """
-        pass
 
     @abstractmethod
     def cast_to(self, type: Type[T]) -> T:
@@ -311,7 +300,6 @@ class Message(ABC):
 
         :rtype: T
         """
-        pass
 
 
 class Request(Message, ABC):
@@ -327,7 +315,6 @@ class Request(Message, ABC):
 
         :rtype: Action
         """
-        pass
 
 
 class Response(Message, ABC):
@@ -343,7 +330,6 @@ class Response(Message, ABC):
 
         :rtype: Status
         """
-        pass
 
     @property
     @abstractmethod
@@ -353,7 +339,6 @@ class Response(Message, ABC):
 
         :rtype: Optional[Any]
         """
-        pass
 
 
 class Timeout(Message, ABC):
@@ -369,7 +354,6 @@ class Timeout(Message, ABC):
 
         :rtype: int
         """
-        pass
 
     @property
     @abstractmethod
@@ -379,7 +363,6 @@ class Timeout(Message, ABC):
 
         :rtype: int
         """
-        pass
 
     @property
     @abstractmethod
@@ -389,4 +372,3 @@ class Timeout(Message, ABC):
 
         :rtype: Any
         """
-        pass

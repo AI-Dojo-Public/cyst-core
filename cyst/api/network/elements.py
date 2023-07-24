@@ -63,7 +63,6 @@ class Port(ABC):
 
         :rtype: Optional[IPAddress]
         """
-        pass
 
     @property
     @abstractmethod
@@ -73,7 +72,6 @@ class Port(ABC):
 
         :rtype: Optional[str]
         """
-        pass
 
     @property
     @abstractmethod
@@ -83,7 +81,6 @@ class Port(ABC):
 
         :rtype: Optional[IPNetwork]
         """
-        pass
 
     @property
     @abstractmethod
@@ -91,7 +88,6 @@ class Port(ABC):
         """
         Returns the connection of the port.
         """
-        pass
 
 
 class Interface(Port, ABC):
@@ -108,7 +104,6 @@ class Interface(Port, ABC):
 
         :rtype: Optional[IPAddress]
         """
-        pass
 
 
 class Connection(ABC):
@@ -125,7 +120,6 @@ class Connection(ABC):
 
         :rtype: int
         """
-        pass
 
     @property
     @abstractmethod
@@ -135,7 +129,6 @@ class Connection(ABC):
 
         :rtype: bool
         """
-        pass
 
     @abstractmethod
     def set_params(self, delay: Optional[int] = None, blocked: Optional[bool] = None) -> None:
@@ -148,7 +141,6 @@ class Connection(ABC):
         :param blocked: Whether the connection is blocked or not.
         :type blocked: bool
         """
-        pass
 
     @abstractmethod
     def evaluate(self, message: Message) -> Tuple[int, Message]:
@@ -164,4 +156,3 @@ class Connection(ABC):
 
         :return: A tuple of delay and message.
         """
-        pass

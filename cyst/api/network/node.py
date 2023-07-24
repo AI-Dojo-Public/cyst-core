@@ -20,7 +20,6 @@ class Node(ABC):
 
         :rtype: str
         """
-        pass
 
     @property
     @abstractmethod
@@ -30,7 +29,6 @@ class Node(ABC):
 
         :rtype: Dict[str, Service]
         """
-        pass
 
     @property
     @abstractmethod
@@ -40,7 +38,6 @@ class Node(ABC):
 
         :rtype: Optional[Service]
         """
-        pass
 
     @property
     @abstractmethod
@@ -50,7 +47,6 @@ class Node(ABC):
 
         :rtype: List[Interface]
         """
-        pass
 
     @property
     @abstractmethod
@@ -60,7 +56,6 @@ class Node(ABC):
 
         :rtype: List[IPAddress]
         """
-        pass
 
     @abstractmethod
     def gateway(self, ip: Union[str, IPAddress] = "") -> Optional[Tuple[IPAddress, int]]:
@@ -74,8 +69,3 @@ class Node(ABC):
         :return: A gateway IP address together with port index (if one is found).
         :rtype: Optional[Tuple[IPAddress, int]]
         """
-        pass
-
-    @abstractmethod
-    def __str__(self) -> str:
-        pass

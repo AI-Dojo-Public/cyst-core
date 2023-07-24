@@ -14,7 +14,6 @@ class Statistics(ABC):
 
         :rtype: str
         """
-        pass
 
     @property
     @abstractmethod
@@ -24,7 +23,6 @@ class Statistics(ABC):
 
         :rtype: str
         """
-        pass
 
     @property
     @abstractmethod
@@ -34,7 +32,6 @@ class Statistics(ABC):
 
         :rtype: float
         """
-        pass
 
     @property
     @abstractmethod
@@ -44,7 +41,6 @@ class Statistics(ABC):
 
         :rtype: float
         """
-        pass
 
     @property
     @abstractmethod
@@ -55,4 +51,3 @@ class Statistics(ABC):
 
         :rtype: int
         """
-        pass

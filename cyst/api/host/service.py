@@ -25,7 +25,6 @@ class Service(ABC):
 
         :rtype: str
         """
-        pass
 
     @property
     @abstractmethod
@@ -35,7 +34,6 @@ class Service(ABC):
 
         :rtype: str
         """
-        pass
 
     @property
     @abstractmethod
@@ -45,7 +43,6 @@ class Service(ABC):
 
         :rtype: AccessLevel
         """
-        pass
 
     @property
     @abstractmethod
@@ -57,7 +54,6 @@ class Service(ABC):
 
         :rtype: PassiveService
         """
-        pass
 
     @property
     @abstractmethod
@@ -69,7 +65,6 @@ class Service(ABC):
 
         :rtype: ActiveService
         """
-        pass
 
 
 class ActiveService(ABC):
@@ -83,7 +78,6 @@ class ActiveService(ABC):
         """
         Starts the service. This function si automatically called by the environment at the initialization.
         """
-        pass
 
     @abstractmethod
     def process_message(self, message: Message) -> Tuple[bool, int]:
@@ -102,7 +96,6 @@ class ActiveService(ABC):
             as the behavioral models and return a Response. That way, there can be a failsafe built-in.
         :rtype: Tuple[bool, int]
         """
-        pass
 
 
 @dataclass
@@ -159,7 +152,6 @@ class PassiveService(Service, ABC):
 
         :rtype: VersionInfo
         """
-        pass
 
     @property
     @abstractmethod
@@ -169,7 +161,6 @@ class PassiveService(Service, ABC):
 
         :rtype: ServiceState
         """
-        pass
 
     @property
     @abstractmethod
@@ -181,7 +172,6 @@ class PassiveService(Service, ABC):
 
         :rtype: Set[Tag]
         """
-        pass
 
     @property
     @abstractmethod
@@ -191,7 +181,6 @@ class PassiveService(Service, ABC):
 
         :rtype: bool
         """
-        pass
 
     @property
     @abstractmethod
@@ -202,7 +191,6 @@ class PassiveService(Service, ABC):
 
         :rtype: AccessLevel
         """
-        pass
 
     @property
     @abstractmethod
@@ -213,4 +201,3 @@ class PassiveService(Service, ABC):
 
         :rtype: bool
         """
-        pass
