@@ -39,7 +39,7 @@ class Configurator:
         self._active_services: List[ActiveServiceConfig] = []
         self._passive_services: List[PassiveServiceConfig] = []
         self._firewalls: List[FirewallConfig] = []
-        self._interfaces: List[InterfaceConfig] = []
+        self._interfaces: List[Union[InterfaceConfig, PortConfig]] = []
         self._authorizations: List[AuthorizationConfig] = []
         self._data: List[DataConfig] = []
         self._exploits: List[ExploitConfig] = []
@@ -166,6 +166,11 @@ class Configurator:
         self._nodes.append(cfg)
         self._refs[cfg.id] = cfg
 
+        return cfg.id
+
+    def _process_PortConfig(self, cfg: PortConfig) -> str:
+        self._refs[cfg.id] = cfg
+        self._interfaces.append(cfg)
         return cfg.id
 
     def _process_InterfaceConfig(self, cfg: InterfaceConfig) -> str:
@@ -496,8 +501,11 @@ class Configurator:
 
         # 3) Interfaces
         for iface in self._interfaces:
-            # TODO: Missing a setting of a gateway (Really todo?)
-            self._env.configuration.node.create_interface(iface.ip, str(iface.net.netmask), iface.index, iface.id)
+            if isinstance(iface, PortConfig):
+                self._env.configuration.node.create_port(iface.ip, str(iface.net.netmask), iface.index, iface.id)
+            else:
+                # TODO: Missing a setting of a gateway (Really todo?)
+                self._env.configuration.node.create_interface(iface.ip, str(iface.net.netmask), iface.index, iface.id)
 
         # 4) Nodes
         for node in self._nodes:

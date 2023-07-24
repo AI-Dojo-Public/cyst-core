@@ -27,7 +27,7 @@ from cyst_services.scripted_actor.main import ScriptedActor, ScriptedActorContro
 
 class TestInterface(unittest.TestCase):
 
-    def test_0000(self):
+    def test_0000_Interface(self):
         env = Environment.create()
 
         # Function aliases to make it more readable
@@ -68,6 +68,16 @@ class TestInterface(unittest.TestCase):
         set_iface(i5, mask="255.255.255.0")
 
         self.assertEqual(i5.gateway, IPAddress("10.0.1.1"), "Gateway recomputed")
+
+    def test_0001_Port(self):
+        # Ports are used under the hood for the interfaces as well, so all the tests above are valid for port as
+        # well. The only thing that needs to be tested is the actual code path to create the port through configuration
+        # interface.
+        env = Environment.create()
+
+        port = env.configuration.node.create_port(index=-1)
+
+        self.assertIsNotNone(port, "Port created through configuration interface")
 
 
 class TestSessions(unittest.TestCase):

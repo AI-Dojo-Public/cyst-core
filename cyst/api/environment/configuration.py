@@ -231,6 +231,30 @@ class NodeConfiguration(ABC):
         pass
 
     @abstractmethod
+    def create_port(self, ip: Union[str, IPAddress] = "", mask: str = "", index: int = 0, id: str = "") -> Interface:
+        """
+        Create a network port, which can then be used to connect routers to routers.
+
+        :param ip: An IP address of the port. If not set, it will be a port without IP and the routing will have to be
+            explicitly specified.
+        :type ip: Union[str, IPAddress]
+
+        :param mask: A network mask of the port. It is used to signal the network range serviced by the router.
+        :type mask: str
+
+        :param index: An index the port should have. If a value -1 is selected, the interface is assigned a lowest
+            possible index.
+        :type index: int
+
+        :param id: A unique identification of the interface within the simulation. If no value is provided, the system
+                   will generate a unique one.
+        :type id: str
+
+        :return: An instance of a network port.
+        """
+        pass
+
+    @abstractmethod
     def create_interface(self, ip: Union[str, IPAddress] = "", mask: str = "", index: int = 0, id: str = "") -> Interface:
         """
         Create a network interface, which can then be used to connect nodes to routers or routers to routers.

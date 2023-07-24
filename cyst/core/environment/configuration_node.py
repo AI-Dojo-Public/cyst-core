@@ -9,12 +9,12 @@ from netaddr import IPAddress, IPNetwork
 from cyst.api.environment.configuration import NodeConfiguration
 from cyst.api.environment.messaging import EnvironmentMessaging
 from cyst.api.host.service import ActiveService, Service
-from cyst.api.network.elements import Route, Interface
+from cyst.api.network.elements import Route, Interface, Port
 from cyst.api.network.firewall import FirewallPolicy, FirewallRule
 from cyst.api.network.node import Node
 
 from cyst.core.host.service import ServiceImpl
-from cyst.core.network.elements import InterfaceImpl
+from cyst.core.network.elements import InterfaceImpl, PortImpl
 from cyst.core.network.node import NodeImpl
 from cyst.core.network.router import Router
 
@@ -31,6 +31,10 @@ class NodeConfigurationImpl(NodeConfiguration):
 
     def create_router(self, id: str, messaging: EnvironmentMessaging) -> Node:
         return _create_router(self._env, id, messaging)
+
+    def create_port(self, ip: Union[str, IPAddress] = "", mask: str = "", index: int = 0,
+                    id: str = "") -> Port:
+        return _create_port(self._env, ip, mask, index, id)
 
     def create_interface(self, ip: Union[str, IPAddress] = "", mask: str = "", index: int = 0,
                          id: str = "") -> Interface:
@@ -112,6 +116,14 @@ def _create_router(self: _Environment, id: str, messaging: EnvironmentMessaging)
     r = Router(id, messaging)
     self._general_configuration.add_object(id, r)
     return r
+
+
+def _create_port(self: _Environment, ip: Union[str, IPAddress] = "", mask: str = "", index: int = 0, id: str = "") -> Port:
+    if not id:
+        id = str(uuid.uuid4())
+    i = PortImpl(ip, mask, index, id)
+    self._general_configuration.add_object(id, i)
+    return i
 
 
 def _create_interface(self: _Environment, ip: Union[str, IPAddress] = "", mask: str = "", index: int = 0, id: str = "") -> Interface:
