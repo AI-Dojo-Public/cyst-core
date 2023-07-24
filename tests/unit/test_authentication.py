@@ -358,3 +358,10 @@ class AuthenticationAccessManipulationTest(unittest.TestCase):
 
         self.assertIsNone(result, "Access creation should fail, for now")
         # self.assertIsNotNone(result, "Access creation should succeed")
+
+
+class AuxiliaryTest(unittest.TestCase):
+
+    def test_000_test_auth_provider_copy(self) -> None:
+        local_password_auth_copy = local_password_auth()
+        self.assertNotEqual(local_password_auth_copy.id, local_password_auth.id, "Authentication provider copy does not share ID")
