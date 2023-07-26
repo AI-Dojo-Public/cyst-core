@@ -12,6 +12,7 @@ cyst.api.configuration
     :maxdepth: 0
 
     configuration/host/index.rst
+    configuration/infrastructure/index.rst
     configuration/logic/index.rst
     configuration/network/index.rst
 
@@ -41,5 +42,4 @@ cyst.api.network
 
 cyst.api.utils
 ==============
-While there is some code inside, utils are only rarely used and most of the code should go away. The most important
-piece there is the logger, which will need a serious overhaul.
+While there is some code inside, utils are only rarely used and most of the code should go away.
