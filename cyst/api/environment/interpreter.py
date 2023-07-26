@@ -30,7 +30,6 @@ class ActionInterpreter(ABC):
         :return: A tuple indicating the length of processing in the simulated time units and the Response that should
             be sent to the origin.
         """
-        pass
 
 
 @dataclass

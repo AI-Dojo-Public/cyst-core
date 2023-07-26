@@ -1,5 +1,6 @@
 import argparse
 import copy
+import logging
 import os
 import sys
 
@@ -32,7 +33,6 @@ from cyst.api.network.firewall import FirewallRule, FirewallPolicy
 from cyst.api.host.service import Service, PassiveService, ActiveService, ServiceState
 from cyst.api.configuration.configuration import ConfigItem
 from cyst.api.utils.counter import Counter
-from cyst.api.utils.log import get_logger
 
 from cyst.core.environment.configuration_access import AccessConfigurationImpl
 from cyst.core.environment.configuration_action import ActionConfigurationImpl
@@ -112,7 +112,7 @@ class _Environment(Environment, EnvironmentConfiguration):
                                      self._runtime_configuration.data_backend_params)
 
         # Logs
-        self._message_log = get_logger("messaging")
+        self._message_log = logging.getLogger("messaging")
 
     def __getstate__(self) -> dict:
         return {

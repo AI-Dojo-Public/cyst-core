@@ -15,7 +15,6 @@ class Clock(ABC):
 
         :return: Simulation time.
         """
-        pass
 
     @abstractmethod
     def hybrid_time(self) -> struct_time:
@@ -24,7 +23,6 @@ class Clock(ABC):
 
         :return: Simulation time.
         """
-        pass
 
     @abstractmethod
     def timeout(self, service: ActiveService, delay: int, content: Any) -> None:
@@ -36,4 +34,3 @@ class Clock(ABC):
         :param content: The included data. They will not be modified.
         :return: None
         """
-        pass

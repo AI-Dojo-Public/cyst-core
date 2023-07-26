@@ -18,7 +18,6 @@ class EnvironmentResources(ABC):
 
         :rtype: ActionStore
         """
-        pass
 
     @property
     @abstractmethod
@@ -28,7 +27,6 @@ class EnvironmentResources(ABC):
 
         :rtype: ExploitStore
         """
-        pass
 
     @property
     @abstractmethod
@@ -38,7 +36,6 @@ class EnvironmentResources(ABC):
 
         :rtype: Clock
         """
-        pass
 
     @property
     @abstractmethod
@@ -48,4 +45,3 @@ class EnvironmentResources(ABC):
 
         :rtype: Statistics
         """
-        pass

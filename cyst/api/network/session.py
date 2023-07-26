@@ -16,7 +16,6 @@ class Session(ABC):
 
         :rtype: str
         """
-        pass
 
     @property
     @abstractmethod
@@ -26,7 +25,6 @@ class Session(ABC):
 
         :rtype: str
         """
-        pass
 
     @property
     @abstractmethod
@@ -37,7 +35,6 @@ class Session(ABC):
 
         :rtype: Optional[Session]
         """
-        pass
 
     @property
     @abstractmethod
@@ -50,7 +47,6 @@ class Session(ABC):
 
         :rtype: List[Tuple[Optional[IPAddress], Optional[IPAddress]]]
         """
-        pass
 
     @property
     @abstractmethod
@@ -61,7 +57,6 @@ class Session(ABC):
 
         :rtype: Tuple[IPAddress, str]
         """
-        pass
 
     @property
     @abstractmethod
@@ -72,7 +67,6 @@ class Session(ABC):
 
         :rtype: Tuple[IPAddress, str]
         """
-        pass
 
     @property
     @abstractmethod
@@ -82,4 +76,3 @@ class Session(ABC):
 
         :rtype: bool
         """
-        pass

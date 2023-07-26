@@ -1,3 +1,5 @@
+import logging
+
 from abc import ABC, abstractmethod
 from typing import List, Tuple, Optional, Dict, Any, Union, Callable
 
@@ -8,7 +10,6 @@ from cyst.api.environment.message import Request, Response, MessageType, Message
 from cyst.api.environment.resources import EnvironmentResources
 from cyst.api.network.session import Session
 from cyst.api.host.service import ActiveService, ActiveServiceDescription, Service
-from cyst.api.utils.log import get_logger
 
 
 class ScriptedActorControl(ABC):
@@ -47,7 +48,7 @@ class ScriptedActor(ActiveService, ScriptedActorControl):
         self._response_callback = None
         self._request_callback = None
         self._last_message_type = None
-        self._log = get_logger("services.scripted_actor")
+        self._log = logging.getLogger("services.scripted_actor")
 
     # This Actor only runs given actions. No own initiative
     def run(self):

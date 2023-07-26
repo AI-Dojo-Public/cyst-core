@@ -36,7 +36,6 @@ class ActionParameterDomain(Sequence):
 
         :rtype: ActionParameterDomainType
         """
-        pass
 
     @property
     @abstractmethod
@@ -46,7 +45,6 @@ class ActionParameterDomain(Sequence):
 
         :rtype: int
         """
-        pass
 
     @property
     @abstractmethod
@@ -56,7 +54,6 @@ class ActionParameterDomain(Sequence):
 
         :rtype: int
         """
-        pass
 
     @property
     @abstractmethod
@@ -66,7 +63,6 @@ class ActionParameterDomain(Sequence):
 
         :rtype: int
         """
-        pass
 
     @property
     @abstractmethod
@@ -76,7 +72,6 @@ class ActionParameterDomain(Sequence):
 
         :rtype: List[Any]
         """
-        pass
 
     @abstractmethod
     def validate(self, value: Any) -> bool:
@@ -86,7 +81,6 @@ class ActionParameterDomain(Sequence):
         :param value: A value to check.
         :type value: Any
         """
-        pass
 
     @property
     @abstractmethod
@@ -94,7 +88,6 @@ class ActionParameterDomain(Sequence):
         """
         :return: A value from the domain that is considered a default one.
         """
-        pass
 
     @abstractmethod
     def __getitem__(self, item: int) -> Any:
@@ -107,7 +100,6 @@ class ActionParameterDomain(Sequence):
 
         :return: The item with given index.
         """
-        pass
 
     @abstractmethod
     def __len__(self) -> int:
@@ -117,7 +109,6 @@ class ActionParameterDomain(Sequence):
 
         :return: The number of items in the domain.
         """
-        pass
 
 
 class ActionParameterType(Enum):
@@ -237,7 +228,6 @@ class Action(ABC):
 
         :rtype: str
         """
-        pass
 
     @property
     @abstractmethod
@@ -247,7 +237,6 @@ class Action(ABC):
 
         :rtype: str
         """
-        pass
 
     @property
     @abstractmethod
@@ -258,7 +247,6 @@ class Action(ABC):
 
         :rtype: List[str]
         """
-        pass
 
     @property
     @abstractmethod
@@ -269,7 +257,6 @@ class Action(ABC):
 
         :rtype: str
         """
-        pass
 
     @property
     @abstractmethod
@@ -279,7 +266,6 @@ class Action(ABC):
 
         :rtype: Optional[Exploit]
         """
-        pass
 
     @abstractmethod
     def set_exploit(self, exploit: Optional[Exploit]) -> None:
@@ -289,7 +275,6 @@ class Action(ABC):
         :param exploit: The exploit to use. If None is passed as a value, removes the exploit from the action.
         :type exploit: Optional[Exploit]
         """
-        pass
 
     @property
     @abstractmethod
@@ -299,7 +284,6 @@ class Action(ABC):
 
         :rtype: Dict[str, ActionParameter]
         """
-        pass
 
     @abstractmethod
     def add_parameters(self, *params: ActionParameter) -> None:
@@ -309,7 +293,6 @@ class Action(ABC):
         :param params: One or more action parameters.
         :type params: ActionParameter
         """
-        pass
 
     @property
     @abstractmethod
@@ -319,7 +302,6 @@ class Action(ABC):
 
         :rtype: List[Tuple[ActionToken, ActionToken]]
         """
-        pass
 
     @abstractmethod
     def copy(self) -> 'Action':
@@ -328,4 +310,3 @@ class Action(ABC):
 
         :rtype: Action
         """
-        pass

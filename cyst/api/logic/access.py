@@ -76,7 +76,6 @@ class AuthenticationToken(ABC):
 
         :rtype: AuthenticationTokenType
         """
-        pass
 
     @property
     @abstractmethod
@@ -86,7 +85,6 @@ class AuthenticationToken(ABC):
 
         :rtype: AuthenticationTokenSecurity
         """
-        pass
 
     @property
     @abstractmethod
@@ -100,7 +98,6 @@ class AuthenticationToken(ABC):
         :type: str
 
         """
-        pass
 
     @identity.setter
     def identity(self, value: str) -> bool:
@@ -114,7 +111,6 @@ class AuthenticationToken(ABC):
         :return: Indication, whether the identity was correctly set.
         :rtype: bool
         """
-        pass
 
     @abstractmethod
     def copy(self) -> Optional['AuthenticationToken']:
@@ -123,7 +119,6 @@ class AuthenticationToken(ABC):
 
         :rtype: AuthenticationToken
         """
-        pass
 
     @property
     @abstractmethod
@@ -134,7 +129,6 @@ class AuthenticationToken(ABC):
 
         :rtype: Optional[Data]
         """
-        pass
 
 
 class AuthenticationTarget(ABC):
@@ -151,7 +145,6 @@ class AuthenticationTarget(ABC):
 
         :rtype: Optional[IPAddress]
         """
-        pass
 
     @property
     @abstractmethod
@@ -161,7 +154,6 @@ class AuthenticationTarget(ABC):
 
         :rtype: str
         """
-        pass
 
     @property
     @abstractmethod
@@ -171,7 +163,6 @@ class AuthenticationTarget(ABC):
 
         :rtype: List[AuthenticationTokenType]
         """
-        pass
 
 
 class Authorization(ABC):
@@ -190,7 +181,6 @@ class Authorization(ABC):
 
         :rtype: Optional[str]
         """
-        pass
 
     @property
     @abstractmethod
@@ -200,7 +190,6 @@ class Authorization(ABC):
 
         :rtype: AccessLevel
         """
-        pass
 
     @property
     @abstractmethod
@@ -211,7 +200,6 @@ class Authorization(ABC):
 
         :rtype:int
         """
-        pass
 
     @property
     @abstractmethod
@@ -221,7 +209,6 @@ class Authorization(ABC):
 
         :rtype: uuid.UUID
         """
-        pass
 
 
 class AuthenticationProvider(ABC):
@@ -238,7 +225,6 @@ class AuthenticationProvider(ABC):
 
         :rtype: AuthenticationProviderType
         """
-        pass
 
     @property
     @abstractmethod
@@ -249,7 +235,6 @@ class AuthenticationProvider(ABC):
 
         :rtype: AuthenticationTarget
         """
-        pass
 
     @abstractmethod
     def token_is_registered(self, token: AuthenticationToken) -> bool:
@@ -261,7 +246,6 @@ class AuthenticationProvider(ABC):
 
         :return: True if token is registered, false otherwise.
         """
-        pass
 
 
 class AccessScheme(ABC):
@@ -280,7 +264,6 @@ class AccessScheme(ABC):
 
         :rtype: List[Tuple[AuthenticationProvider, int]]:
         """
-        pass
 
     @property
     @abstractmethod
@@ -290,7 +273,6 @@ class AccessScheme(ABC):
 
         :rtype: List[str]
         """
-        pass
 
     @property
     @abstractmethod
@@ -301,4 +283,3 @@ class AccessScheme(ABC):
 
         :rtype: List[Authorization]
         """
-        pass

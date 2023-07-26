@@ -1,14 +1,17 @@
+import logging.config
 import uuid
 import collections
 
 from dataclasses import dataclass, field
-from typing import List, Union, Optional, Dict, Any, Type, Tuple
+from typing import List, Union, Optional, Dict, Any, Type, Tuple, Callable
 
 import jsonpickle
 
 from cyst.api.environment.configuration import GeneralConfiguration, ObjectType, ConfigurationObjectType
 from cyst.api.configuration.configuration import ConfigItem
 from cyst.api.configuration.host.service import ActiveServiceConfig, PassiveServiceConfig
+from cyst.api.configuration.infrastructure.infrastructure import InfrastructureConfig
+from cyst.api.configuration.infrastructure.log import LogConfig, LogSource, log_defaults
 from cyst.api.configuration.logic.access import AuthorizationConfig, AuthenticationProviderConfig, AccessSchemeConfig, \
     AuthorizationDomainConfig, FederatedAuthorizationConfig
 from cyst.api.configuration.logic.data import DataConfig
@@ -46,6 +49,7 @@ class Configurator:
         self._authentication_providers: List[AuthenticationProviderConfig] = []
         self._access_schemes: List[AccessSchemeConfig] = []
         self._authorization_domains: List[AuthorizationDomainConfig] = []
+        self._logs: List[LogConfig] = []
 
     def __getstate__(self):
         result = self.__dict__
@@ -70,6 +74,7 @@ class Configurator:
         self._authentication_providers.clear()
         self._access_schemes.clear()
         self._authorization_domains.clear()
+        self._logs.clear()
 
     # ------------------------------------------------------------------------------------------------------------------
     # All these _process_XXX functions resolve nested members to their id. In the end of the preprocessing, there should
@@ -307,6 +312,17 @@ class Configurator:
         self._refs[cfg.id] = cfg
         return cfg.id
 
+    def _process_LogConfig(self, cfg: LogConfig) -> str:
+        self._refs[cfg.id] = cfg
+        self._logs.append(cfg)
+        return cfg.id
+
+    def _process_InfrastructureConfig(self, cfg: InfrastructureConfig) -> str:
+        self._refs[cfg.id] = cfg
+        for log in cfg.log:
+            self._process_LogConfig(log)
+        return cfg.id
+
     def _process_default(self, cfg):
         raise ValueError("Unknown config type provided")
 
@@ -314,7 +330,7 @@ class Configurator:
         if hasattr(cfg, "id") and cfg.id in self._refs:
             raise ValueError("Duplicate identifier found: {}".format(cfg.id))
 
-        fn = getattr(self, "_process_" + type(cfg).__name__, self._process_default)
+        fn: Callable[[ConfigItem], str] = getattr(self, "_process_" + type(cfg).__name__, self._process_default)
         return fn(cfg)
 
     def get_configuration_by_id(self, id: str) -> Optional[Any]:
@@ -383,6 +399,82 @@ class Configurator:
         # Process all provided items and do a complete id->cfg mapping
         for cfg in configs:
             self._process_cfg_item(cfg)
+
+        # --------------------------------------------------------------------------------------------------------------
+        # Begin by processing the infrastructure configuration
+        # Logs:
+        # Get defaults
+        log_configs = {}
+        for log in log_defaults:
+            log_configs[log.source] = log
+
+        # Overwrite with user configuration
+        for cfg in self._logs:
+            log_configs[cfg.source] = cfg
+
+        formatters = {
+            '__default': {
+                'format': "[%(asctime)s] :: %(name)s — %(levelname)s :: %(message)s"
+            }
+        }
+
+        handlers = {}
+        loggers = {}
+
+        log_source_map = {
+            LogSource.SYSTEM: 'system',
+            LogSource.MESSAGING: 'messaging',
+            LogSource.MODEL: 'model.',
+            LogSource.SERVICE: 'service.'
+        }
+
+        for cfg in log_configs.values():
+            if not cfg.log_console and not cfg.log_file:
+                continue
+
+            handler_console = {}
+            handler_file = {}
+
+            if cfg.log_console:
+                handler_console = {
+                    'class': 'logging.StreamHandler',
+                    'formatter': '__default',
+                    'level': cfg.log_level,
+                    'stream': 'ext://sys.stdout'
+                }
+
+            if cfg.log_file and cfg.file_path:
+                handler_file = {
+                    'class': 'logging.FileHandler',
+                    'formatter': '__default',
+                    'level': cfg.log_level,
+                    'filename': cfg.file_path
+                }
+
+            if handler_console or handler_file:
+                handler_list = []
+                if handler_console:
+                    id = "__console_" + log_source_map[cfg.source]
+                    handlers[id] = handler_console
+                    handler_list.append(id)
+                if handler_file:
+                    id = "__file_" + log_source_map[cfg.source]
+                    handlers[id] = handler_file
+                    handler_list.append(id)
+
+                loggers[log_source_map[cfg.source]] = {
+                    'handlers': handler_list,
+                    'level': cfg.log_level
+                }
+
+        log_config_dict = {
+            'version': 1,
+            'formatters': formatters,
+            'handlers': handlers,
+            'loggers': loggers
+        }
+
+        logging.config.dictConfig(log_config_dict)
 
         # --------------------------------------------------------------------------------------------------------------
         # Now that each configuration item is accounted for, build it.

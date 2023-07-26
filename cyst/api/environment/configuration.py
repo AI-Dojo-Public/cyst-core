@@ -39,7 +39,6 @@ class EnvironmentConfiguration(ABC):
 
         :rtype: GeneralConfiguration
         """
-        pass
 
     @property
     @abstractmethod
@@ -49,7 +48,6 @@ class EnvironmentConfiguration(ABC):
 
         :rtype: NodeConfiguration
         """
-        pass
 
     @property
     @abstractmethod
@@ -59,7 +57,6 @@ class EnvironmentConfiguration(ABC):
 
         :rtype: ServiceConfiguration
         """
-        pass
 
     @property
     @abstractmethod
@@ -70,7 +67,6 @@ class EnvironmentConfiguration(ABC):
 
         :rtype: NetworkConfiguration
         """
-        pass
 
     @property
     @abstractmethod
@@ -80,7 +76,6 @@ class EnvironmentConfiguration(ABC):
 
         :rtype: ExploitConfiguration
         """
-        pass
 
     @property
     @abstractmethod
@@ -92,7 +87,6 @@ class EnvironmentConfiguration(ABC):
 
         :rtype: ActionConfiguration
         """
-        pass
 
     @property
     @abstractmethod
@@ -103,7 +97,6 @@ class EnvironmentConfiguration(ABC):
 
         :rtype: AccessConfiguration
         """
-        pass
 
 
 class GeneralConfiguration(ABC):
@@ -120,7 +113,6 @@ class GeneralConfiguration(ABC):
 
         :return: A complete environment configuration.
         """
-        pass
 
     @abstractmethod
     def save_configuration(self, indent: Optional[int]) -> str:
@@ -135,7 +127,6 @@ class GeneralConfiguration(ABC):
 
         :return: A string representation of the environment's configuration.
         """
-        pass
 
     @abstractmethod
     def load_configuration(self, config: str) -> List[ConfigItem]:
@@ -148,7 +139,6 @@ class GeneralConfiguration(ABC):
 
         :return: A list of configuration items that can be fed to the configure() function.
         """
-        pass
 
     @abstractmethod
     def get_configuration_by_id(self, id: str, configuration_type: Type[ConfigurationObjectType]) -> ConfigurationObjectType:
@@ -164,7 +154,6 @@ class GeneralConfiguration(ABC):
 
         :return: A configuration object with given ID.
         """
-        pass
 
     @abstractmethod
     def get_object_by_id(self, id: str, object_type: Type[ObjectType]) -> ObjectType:
@@ -180,7 +169,6 @@ class GeneralConfiguration(ABC):
 
         :return: An object with give ID.
         """
-        pass
 
 
 class NodeConfiguration(ABC):
@@ -211,7 +199,6 @@ class NodeConfiguration(ABC):
 
         :return: An instance of a node in the simulation.
         """
-        pass
 
     @abstractmethod
     def create_router(self, id: str, messaging: EnvironmentMessaging) -> Node:
@@ -228,7 +215,6 @@ class NodeConfiguration(ABC):
 
         :return: An instance of a router in the simulation.
         """
-        pass
 
     @abstractmethod
     def create_port(self, ip: Union[str, IPAddress] = "", mask: str = "", index: int = 0, id: str = "") -> Interface:
@@ -278,7 +264,6 @@ class NodeConfiguration(ABC):
 
         :return: An instance of a network interface.
         """
-        pass
 
     @abstractmethod
     def create_route(self, net: IPNetwork, port: int, metric: int, id: str = "") -> Route:
@@ -302,7 +287,6 @@ class NodeConfiguration(ABC):
 
         :return: A route to be used in router.
         """
-        pass
 
     @abstractmethod
     def add_interface(self, node: Node, interface: Interface, index: int = -1) -> int:
@@ -320,7 +304,6 @@ class NodeConfiguration(ABC):
 
         :return: An index, where the interface was assigned.
         """
-        pass
 
     @abstractmethod
     def set_interface(self, interface: Interface, ip: Union[str, IPAddress] = "", mask: str = "") -> None:
@@ -339,7 +322,6 @@ class NodeConfiguration(ABC):
 
         :return: None
         """
-        pass
 
     @abstractmethod
     def add_service(self, node: Node, *service: Service) -> None:
@@ -355,7 +337,6 @@ class NodeConfiguration(ABC):
 
         :return: None
         """
-        pass
 
     @abstractmethod
     def remove_service(self, node: Node, *service: Service) -> None:
@@ -370,7 +351,6 @@ class NodeConfiguration(ABC):
 
         :return: None
         """
-        pass
 
     @abstractmethod
     def set_shell(self, node: Node, service: Service) -> None:
@@ -386,7 +366,6 @@ class NodeConfiguration(ABC):
 
         :return: None
         """
-        pass
 
     @abstractmethod
     def add_traffic_processor(self, node: Node, processor: ActiveService) -> None:
@@ -407,7 +386,6 @@ class NodeConfiguration(ABC):
 
         :return: None
         """
-        pass
 
     @abstractmethod
     def add_route(self, node: Node, *route: Route) -> None:
@@ -423,9 +401,7 @@ class NodeConfiguration(ABC):
 
         :return: None
         """
-        pass
 
-    # TODO:
     @abstractmethod
     def add_routing_rule(self, node: Node, rule: FirewallRule) -> None:
         """
@@ -447,7 +423,6 @@ class NodeConfiguration(ABC):
 
         :return: None
         """
-        pass
 
     @abstractmethod
     def set_routing_policy(self, node: Node, policy: FirewallPolicy) -> None:
@@ -465,7 +440,6 @@ class NodeConfiguration(ABC):
 
         :return: None
         """
-        pass
 
     @abstractmethod
     def list_routes(self, node: Node) -> List[Route]:
@@ -481,7 +455,6 @@ class NodeConfiguration(ABC):
 
         :return: A list of routes.
         """
-        pass
 
 
 class ServiceParameter(Flags):
@@ -542,7 +515,6 @@ class ServiceConfiguration(ABC):
 
         :return: An instance of an active service, or null if failed to create one.
         """
-        pass
 
     @abstractmethod
     def get_service_interface(self, service: ActiveService, control_interface_type: Type[ActiveServiceInterfaceType]) -> ActiveServiceInterfaceType:
@@ -578,7 +550,6 @@ class ServiceConfiguration(ABC):
 
         :return: An interface of a service.
         """
-        pass
 
     @abstractmethod
     def create_passive_service(self, type: str, owner: str, version: str = "0.0.0", local: bool = False,
@@ -610,7 +581,6 @@ class ServiceConfiguration(ABC):
 
         :return: An instance of passive service.
         """
-        pass
 
     @abstractmethod
     def update_service_version(self, service: PassiveService, version: str = "0.0.0") -> None:
@@ -627,7 +597,6 @@ class ServiceConfiguration(ABC):
 
         :return: None
         """
-        pass
 
     @abstractmethod
     def set_service_parameter(self, service: PassiveService, parameter: ServiceParameter, value: Any) -> None:
@@ -646,7 +615,6 @@ class ServiceConfiguration(ABC):
 
         :return: None
         """
-        pass
 
     @abstractmethod
     def create_data(self, id: Optional[str], owner: str, description: str) -> Data:
@@ -669,7 +637,6 @@ class ServiceConfiguration(ABC):
 
         :return: An instance of data.
         """
-        pass
 
     @abstractmethod
     def public_data(self, service: PassiveService) -> List[Data]:
@@ -682,7 +649,6 @@ class ServiceConfiguration(ABC):
 
         :return: A list of public data instances on the service.
         """
-        pass
 
     @abstractmethod
     def private_data(self, service: PassiveService) -> List[Data]:
@@ -695,7 +661,6 @@ class ServiceConfiguration(ABC):
 
         :return: A list of private data instances on the service.
         """
-        pass
 
     @abstractmethod
     def public_authorizations(self, service: PassiveService) -> List[Authorization]:
@@ -711,7 +676,6 @@ class ServiceConfiguration(ABC):
 
         :return: A list of publicly available authorization instances.
         """
-        pass
 
     @abstractmethod
     def private_authorizations(self, service: PassiveService) -> List[Authorization]:
@@ -727,7 +691,6 @@ class ServiceConfiguration(ABC):
 
         :return: A list of privately available authorization instances.
         """
-        pass
 
     @abstractmethod
     def sessions(self, service: PassiveService) -> List[Session]:
@@ -740,7 +703,6 @@ class ServiceConfiguration(ABC):
 
         :return: A list of sessions connected to the service.
         """
-        pass
 
     @abstractmethod
     def provides_auth(self, service: Service, auth_provider: AuthenticationProvider) -> None:
@@ -759,7 +721,6 @@ class ServiceConfiguration(ABC):
 
         :return: None
         """
-        pass
 
     @abstractmethod
     def set_scheme(self, service: PassiveService, scheme: AccessScheme) -> None:
@@ -775,7 +736,6 @@ class ServiceConfiguration(ABC):
 
         :return: None
         """
-        pass
 
 
 class NetworkConfiguration(ABC):
@@ -795,7 +755,6 @@ class NetworkConfiguration(ABC):
 
         :return: None
         """
-        pass
 
     @abstractmethod
     def add_connection(self, source: Node, target: Node, source_port_index: int = -1, target_port_index: int = -1,
@@ -830,7 +789,6 @@ class NetworkConfiguration(ABC):
 
         :return: An instance of a connection that was established between selected nodes.
         """
-        pass
 
     @abstractmethod
     def get_connections(self, node: Node, port_index: Optional[int] = None) -> List[Connection]:
@@ -845,7 +803,6 @@ class NetworkConfiguration(ABC):
 
         :return: A list of connections that are connected to the node.
         """
-        pass
 
     @abstractmethod
     def create_session(self, owner: str, waypoints: List[Union[str, Node]], src_service: Optional[str] = None,
@@ -886,7 +843,6 @@ class NetworkConfiguration(ABC):
 
         :return: An instance of a created session (unless deferred, than it always return null)
         """
-        pass
 
     @abstractmethod
     def append_session(self, original_session: Session, appended_session: Session) -> Session:
@@ -903,7 +859,6 @@ class NetworkConfiguration(ABC):
 
         :return: A new session that is a combination of both the original ones.
         """
-        pass
 
     @abstractmethod
     def create_session_from_message(self, message: Message) -> Session:
@@ -916,7 +871,6 @@ class NetworkConfiguration(ABC):
 
         :return: A new session.
         """
-        pass
 
 
 class ExploitConfiguration(ABC):
@@ -941,7 +895,6 @@ class ExploitConfiguration(ABC):
 
         :return: A vulnerable service description.
         """
-        pass
 
     @abstractmethod
     def create_exploit_parameter(self, exploit_type: ExploitParameterType, value: str = "", immutable: bool = False) -> ExploitParameter:
@@ -964,7 +917,6 @@ class ExploitConfiguration(ABC):
 
         :return: An instance of exploit parameter.
         """
-        pass
 
     @abstractmethod
     def create_exploit(self, id: str = "", services: List[VulnerableService] = None, locality:
@@ -993,7 +945,6 @@ class ExploitConfiguration(ABC):
         
         :return: An instance of the exploit.
         """
-        pass
 
     @abstractmethod
     def add_exploit(self, *exploits: Exploit) -> None:
@@ -1006,7 +957,6 @@ class ExploitConfiguration(ABC):
 
         :return: None
         """
-        pass
 
     @abstractmethod
     def clear_exploits(self) -> None:
@@ -1015,7 +965,6 @@ class ExploitConfiguration(ABC):
 
         :return: None
         """
-        pass
 
 
 class ActionConfiguration(ABC):
@@ -1032,7 +981,6 @@ class ActionConfiguration(ABC):
 
         :return: An unbounded parameter domain.
         """
-        pass
 
     @abstractmethod
     def create_action_parameter_domain_range(self, default: int, min: int, max: int, step: int = 1) -> ActionParameterDomain:
@@ -1054,7 +1002,6 @@ class ActionConfiguration(ABC):
 
         :return: A parameter domain consisting of range of numbers.
         """
-        pass
 
     @abstractmethod
     def create_action_parameter_domain_options(self, default: Any, options: List[Any]) -> ActionParameterDomain:
@@ -1070,7 +1017,6 @@ class ActionConfiguration(ABC):
 
         :return: A parameter domain consisting of set of values.
         """
-        pass
 
 
 class AccessConfiguration(ABC):
@@ -1109,7 +1055,6 @@ class AccessConfiguration(ABC):
 
         :return: An authentication provider instance.
         """
-        pass
 
     @abstractmethod
     def create_authentication_token(self, type: AuthenticationTokenType, security: AuthenticationTokenSecurity,
@@ -1135,7 +1080,6 @@ class AccessConfiguration(ABC):
 
         :return: An instance of authentication token.
         """
-        pass
 
     @abstractmethod
     def register_authentication_token(self, provider: AuthenticationProvider, token: AuthenticationToken) -> bool:
@@ -1151,7 +1095,6 @@ class AccessConfiguration(ABC):
 
         :return: Indication, whether registration was successful.
         """
-        pass
 
     @abstractmethod
     def unregister_authentication_token(self, token_identity: str, provider: AuthenticationProvider) -> None:
@@ -1166,7 +1109,6 @@ class AccessConfiguration(ABC):
 
         :return: None
         """
-        pass
 
     @abstractmethod
     def create_and_register_authentication_token(self, provider: AuthenticationProvider, identity: str) -> Optional[AuthenticationToken]:
@@ -1183,7 +1125,6 @@ class AccessConfiguration(ABC):
 
         :return: An instance of authentication token that is already registered.
         """
-        pass
 
     @abstractmethod
     def create_authorization(self, identity: str, access_level: AccessLevel, id: str, nodes: Optional[List[str]] = None,
@@ -1213,7 +1154,6 @@ class AccessConfiguration(ABC):
 
         :return: An authorization token.
         """
-        pass
 
     @abstractmethod
     def create_access_scheme(self, id: str = "") -> AccessScheme:
@@ -1228,7 +1168,6 @@ class AccessConfiguration(ABC):
 
         :return: An empty access scheme.
         """
-        pass
 
     @abstractmethod
     def add_provider_to_scheme(self, provider : AuthenticationProvider, scheme: AccessScheme) -> None:
@@ -1243,7 +1182,6 @@ class AccessConfiguration(ABC):
 
         :return: None
         """
-        pass
 
     @abstractmethod
     def add_authorization_to_scheme(self, auth: Authorization, scheme: AccessScheme) -> None:
@@ -1258,7 +1196,6 @@ class AccessConfiguration(ABC):
 
         :return: None
         """
-        pass
 
     @abstractmethod
     def remove_authorization_from_scheme(self, auth: Authorization, scheme: AccessScheme) -> None:
@@ -1301,7 +1238,6 @@ class AccessConfiguration(ABC):
 
         :return: Either a working authorization, a next target, or just none if the authentication was not successful.
         """
-        pass
 
     @abstractmethod
     def disable_authentication_token(self, provider: AuthenticationProvider, token: AuthenticationToken, time: int) -> None:
@@ -1319,7 +1255,6 @@ class AccessConfiguration(ABC):
 
         :return: None
         """
-        pass
 
     @abstractmethod
     def enable_authentication_token(self, provider: AuthenticationProvider, token: AuthenticationToken) -> None:
@@ -1334,7 +1269,6 @@ class AccessConfiguration(ABC):
 
         :return: None
         """
-        pass
 
     @abstractmethod
     def create_service_access(self, service: Service, identity: str, access_level: AccessLevel,
@@ -1360,7 +1294,6 @@ class AccessConfiguration(ABC):
 
         :return: List of authentication tokens if successful, None otherwise.
         """
-        pass
 
     @abstractmethod
     def modify_existing_access(self, service: Service, identity: str, access_level: AccessLevel) -> bool:
@@ -1381,4 +1314,3 @@ class AccessConfiguration(ABC):
 
         :return: True if successful, False otherwise.
         """
-        pass

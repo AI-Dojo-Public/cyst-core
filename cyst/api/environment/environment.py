@@ -1,4 +1,5 @@
 from abc import ABC, abstractmethod
+from enum import Enum, auto
 from typing import List
 
 from cyst.api.configuration.configuration import ConfigItem
@@ -7,6 +8,11 @@ from cyst.api.environment.control import EnvironmentControl
 from cyst.api.environment.messaging import EnvironmentMessaging
 from cyst.api.environment.resources import EnvironmentResources
 from cyst.api.environment.policy import EnvironmentPolicy
+
+
+class EnvironmentMode(Enum):
+    SIMULATION = auto()
+    EMULATION_CRYTON = auto()
 
 
 class Environment(ABC):
@@ -23,7 +29,6 @@ class Environment(ABC):
 
         :rtype: EnvironmentConfiguration
         """
-        pass
 
     @property
     @abstractmethod
@@ -33,7 +38,6 @@ class Environment(ABC):
 
         :rtype: EnvironmentControl
         """
-        pass
 
     @property
     @abstractmethod
@@ -43,7 +47,6 @@ class Environment(ABC):
 
         :rtype: EnvironmentMessaging
         """
-        pass
 
     @property
     @abstractmethod
@@ -56,7 +59,6 @@ class Environment(ABC):
 
         :rtype: EnvironmentPolicy
         """
-        pass
 
     @property
     @abstractmethod
@@ -66,7 +68,6 @@ class Environment(ABC):
 
         :rtype: EnvironmentResources
         """
-        pass
 
     @abstractmethod
     def configure(self, *config_item: ConfigItem) -> 'Environment':
@@ -87,10 +88,9 @@ class Environment(ABC):
             e = Environment.create().configure(*config)
 
         """
-        pass
 
     @classmethod
-    def create(cls) -> 'Environment':
+    def create(cls, mode: EnvironmentMode = EnvironmentMode.SIMULATION) -> 'Environment':
         """
         Creates a new instance of the environment. A program using CYST can use multiple environments, however, each
         simulation run happens only in the context of one environment.

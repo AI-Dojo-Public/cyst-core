@@ -28,7 +28,6 @@ class MetadataProvider(ABC):
         semantic of specific actions, so it is expected that such providers are released together with behavioral
         model implementation.
         """
-        pass
 
     @abstractmethod
     def get_metadata(self, action: Action) -> Metadata:
@@ -40,7 +39,6 @@ class MetadataProvider(ABC):
 
         :return: A metadata associated with the action.
         """
-        pass
 
 
 @dataclass
