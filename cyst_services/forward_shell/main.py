@@ -1,11 +1,11 @@
+import logging
+
 from typing import Any, Dict, Optional, Tuple
 
 from cyst.api.environment.message import Message, MessageType, Request, Status, StatusOrigin, StatusValue
 from cyst.api.environment.messaging import EnvironmentMessaging
 from cyst.api.environment.resources import EnvironmentResources
 from cyst.api.host.service import ActiveService, ActiveServiceDescription
-
-from cyst.api.utils.log import get_logger
 
 
 class ForwardShell(ActiveService):
@@ -16,7 +16,7 @@ class ForwardShell(ActiveService):
                  args: Optional[Dict[str, Any]] = None) -> None:
         self._messaging = msg
         self._resources = res
-        self._log = get_logger("services.forward_shell")
+        self._log = logging.getLogger("services.forward_shell")
         self._ignore_requests: bool = args is None or args.get("ignore_requests", True)
 
         self._success_sent = False

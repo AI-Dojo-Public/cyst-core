@@ -1,3 +1,5 @@
+import logging
+
 from typing import Any, Dict, Optional, Tuple
 
 from netaddr import IPAddress
@@ -6,8 +8,6 @@ from cyst.api.environment.message import Message, MessageType, Request, Response
 from cyst.api.environment.messaging import EnvironmentMessaging
 from cyst.api.environment.resources import EnvironmentResources
 from cyst.api.host.service import ActiveService, ActiveServiceDescription
-
-from cyst.api.utils.log import get_logger
 
 
 class ReverseShell(ActiveService):
@@ -18,7 +18,7 @@ class ReverseShell(ActiveService):
                  args: Optional[Dict[str, Any]] = None) -> None:
         self._messaging = msg
         self._resources = res
-        self._log = get_logger("services.reverse_shell")
+        self._log = logging.getLogger("services.reverse_shell")
 
         self._success_sent = False
         if args and (origin := args.get("origin")):
