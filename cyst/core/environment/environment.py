@@ -518,7 +518,7 @@ class _Environment(Environment, EnvironmentConfiguration):
         message = MessageImpl.cast_from(result)
         processing_time = max(0, delay)
 
-    # HACK: Because we want to enable actions to be able to target routers, we need to bypass the router processing
+        # HACK: Because we want to enable actions to be able to target routers, we need to bypass the router processing
         #       if the message is at the end of its journey
         last_hop = message.dst_ip == message.current.ip #MYPY: current can return None
 
