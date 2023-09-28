@@ -1,3 +1,4 @@
+import asyncio
 from typing import List, Optional, Tuple, Any, Dict
 
 from cyst.api.logic.action import Action, ActionDescription, ActionParameter, ActionToken, ActionParameterDomain, ActionParameterDomainType
@@ -178,3 +179,44 @@ class ActionImpl(Action):
 
     def copy(self):
         return ActionImpl(ActionDescription(self.id, self._description, list(self._parameters.values()), self._tokens))
+
+
+class CompositeAction:
+    def __init__(self):
+        self._future = None
+
+    def id(self):
+        return 1
+
+    def __await__(self):
+        return self.execute().__await__()
+
+    async def call_action(self, action_id: str):
+        pass
+
+    async def execute(self):
+        print("Doing some action")
+        await self._future
+        print("Action done")
+
+
+class ScanTheNet(CompositeAction):
+    async def execute(self):
+        result_set = []
+        for i in range(3):
+            result_set.append(await self.call_action("scan:the:machine"))
+        return result_set
+
+
+class CompositeActionManager:
+    def __init__(self):
+        self._loop = asyncio.new_event_loop()
+
+    def process_request(self, composite_action: CompositeAction):
+        future = self._loop.create_future()
+        composite_action.set_loop(self._loop)
+        composite_action.execute(future)
+
+
+    def process_response(self):
+        pass

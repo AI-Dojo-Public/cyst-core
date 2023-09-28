@@ -621,6 +621,18 @@ class _Environment(Environment, EnvironmentConfiguration):
                 # An active service does not necessarily produce Responses, so we should just move time
                 # somehow and be done with it.
                 # TODO How to move time?
+
+                # The response is reaching its destination. If it is a part of a composite action, we defer the
+                # processing to the composite action manager.
+                # Logic:
+                # - if message.is_composite_action_chain:
+                #     # CompositeActionManager swallows messages belonging to the chain and only returns a processable
+                #     # message after the final action is done or irrecoverable error is encountered
+                #     message = CompositeActionManager.process(message)
+                #
+                #   if message:
+                #        active_service.process_message()
+
                 result, delay = current_node.services[message.dst_service].active_service.process_message(message)
 
                 if message_type == "response" and current_node.id + "." + message.dst_service in self._pause_on_response:

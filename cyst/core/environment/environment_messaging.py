@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from heapq import heappush
 from netaddr import IPAddress
-from typing import TYPE_CHECKING, Optional, Any, Union
+from typing import TYPE_CHECKING, Optional, Any, Union, Dict
 
 from cyst.api.environment.message import Request, Response, Status, Message
 from cyst.api.environment.messaging import EnvironmentMessaging
@@ -25,6 +25,13 @@ class EnvironmentMessagingImpl(EnvironmentMessaging):
         self._env = env
 
     def send_message(self, message: Message, delay: int = 0) -> None:
+        # Messages with composite actions need to be processed via ActionManager
+        # Logic:
+        # if message.action.is_composite_action:
+        #    self._env.composite_action_manager.process_composite_action(message)
+        # else:
+        #    # the rest
+
         m = MessageImpl.cast_from(message)
         _send_message(self._env, m, delay)
 
