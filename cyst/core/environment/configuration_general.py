@@ -17,7 +17,7 @@ from cyst.api.configuration.logic.access import AuthorizationConfig, Authenticat
 from cyst.api.configuration.logic.data import DataConfig
 from cyst.api.configuration.logic.exploit import VulnerableServiceConfig, ExploitParameterConfig, ExploitConfig
 from cyst.api.configuration.network.elements import PortConfig, InterfaceConfig, ConnectionConfig, RouteConfig
-from cyst.api.configuration.network.firewall import FirewallChainConfig, FirewallConfig
+from cyst.api.configuration.network.firewall import FirewallChainConfig, FirewallConfig, FirewallPolicy, FirewallChainType
 from cyst.api.configuration.network.network import NetworkConfig
 from cyst.api.configuration.network.router import RouterConfig
 from cyst.api.configuration.network.node import NodeConfig
@@ -657,6 +657,29 @@ class Configurator:
                 self._env.configuration.node.add_route(r, route_obj)
 
             # TODO: Code duplication... this is one of the things to fix once routers and nodes are combined together
+
+            # HACK: To have a sensible default, we add a permissive firewall that enables forwarding on the router if
+            # there are no traffic processors specified. The implementation is not pretty.
+            have_fw = False
+            for processor in router.traffic_processors:
+                processor_cfg: Union[ActiveServiceConfig, FirewallConfig] = self._refs[processor]
+                if isinstance(processor_cfg, FirewallConfig):
+                    have_fw = True
+
+            if not have_fw:
+                fw_id = str(uuid.uuid4())
+                self._refs[fw_id] = FirewallConfig(
+                                        default_policy=FirewallPolicy.DENY,
+                                        chains=[
+                                            FirewallChainConfig(
+                                                type=FirewallChainType.FORWARD,
+                                                policy=FirewallPolicy.ALLOW,
+                                                rules=[]
+                                            )
+                                        ]
+                                    )
+                router.traffic_processors.append(fw_id)
+
             for processor in router.traffic_processors:
                 processor_cfg: Union[ActiveServiceConfig, FirewallConfig] = self._refs[processor]
                 if isinstance(processor_cfg, ActiveServiceConfig):
@@ -668,7 +691,7 @@ class Configurator:
                     #       to hardcode.
                     s = self._env.configuration.service.create_active_service("firewall", "root",
                                                                               "firewall", r, AccessLevel.ELEVATED,
-                                                                              None)
+                                                                              {"default_policy": processor_cfg.default_policy})
 
                     # This is not very pretty. But coding around it would require unnecessary expansion of the API.
                     if isinstance(s.active_service, FirewallImpl):

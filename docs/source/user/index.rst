@@ -42,6 +42,11 @@ First steps
 ===========
 
 The following section will guide you through setting up the simulation environment and launching your first simulations.
+All code snippets can be accessed from cyst-core source code, where they are located in the following directory:
+
+.. code-block:: console
+
+        cyst_examples/user_documentation/first_steps
 
 Setting it all up
 -----------------
@@ -152,6 +157,7 @@ to your previous code:
                     ],
                     shell="bash_service",
                     interfaces=[],
+                    traffic_processors=[],
                     id="target"
                 )
 
@@ -196,7 +202,11 @@ The rest of the configuration is mostly empty (but required), so the only import
 of the bash service is set as the shell of the node. By itself the shell does not play an important role, but it is
 used for evaluation of specific actions and exploits.
 
-Line (19) extends the previous environment creation by adding the configure() call. It takes any number of configuration
+There is a configuration option for optional traffic processors on line (17). Traffic processors are active services
+that are processing messages before they arrive to a target service. A typical example of such processor is a firewall.
+If no processor is present, then messages travel freely to their destination.
+
+Line (21) extends the previous environment creation by adding the configure() call. It takes any number of configuration
 objects and instantiates them within the simulation. In your case, only the target configuration.
 
 You can try and run the simulation, but nothing visible would happen and you would probably only see changes in the
@@ -349,6 +359,7 @@ Here is the router configuration:
                 index=1
               )
             ],
+            traffic_processors=[],
             id="router"
         )
 
@@ -361,6 +372,11 @@ automatically sets routing within that network. The index represents a "physical
 needed to correctly establish connections by "putting the cable into the right hole". For machines, when an interface
 is explicitly specified, it represents an interface with a static IP address. However, in the case of DHCP, no interface
 needs to be configured as this will all happen automagically.
+
+Just as ordinary nodes, router has an option to use traffic processors. One of the traffic processors is the firewall
+which is used for controlling which messages can reach the router, but more importantly, which messages will go past the
+router. If no traffic processor is present, the default of permissive forwarding and denied targeting of router is used.
+Details of this configuration will be described in other sections of the documentation.
 
 So, now it's time to connect the router and the node.
 
@@ -443,6 +459,7 @@ step happens only after the simulation environment is configured, as you need to
     .. code-block:: python
         :linenos:
 
+        from cyst.api.host.service import Service
         from cyst_services.scripted_actor.main import ScriptedActorControl
 
         e = Environment.create().configure(target, router, attacker, exploit1, connection1, connection2)
