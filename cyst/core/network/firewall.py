@@ -2,7 +2,7 @@ from typing import Any, Dict, List, NamedTuple, Optional, Tuple
 from netaddr import IPAddress, IPNetwork
 
 from cyst.api.host.service import ActiveService, ActiveServiceDescription
-from cyst.api.environment.message import Message
+from cyst.api.environment.message import Message, Request, Status, StatusValue, StatusOrigin
 from cyst.api.environment.resources import EnvironmentResources
 from cyst.api.environment.messaging import EnvironmentMessaging
 from cyst.api.network.firewall import Firewall, FirewallChainType, FirewallRule, FirewallPolicy
@@ -50,6 +50,7 @@ class FirewallImpl(ActiveService, Firewall):
             return False, 0
 
     def __init__(self, env: EnvironmentMessaging = None, args: Optional[Dict[str, Any]] = None) -> None:
+        self._msg = env
         default_policy = FirewallPolicy.DENY
         if args:
             default_policy = args.get("default_policy", FirewallPolicy.DENY)
@@ -108,7 +109,17 @@ class FirewallImpl(ActiveService, Firewall):
         return self._chains[chain].evaluate(src_ip, dst_ip, dst_service)
 
     def process_message(self, message: Message) -> Tuple[bool, int]:
-        return self.evaluate(message.src_ip, message.dst_ip, message.dst_service)
+        result, processing_time = self.evaluate(message.src_ip, message.dst_ip, message.dst_service)
+
+        # Sending a response that the message did not arrive
+        if not result:
+            assert(isinstance(message, Request))
+            response = self._msg.create_response(message, Status(StatusOrigin.NETWORK, StatusValue.FAILURE),
+                                                 f"Destination {message.dst_ip}:{message.dst_service} unreachable",
+                                                 session=message.session, auth=message.auth)
+            self._msg.send_message(response, processing_time)
+
+        return result, processing_time
 
 
 def create_firewall(msg: EnvironmentMessaging, res: EnvironmentResources, args: Optional[Dict[str, Any]]) -> ActiveService:
