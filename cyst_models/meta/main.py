@@ -1,5 +1,5 @@
 from dataclasses import dataclass
-from typing import Tuple, Dict, Callable
+from typing import Tuple, Dict, Callable, List
 
 from netaddr import IPAddress
 
@@ -9,7 +9,7 @@ from cyst.api.environment.messaging import EnvironmentMessaging
 from cyst.api.environment.policy import EnvironmentPolicy
 from cyst.api.environment.resources import EnvironmentResources
 from cyst.api.logic.access import AuthenticationTarget, Authorization
-from cyst.api.logic.action import ActionDescription, ActionParameterType, ActionParameter, ActionType, ExecutionEnvironment, ExecutionEnvironmentType
+from cyst.api.logic.action import ActionDescription, ActionParameterType, ActionParameter, ActionType, ExecutionEnvironment, ExecutionEnvironmentType, Action
 from cyst.api.logic.behavioral_model import BehavioralModel, BehavioralModelDescription
 from cyst.api.logic.composite_action import CompositeActionManager
 from cyst.api.network.node import Node
@@ -53,10 +53,11 @@ class METAModel(BehavioralModel):
                                                  parameters=[ActionParameter(ActionParameterType.TOKEN, "auth_token", configuration.action.create_action_parameter_domain_any())]))
 
     async def action_flow(self, message: Request) -> Tuple[int, Response]:
-        pass
+        raise RuntimeError("META behavioral model does not support composite actions.")
 
-    def action_components(self, message: Message) -> None:
-        pass
+    def action_components(self, message: Message) -> List[Action]:
+        # META actions are component-less
+        return []
 
     def action_effect(self, message: Request, node: Node) -> Tuple[int, Response]:
         if not message.action:

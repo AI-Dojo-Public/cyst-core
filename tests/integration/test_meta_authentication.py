@@ -206,11 +206,11 @@ class TestMetaAuth(unittest.TestCase):
 
         _action_list = cls._env.resources.action_store.get_prefixed("meta")
         for action in _action_list:
-            cls._actions[action.id] = action.copy()
+            cls._actions[action.id] = action
 
         _action_list = cls._env.resources.action_store.get_prefixed("cyst")
         for action in _action_list:
-            cls._actions[action.id] = action.copy()
+            cls._actions[action.id] = action
 
         # create attacker
         attacker_service = cls._env.configuration.general.get_object_by_id("attacker_service", Service)

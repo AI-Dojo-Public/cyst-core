@@ -196,7 +196,7 @@ class ActionImpl(Action):
             raise ValueError("Malformed underlying object passed with the Action interface")
 
     def copy(self):
-        return ActionImpl(ActionDescription(self.id, self._description, list(self._parameters.values())))
+        return ActionImpl(ActionDescription(self.id, self.type, self._description, list(self._parameters.values())))
 
 
 class CompositeAction:

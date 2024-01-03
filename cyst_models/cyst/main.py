@@ -1,81 +1,103 @@
-from typing import Tuple, Callable
+from typing import Tuple, Callable, Union, List
 
 from cyst.api.environment.configuration import EnvironmentConfiguration
-from cyst.api.environment.interpreter import ActionInterpreter, ActionInterpreterDescription
 from cyst.api.environment.message import Request, Response, Status, StatusOrigin, StatusValue
 from cyst.api.environment.messaging import EnvironmentMessaging
 from cyst.api.environment.policy import EnvironmentPolicy
 from cyst.api.environment.resources import EnvironmentResources
-from cyst.api.logic.action import ActionDescription, ActionParameterType, ActionParameterDomain, ActionParameterDomainType, ActionParameter
+from cyst.api.logic.action import ActionDescription, ActionParameterType, ActionParameter, Action, ActionType, ExecutionEnvironment, ExecutionEnvironmentType
+from cyst.api.logic.behavioral_model import BehavioralModel, BehavioralModelDescription
+from cyst.api.logic.composite_action import CompositeActionManager
 from cyst.api.network.node import Node
 
 
-class CYSTModel(ActionInterpreter):
+class CYSTModel(BehavioralModel):
     def __init__(self, configuration: EnvironmentConfiguration, resources: EnvironmentResources,
-                 policy: EnvironmentPolicy, messaging: EnvironmentMessaging) -> None:
+                 policy: EnvironmentPolicy, messaging: EnvironmentMessaging,
+                 composite_action_manager: CompositeActionManager) -> None:
 
         self._configuration = configuration
         self._action_store = resources.action_store
         self._exploit_store = resources.exploit_store
         self._policy = policy
         self._messaging = messaging
+        self._cam = composite_action_manager
 
-        self._action_store.add(ActionDescription("cyst:test:echo_success",
-                                                 "A testing message that returns a SERVICE|SUCCESS",
-                                                 [ActionParameter(ActionParameterType.NONE, "punch_strength",
-                                                                  configuration.action.create_action_parameter_domain_options("weak", ["weak", "super strong"]))]))
+        self._action_store.add(ActionDescription(id="cyst:test:echo_success",
+                                                 type=ActionType.DIRECT,
+                                                 environment=ExecutionEnvironment(ExecutionEnvironmentType.SIMULATION, "CYST"),
+                                                 description="A testing message that returns a SERVICE|SUCCESS",
+                                                 parameters=[ActionParameter(ActionParameterType.NONE, "punch_strength",
+                                                                             configuration.action.create_action_parameter_domain_options("weak", ["weak", "super strong"]))]))
 
-        self._action_store.add(ActionDescription("cyst:test:echo_failure",
-                                                 "A testing message that returns a SERVICE|FAILURE",
-                                                 []))  # No parameters
+        self._action_store.add(ActionDescription(id="cyst:test:echo_failure",
+                                                 type=ActionType.DIRECT,
+                                                 environment=ExecutionEnvironment(ExecutionEnvironmentType.SIMULATION, "CYST"),
+                                                 description="A testing message that returns a SERVICE|FAILURE",
+                                                 parameters=[]))
 
-        self._action_store.add(ActionDescription("cyst:test:echo_error",
-                                                 "A testing message that returns a SERVICE|ERROR",
-                                                 []))  # No parameters
+        self._action_store.add(ActionDescription(id="cyst:test:echo_error",
+                                                 type=ActionType.DIRECT,
+                                                 environment=ExecutionEnvironment(ExecutionEnvironmentType.SIMULATION, "CYST"),
+                                                 description="A testing message that returns a SERVICE|ERROR",
+                                                 parameters=[]))
 
-        self._action_store.add(ActionDescription("cyst:network:create_session",
-                                                 "Create a session to a destination service",
-                                                 []))  # No parameters
+        self._action_store.add(ActionDescription(id="cyst:network:create_session",
+                                                 type=ActionType.DIRECT,
+                                                 environment=ExecutionEnvironment(ExecutionEnvironmentType.SIMULATION, "CYST"),
+                                                 description="Create a session to a destination service",
+                                                 parameters=[]))
 
-        self._action_store.add(ActionDescription("cyst:host:get_services",
-                                                 "Get list of services on target node",
-                                                 []))  # No parameters
+        self._action_store.add(ActionDescription(id="cyst:host:get_services",
+                                                 type=ActionType.DIRECT,
+                                                 environment=ExecutionEnvironment(ExecutionEnvironmentType.SIMULATION, "CYST"),
+                                                 description="Get list of services on target node",
+                                                 parameters=[]))
 
-        self._action_store.add(ActionDescription("cyst:host:get_remote_services",
-                                                 "Get list of services on target node",
-                                                 []))  # No parameters
+        self._action_store.add(ActionDescription(id="cyst:host:get_remote_services",
+                                                 type=ActionType.DIRECT,
+                                                 environment=ExecutionEnvironment(ExecutionEnvironmentType.SIMULATION, "CYST"),
+                                                 description="Get list of services on target node",
+                                                 parameters=[]))
 
-        self._action_store.add(ActionDescription("cyst:host:get_local_services",
-                                                 "Get list of services on target node",
-                                                 []))  # No parameters
+        self._action_store.add(ActionDescription(id="cyst:host:get_local_services",
+                                                 type=ActionType.DIRECT,
+                                                 environment=ExecutionEnvironment(ExecutionEnvironmentType.SIMULATION, "CYST"),
+                                                 description="Get list of services on target node",
+                                                 parameters=[]))
 
-        self._action_store.add(ActionDescription("cyst:compound:session_after_exploit",
-                                                 "Create a session after a successful application of an exploit",
-                                                 []))  # No parameters
+        self._action_store.add(ActionDescription(id="cyst:compound:session_after_exploit",
+                                                 type=ActionType.DIRECT,
+                                                 environment=ExecutionEnvironment(ExecutionEnvironmentType.SIMULATION, "CYST"),
+                                                 description="Create a session after a successful application of an exploit",
+                                                 parameters=[]))
 
-        self._action_store.add(ActionDescription("cyst:active_service:action_1",
-                                                 "A placeholder action for active services instead of dedicated behavioral model.",
-                                                 []))  # No parameters
+        self._action_store.add(ActionDescription(id="cyst:active_service:open_session",
+                                                 type=ActionType.DIRECT,
+                                                 environment=ExecutionEnvironment(ExecutionEnvironmentType.SIMULATION, "CYST"),
+                                                 description="Open a session to an existing active service acting as forward/reverse shell.",
+                                                 parameters=[]))
 
-        self._action_store.add(ActionDescription("cyst:active_service:action_2",
-                                                 "A placeholder action for active services instead of dedicated behavioral model.",
-                                                 []))  # No parameters
+        self._action_store.add(ActionDescription(id="cyst:active_service:action_1",
+                                                 type=ActionType.DIRECT,
+                                                 environment=ExecutionEnvironment(ExecutionEnvironmentType.SIMULATION, "CYST"),
+                                                 description="A placeholder action for active services instead of dedicated behavioral model.",
+                                                 parameters=[]))
 
-        self._action_store.add(ActionDescription("cyst:active_service:action_3",
-                                                 "A placeholder action for active services instead of dedicated behavioral model.",
-                                                 []))  # No parameters
+    async def action_flow(self, message: Request) -> Tuple[int, Response]:
+        raise RuntimeError("CYST namespace does not support composite actions")
 
-        self._action_store.add(ActionDescription("cyst:active_service:open_session",
-                                                 "Open a session to an existing active service acting as forward/reverse shell.",
-                                                 []))  # No parameters
-
-    def evaluate(self, message: Request, node: Node) -> Tuple[int, Response]:
+    def action_effect(self, message: Request, node: Node) -> Tuple[int, Response]:
         if not message.action:
             raise ValueError("Action not provided")
 
         action_name = "_".join(message.action.fragments)
         fn: Callable[[Request, Node], Tuple[int, Response]] = getattr(self, "process_" + action_name, self.process_default)
         return fn(message, node)
+
+    def action_components(self, message: Union[Request, Response]) -> List[Action]:
+        # CYST actions are component-less
+        return []
 
     # ------------------------------------------------------------------------------------------------------------------
     # CYST:TEST
@@ -180,13 +202,14 @@ class CYSTModel(ActionInterpreter):
 
 
 def create_cyst_model(configuration: EnvironmentConfiguration, resources: EnvironmentResources,
-                      policy: EnvironmentPolicy, messaging: EnvironmentMessaging) -> ActionInterpreter:
-    model = CYSTModel(configuration, resources, policy, messaging)
+                      policy: EnvironmentPolicy, messaging: EnvironmentMessaging,
+                      composite_action_manager: CompositeActionManager) -> BehavioralModel:
+    model = CYSTModel(configuration, resources, policy, messaging, composite_action_manager)
     return model
 
 
-action_interpreter_description = ActionInterpreterDescription(
-    "cyst",
-    "Behavioral model that is equivalent to CYST actionable API",
-    create_cyst_model
+action_interpreter_description = BehavioralModelDescription(
+    namespace="cyst",
+    description="Behavioral model that is equivalent to CYST actionable API",
+    creation_fn=create_cyst_model
 )

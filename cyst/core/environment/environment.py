@@ -481,7 +481,7 @@ class _Environment(Environment, EnvironmentConfiguration):
                                                             session=message.session, auth=message.auth) #MYPY: AuthenticationToken is not valid type here. Depends, if they were just forgotten in annotation or not
             # TODO: assess if locality check makes sense
             original_action = message.action
-            auth_action = self._environment_resources.action_store.get("meta:authenticate").copy()
+            auth_action = self._environment_resources.action_store.get("meta:authenticate")
             auth_action.parameters["auth_token"].value = message.auth
             message.action = auth_action  # swap to authentication
             auth_time, auth_response = self._behavioral_models["meta"].action_effect(message, node)
