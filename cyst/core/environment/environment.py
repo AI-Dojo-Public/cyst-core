@@ -20,12 +20,14 @@ from cyst.api.environment.environment import Environment
 from cyst.api.environment.control import EnvironmentState, EnvironmentControl
 from cyst.api.environment.configuration import EnvironmentConfiguration, GeneralConfiguration, NodeConfiguration, \
     ServiceConfiguration, NetworkConfiguration, ExploitConfiguration, AccessConfiguration, ActionConfiguration
+from cyst.api.environment.interpreter import ActionInterpreterDescription
 from cyst.api.environment.messaging import EnvironmentMessaging
 from cyst.api.environment.metadata_provider import MetadataProvider
 from cyst.api.environment.policy import EnvironmentPolicy
 from cyst.api.environment.resources import EnvironmentResources
 from cyst.api.environment.message import Message, MessageType, Request, StatusValue, StatusOrigin, Status, StatusDetail, Timeout
 from cyst.api.logic.access import AuthenticationToken
+from cyst.api.logic.behavioral_model import BehavioralModelDescription, BehavioralModel
 from cyst.api.network.node import Node
 from cyst.api.network.session import Session
 from cyst.api.network.firewall import FirewallRule, FirewallPolicy
@@ -50,9 +52,10 @@ from cyst.core.environment.proxy import EnvironmentProxy
 from cyst.core.environment.stores import ServiceStoreImpl
 from cyst.core.host.service import ServiceImpl
 from cyst.core.logic.access import AuthenticationTokenImpl
+from cyst.core.logic.composite_action import CompositeActionManagerImpl
 from cyst.core.logic.policy import Policy
 from cyst.core.network.elements import Endpoint, InterfaceImpl, Hop
-from cyst.core.network.firewall import service_description as firewall_service_description
+from cyst.core.network.firewall import service_description as firewall_service_description, Firewall
 from cyst.core.network.network import Network
 from cyst.core.network.node import NodeImpl
 from cyst.core.network.router import Router
@@ -84,11 +87,13 @@ class _Environment(Environment, EnvironmentConfiguration):
 
         self._service_store = ServiceStoreImpl(self.messaging, self.resources)
 
-        self._interpreters: Dict[str, ActionInterpreter] = {}
+        self._behavioral_models: Dict[str, BehavioralModel] = {}
         # TODO currently, there can be only on metadata provider for one namespace
         self._metadata_providers: Dict[str, MetadataProvider] = {}
 
         self._policy = Policy(self)
+
+        self._cam = CompositeActionManagerImpl(self._behavioral_models, self._environment_messaging, self._environment_resources)
 
         self._sessions_to_add: List[Tuple[ str, List[Union[str, Node]],Optional[str] ,Optional[str], Optional[Session], bool]] = []
 
@@ -479,7 +484,7 @@ class _Environment(Environment, EnvironmentConfiguration):
             auth_action = self._environment_resources.action_store.get("meta:authenticate").copy()
             auth_action.parameters["auth_token"].value = message.auth
             message.action = auth_action  # swap to authentication
-            auth_time, auth_response = self._interpreters["meta"].evaluate(message, node)
+            auth_time, auth_response = self._behavioral_models["meta"].action_effect(message, node)
 
             if auth_response.status.value == StatusValue.FAILURE:  # not authorized
                 return auth_time, auth_response
@@ -489,8 +494,10 @@ class _Environment(Environment, EnvironmentConfiguration):
         #  and continue to action
 
         # TODO: In light of tags abandonment, how to deal with splitting id into namespace and action name
-        if message.action.namespace in self._interpreters:
-            time, response = self._interpreters[message.action.namespace].evaluate(message, node)
+        if message.action.namespace in self._behavioral_models:
+            time, response = self._behavioral_models[message.action.namespace].action_effect(message, node)
+        else:
+            raise RuntimeError(f"Could not find behavioral model for action namespace {message.action.namespace}")
 
         return time, response
 
@@ -516,9 +523,10 @@ class _Environment(Environment, EnvironmentConfiguration):
             pass
 
         message = MessageImpl.cast_from(result)
-        processing_time = max(0, delay)
+        # Traversing of connections must take at least 1 time unit
+        processing_time = max(1, delay)
 
-    # HACK: Because we want to enable actions to be able to target routers, we need to bypass the router processing
+        # HACK: Because we want to enable actions to be able to target routers, we need to bypass the router processing
         #       if the message is at the end of its journey
         last_hop = message.dst_ip == message.current.ip #MYPY: current can return None
 
@@ -569,7 +577,7 @@ class _Environment(Environment, EnvironmentConfiguration):
                     return
 
         # Message has to be processed locally
-        self._message_log.debug(f"Processing {message_type} on a node {current_node.id}. {message}")
+        self._message_log.debug(f"[time: {self._time}] Processing {message_type} on a node {current_node.id}. {message}")
 
         # Before a message reaches to services within, it is evaluated by all traffic processors
         # While they are returning true, everything is ok. Once they return false, the message processing stops
@@ -579,6 +587,11 @@ class _Environment(Environment, EnvironmentConfiguration):
         for processor in current_node.traffic_processors:
             result, delay = processor.process_message(message)
             if not result:
+                # This feels like a hack, but we are making sure that the firewall properly sends a termination response
+                if isinstance(processor, Firewall):
+                    response = ResponseImpl(message, Status(StatusOrigin.NETWORK, StatusValue.FAILURE),
+                                            "Host not reachable", session=message.session, auth=message.auth)
+                    self._environment_messaging.send_message(response, delay)
                 return
 
         # Service is requested
@@ -633,10 +646,13 @@ class _Environment(Environment, EnvironmentConfiguration):
                 #   if message:
                 #        active_service.process_message()
 
-                result, delay = current_node.services[message.dst_service].active_service.process_message(message)
+                if self._cam.is_composite(message.id):
+                    self._cam.incoming_message(message)
+                else:
+                    result, delay = current_node.services[message.dst_service].active_service.process_message(message)
 
-                if message_type == "response" and current_node.id + "." + message.dst_service in self._pause_on_response:
-                    self._pause = True
+                    if message_type == "response" and current_node.id + "." + message.dst_service in self._pause_on_response:
+                        self._pause = True
 
         # If no service is specified, it is a message to a node, but still, it is processed as a request for
         # passive service and processed with the interpreter
@@ -656,12 +672,24 @@ class _Environment(Environment, EnvironmentConfiguration):
 
     def _process(self) -> Tuple[bool, EnvironmentState]:
 
-        while self._tasks and not self._pause and not self._terminate:
-            next_time = self._tasks[0][0]
-            delta = next_time - self._time
+        # The processing runs as long as there are tasks to do, composite events to process and no one ordered pause
+        # or termination.
+        while (self._tasks or self._cam.processing()) and not self._pause and not self._terminate:
+            # Get the time of nearest task. It can happen that there are no tasks in the queue, but composite
+            # events are being processed. In that case, the time must not jump to another time window, until all
+            # composite events are processed.
+            delta = 0
+            if self._tasks:
+                next_time = self._tasks[0][0]
+                delta = next_time - self._time
 
-            # TODO singular timestep handling
-            self._time = next_time
+            if self._cam.processing():
+                self._cam.process(self._time)
+                # If we are processing composite events, we force time to stay at the current window
+                continue
+
+            # Moving to another time window
+            self._time += delta
 
             current_tasks: List[MessageImpl] = []
             while self._tasks and self._tasks[0][0] == self._time:
@@ -711,13 +739,20 @@ class _Environment(Environment, EnvironmentConfiguration):
         for s in plugin_models:
             model_description = s.load()
 
-            if model_description.namespace in self._interpreters:
+            if not isinstance(model_description, BehavioralModelDescription):
+                if isinstance(model_description, ActionInterpreterDescription):
+                    print(f"The model of namespace '{model_description.namespace}' uses the old API specification. "
+                          f"From version 0.6.0 only BehavioralModelDescription is supported. This model will be ignored.")
+                    continue
+                raise RuntimeError(f"Model of unsupported type [{type(model_description)}] intercepted. Please, fix the installation.")
+
+            if model_description.namespace in self._behavioral_models:
                 print("Behavioral model with namespace {} already registered, skipping it ...".format(
                     model_description.namespace))
             else:
                 model = model_description.creation_fn(self, self._environment_resources, self._policy,
-                                                      self._environment_messaging)
-                self._interpreters[model_description.namespace] = model
+                                                      self._environment_messaging, self._cam)
+                self._behavioral_models[model_description.namespace] = model
 
     def _register_metadata_providers(self) -> None:
 
@@ -729,9 +764,8 @@ class _Environment(Environment, EnvironmentConfiguration):
                 print("Metadata provider with namespace {} already registered, skipping ...".format(
                     provider_description.namespace))
             else:
-                provider = provider_description.creation_fn(self._environment_resources.action_store, self)
+                provider = provider_description.creation_fn()
                 self._metadata_providers[provider_description.namespace] = provider
-                provider.register_action_parameters()
 
 
 def create_environment() -> Environment:

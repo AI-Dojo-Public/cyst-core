@@ -1,4 +1,5 @@
 from abc import ABC, abstractmethod
+from deprecated.sphinx import versionchanged
 from netaddr import IPAddress
 from typing import Any, Optional, Union
 
@@ -32,9 +33,11 @@ class EnvironmentMessaging(ABC):
         pass
 
     @abstractmethod
+    @versionchanged(version="0.6.0", reason="Added original request parameter to enable request copying")
     def create_request(self, dst_ip: Union[str, IPAddress], dst_service: str = "", action: Optional[Action] = None,
                        session: Optional[Session] = None,
-                       auth: Optional[Union[Authorization, AuthenticationToken]] = None) -> Request:
+                       auth: Optional[Union[Authorization, AuthenticationToken]] = None,
+                       original_request: Optional[Request] = None) -> Request:
         """
         Creates a message of type REQUEST. This function is a domain of active services.
 
@@ -59,13 +62,19 @@ class EnvironmentMessaging(ABC):
             More in the description of the authentication/authorization framework.
         :type auth: Union[Authorization, AuthenticationToken]
 
+        :param original_request: If provided, values from the original request are used to fill blanks in the new
+            request. This is seldom needed in agent's code and is more useful when creating behavioral models.
+        :type original_request: Request
+
         :return: A Request to be sent.
         """
         pass
 
     @abstractmethod
+    @versionchanged(version="0.6.0", reason="Added original response parameter to enable response copying")
     def create_response(self, request: Request, status: Status, content: Optional[Any] = None, session: Optional[Session] = None,
-                        auth: Optional[Union[Authorization, AuthenticationTarget]] = None) -> Response:
+                        auth: Optional[Union[Authorization, AuthenticationTarget]] = None,
+                        original_response: Optional[Response] = None) -> Response:
         """
         Creates a message of type RESPONSE. This response is always created from a request.
 
@@ -89,6 +98,10 @@ class EnvironmentMessaging(ABC):
             request resulted in a creation of a new authorization token, or unless the request-response is a part of
             a multi-factor authentication (in which case an Authenticationtarget is returned).
         :type auth: Optional[Union[Authorization, AuthenticationTarget]]
+
+        :param original_response: If provided, values from the original response are used to fill blanks in the new
+            request. This is seldom needed in agent's code and is more useful when creating behavioral models.
+        :type original_response: Response
 
         :return: A response to be sent.
         """

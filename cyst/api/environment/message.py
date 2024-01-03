@@ -1,5 +1,6 @@
 from abc import ABC, abstractmethod
 from dataclasses import dataclass
+from deprecated.sphinx import versionadded
 from enum import Enum, auto
 from netaddr import IPAddress
 from typing import Any, Optional, Union, TypeVar, Type
@@ -292,7 +293,7 @@ class Message(ABC):
     def set_metadata(self, metadata: Metadata) -> None:
         """
         Sets a metadata to the message. This call overwrites the original value, so, if there is a multitude of
-        metadata providers, it is advisable to first call :func:`metadata()`, modify that, and then call set_metadata().
+        metadata providers, it is advisable to use :func:`add_metadata()`.
 
         :param metadata: A new value of the metadata.
         :type metdata: Metadata
@@ -334,6 +335,17 @@ class Response(Message, ABC):
     """
     Response is a message specialization the carries the result of associated request.
     """
+
+    @versionadded(version="0.6.0")
+    @property
+    @abstractmethod
+    def action(self) -> Action:
+        """
+        Gets an action associated with the original request.
+
+        :rtype: Action
+        """
+        pass
 
     @property
     @abstractmethod

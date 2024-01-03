@@ -1,9 +1,11 @@
 from abc import ABC, abstractmethod
 from dataclasses import dataclass
+from deprecated.sphinx import versionchanged
 from typing import Callable
 
 from cyst.api.environment.configuration import ActionConfiguration
 from cyst.api.environment.stores import ActionStore
+from cyst.api.environment.message import Message
 from cyst.api.logic.action import Action
 from cyst.api.logic.metadata import Metadata
 
@@ -13,32 +15,22 @@ class MetadataProvider(ABC):
     Metadata providers supply messages with additional information that are meant to mimic observations that can be
     done in the real life. Two typical examples of metadata can be 1) flow information, 2) results of traffic analyses.
     """
+    @versionchanged(version="0.6.0", reason="Metadata are collected for a whole message at the time of sending and are no longer solely dependent on Action.")
     @abstractmethod
-    def register_action_parameters(self) -> None:
+    def get_metadata(self, action: Action, message: Message) -> Metadata:
         """
-        There can be classes of metadata that are different for a particular action with particular parameters as
-        defined by the behavioral model. These different classes can manifest depending on parameters that are not
-        considered in the model itself. An example of such difference are various scanning techniques for a
-        reconnaissance action (e.g., SYN, FIN, XMAS scans). Each of these techniques would have different statistical
-        properties that would reflect in, e.g., flow information.
+        This function should return metadata that correspond to the given message.
 
-        This function gives the metadata providers an option to inject its own parameters into the actions of the action
-        store. These parameters should have a closed parameter domain for this to be reasonably usable.
-        Considering that this inject is done on a per-action basis, the metadata provider must understand the
-        semantic of specific actions, so it is expected that such providers are released together with behavioral
-        model implementation.
-        """
-        pass
-
-    @abstractmethod
-    def get_metadata(self, action: Action) -> Metadata:
-        """
-        This function should return metadata that correspond to the given action and its parameters.
-
-        :param action: An instance of the action.
+        :param action: The action for which the metadata should be provided. Given that a message can carry multiple
+            actions, a metadata provider must adhere to this parameter and not try to extract it from the message
+            itself.
         :type action: Action
 
-        :return: A metadata associated with the action.
+        :param message: An instance of the message. The message should be used to provide additional information
+            necessary to supply correct metadata, such as message type, message status, etc.
+        :type message: Message
+
+        :return: A metadata associated with the message.
         """
         pass
 
@@ -58,4 +50,4 @@ class MetadataProviderDescription:
     """
     namespace: str
     description: str
-    creation_fn: Callable[[ActionStore, ActionConfiguration], MetadataProvider]
+    creation_fn: Callable[[], MetadataProvider]

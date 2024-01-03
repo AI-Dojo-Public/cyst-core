@@ -1,12 +1,44 @@
 from abc import ABC, abstractmethod
 from collections.abc import Sequence
-from dataclasses import dataclass, field
+from dataclasses import dataclass
+from deprecated.sphinx import versionchanged, versionadded
 from enum import Enum
-from flags import Flags
-from typing import NamedTuple, List, Tuple, Optional, Any, Dict, Union
+from typing import List, Tuple, Optional, Any, Dict, Union
 
-from cyst.api.logic.access import AuthenticationToken
 from cyst.api.logic.exploit import Exploit
+
+
+@versionadded(version="0.6.0")
+class ExecutionEnvironmentType(Enum):
+    """
+    The type of environment that the actions are executed in.
+
+    Possible values:
+        :SIMULATION: A type of environment that has its infrastructure and action effects fully simulated.
+        :EMULATION: An environment, where eiter the infrastructure or action effects are offloaded.
+    """
+    SIMULATION = 0
+    EMULATION = 1
+
+
+@versionadded(version="0.6.0")
+@dataclass(frozen=True)
+class ExecutionEnvironment:
+    """
+    A full description of the execution environment governs which action effects are executed.
+
+    :param type: A type of execution environment.
+    :type type: ExecutionEnvironmentType
+
+    :param specification: Additional specification of the environment that is used to differentiate between the
+        available ones.
+    :type specification: str
+
+    The default value for built-in simulation of cyst is ExecutionEnvironment(type=ExecutionEnvironmentType.SIMULATION,
+    specification="CYST")
+    """
+    type: ExecutionEnvironmentType
+    specification: str
 
 
 class ActionParameterDomainType(Enum):
@@ -143,6 +175,7 @@ class ActionParameterType(Enum):
     TOKEN = 4,
     DATA = 5
 
+
 @dataclass
 class ActionParameter:
     """
@@ -167,41 +200,41 @@ class ActionParameter:
     value: Optional[Any] = None
 
 
-class ActionToken(Flags):
+@versionadded(version="0.6.0")
+class ActionType(Enum):
     """
-    Action tokens are used to describe at the high level, which tokens are required for the action to properly execute
-    in the context of an attack graph. Tokens are primarily used for automatic generation of simulation scenarios.
-    They are also currently being restructured.
-
-    An example usage:
-
-        .. code-block::
-
-            f1 = ActionToken.NONE
-            f2 = ActionToken.DATA | ActionToken.SESSION
+    Specifies the type of the action. The type governs, how the action is being evaluated during a simulation.
 
     Possible values:
-        :NONE: No additional token is required. An example is a scanning action.
-        :AUTH: Correct authorization or authentication tokens are required.
-        :DATA: Specific data must be obtained or produced.
-        :EXPLOIT: A working exploit must be present for this action to work.
-        :SESSION: A session must be established to the node the action is being executed on.
+        :COMPONENT: Component actions can only be expressed within the simulation as a part of another actions. They
+            do not have their own semantics expressed through a behavioral model. They are primarily used to provide
+            parametrized description of action elements, such as network flows. The intended recipient for these type
+            of actions are metadata providers, but behavioral models can also use them to fine-tune evaluation of
+            higher-level actions.
+        :DIRECT: Direct actions are expressed through a behavioral model. A direct action is always evaluated in the
+            context of the target it reached.
+        :COMPOSITE: Composite actions enable specification of higher-order actions. A composite action is defined by a
+            flow of other actions - composite or direct. Semantics of composite actions are defined through its
+            constituent actions, which get processed and evaluated in a given flow. A composite action is evaluated in
+            the context of its source.
     """
-    NONE = (),
-    AUTH = (),
-    DATA = (),
-    EXPLOIT = (),
-    SESSION = ()
+    COMPONENT = 0
+    DIRECT = 1
+    COMPOSITE = 2
 
 
+@versionchanged(version="0.6.0", reason="Removed action tokens until a new action meta-model is polished. Added type and execution environment specification.")
 @dataclass
 class ActionDescription:
     """
     A description of an action in the form that is used for registering into the system.
 
-    :param id: A unique name of the action. This name must be unique across all behavioral models, so it is advisible
-        to use own namespace for each model.
+    :param id: A name of the action. The combination of name and execution environment must be unique across all
+        behavioral models, so it is advisable to use own namespace for each model.
     :type id: str
+
+    :param type: A type of the action.
+    :type type: ActionType
 
     :param description: A textual description of the action.
     :type description: str
@@ -209,17 +242,15 @@ class ActionDescription:
     :param parameters: A list of action parameters.
     :type parameters: List[ActionParameter]
 
-    :param tokens: A list of action token tuples. Each tuple represents inputs and outputs like this (input tokens,
-        output tokens). Because a token is a flag, multiple tokens can be supplied by means of the OR operator, e.g.:
-
-        .. code-block::
-
-            (ActionToken.AUTH | ActionToken.EXPLOIT, ActionToken.SESSION).
+    :param environment: The execution environment, where the action is valid. One or more environments can be specified.
+        If none is provided, the default CYST simulation is assumed.
+    :type environment: Union[None, ExecutionEnvironment, List[ExecutionEnvironment]]
     """
     id: str
+    type: ActionType
     description: str
     parameters: List[ActionParameter]
-    tokens: List[Tuple[ActionToken, ActionToken]]
+    environment: Union[None, ExecutionEnvironment, List[ExecutionEnvironment]] = None
 
 
 class Action(ABC):
@@ -311,13 +342,26 @@ class Action(ABC):
         """
         pass
 
+    @versionadded(version="0.6.0")
     @property
     @abstractmethod
-    def tokens(self) -> List[Tuple[ActionToken, ActionToken]]:
+    def components(self) -> List['Action']:
         """
-        Returns a list of action tokens, which define inputs and outputs of the action.
+        Returns a list of actions that constitute components of this action.
 
-        :rtype: List[Tuple[ActionToken, ActionToken]]
+        :rtype: List[Action]
+        """
+        pass
+
+    @versionadded(version="0.6.0")
+    @abstractmethod
+    def add_components(self, *components: 'Action') -> None:
+        """
+        Adds one or more component actions to the actions. The system validates, whether an action has ActionType equal
+        to COMPONENT. If not, an exception is thrown.
+
+        :param components: One or more component Actions.
+        :type components: Action
         """
         pass
 
