@@ -4,7 +4,7 @@ CYST:
 
 .. toctree::
     user/index.rst
-    developer/index.rst
+    developer/actions.rst
     api/index.rst
 
 Indices and tables
