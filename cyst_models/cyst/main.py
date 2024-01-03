@@ -6,7 +6,7 @@ from cyst.api.environment.message import Request, Response, Status, StatusOrigin
 from cyst.api.environment.messaging import EnvironmentMessaging
 from cyst.api.environment.policy import EnvironmentPolicy
 from cyst.api.environment.resources import EnvironmentResources
-from cyst.api.logic.action import ActionDescription, ActionToken, ActionParameterType, ActionParameterDomain, ActionParameterDomainType, ActionParameter
+from cyst.api.logic.action import ActionDescription, ActionParameterType, ActionParameterDomain, ActionParameterDomainType, ActionParameter
 from cyst.api.network.node import Node
 
 
@@ -23,63 +23,51 @@ class CYSTModel(ActionInterpreter):
         self._action_store.add(ActionDescription("cyst:test:echo_success",
                                                  "A testing message that returns a SERVICE|SUCCESS",
                                                  [ActionParameter(ActionParameterType.NONE, "punch_strength",
-                                                                  configuration.action.create_action_parameter_domain_options("weak", ["weak", "super strong"]))],
-                                                 [(ActionToken.NONE, ActionToken.NONE)]))  # No tokens
+                                                                  configuration.action.create_action_parameter_domain_options("weak", ["weak", "super strong"]))]))
 
         self._action_store.add(ActionDescription("cyst:test:echo_failure",
                                                  "A testing message that returns a SERVICE|FAILURE",
-                                                 [],  # No parameters
-                                                 [(ActionToken.NONE, ActionToken.NONE)]))  # No tokens
+                                                 []))  # No parameters
 
         self._action_store.add(ActionDescription("cyst:test:echo_error",
                                                  "A testing message that returns a SERVICE|ERROR",
-                                                 [],  # No parameters
-                                                 [(ActionToken.NONE, ActionToken.NONE)]))  # No tokens
+                                                 []))  # No parameters
 
         self._action_store.add(ActionDescription("cyst:network:create_session",
                                                  "Create a session to a destination service",
-                                                 [],  # No parameters
-                                                 [(ActionToken.NONE, ActionToken.NONE)]))  # No tokens
+                                                 []))  # No parameters
 
         self._action_store.add(ActionDescription("cyst:host:get_services",
                                                  "Get list of services on target node",
-                                                 [],  # No parameters
-                                                 [(ActionToken.NONE, ActionToken.NONE)]))  # No tokens
+                                                 []))  # No parameters
 
         self._action_store.add(ActionDescription("cyst:host:get_remote_services",
                                                  "Get list of services on target node",
-                                                 [],  # No parameters
-                                                 [(ActionToken.NONE, ActionToken.NONE)]))  # No tokens
+                                                 []))  # No parameters
 
         self._action_store.add(ActionDescription("cyst:host:get_local_services",
                                                  "Get list of services on target node",
-                                                 [],  # No parameters
-                                                 [(ActionToken.NONE, ActionToken.NONE)]))  # No tokens
+                                                 []))  # No parameters
 
         self._action_store.add(ActionDescription("cyst:compound:session_after_exploit",
                                                  "Create a session after a successful application of an exploit",
-                                                 [],  # No parameters
-                                                 [(ActionToken.NONE, ActionToken.NONE)]))  # No tokens
+                                                 []))  # No parameters
 
         self._action_store.add(ActionDescription("cyst:active_service:action_1",
                                                  "A placeholder action for active services instead of dedicated behavioral model.",
-                                                 [],  # No parameters
-                                                 [(ActionToken.NONE, ActionToken.NONE)]))  # No tokens
+                                                 []))  # No parameters
 
         self._action_store.add(ActionDescription("cyst:active_service:action_2",
                                                  "A placeholder action for active services instead of dedicated behavioral model.",
-                                                 [],  # No parameters
-                                                 [(ActionToken.NONE, ActionToken.NONE)]))  # No tokens
+                                                 []))  # No parameters
 
         self._action_store.add(ActionDescription("cyst:active_service:action_3",
                                                  "A placeholder action for active services instead of dedicated behavioral model.",
-                                                 [],  # No parameters
-                                                 [(ActionToken.NONE, ActionToken.NONE)]))  # No tokens
+                                                 []))  # No parameters
 
         self._action_store.add(ActionDescription("cyst:active_service:open_session",
                                                  "Open a session to an existing active service acting as forward/reverse shell.",
-                                                 [],  # No parameters
-                                                 [(ActionToken.NONE, ActionToken.NONE)]))  # No tokens
+                                                 []))  # No parameters
 
     def evaluate(self, message: Request, node: Node) -> Tuple[int, Response]:
         if not message.action:

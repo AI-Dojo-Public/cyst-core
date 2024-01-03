@@ -4,13 +4,14 @@ from typing import Tuple, Dict, Callable
 from netaddr import IPAddress
 
 from cyst.api.environment.configuration import EnvironmentConfiguration
-from cyst.api.environment.interpreter import ActionInterpreter, ActionInterpreterDescription
-from cyst.api.environment.message import Request, Response, Status, StatusOrigin, StatusValue, StatusDetail
+from cyst.api.environment.message import Request, Response, Status, StatusOrigin, StatusValue, StatusDetail, Message
 from cyst.api.environment.messaging import EnvironmentMessaging
 from cyst.api.environment.policy import EnvironmentPolicy
 from cyst.api.environment.resources import EnvironmentResources
 from cyst.api.logic.access import AuthenticationTarget, Authorization
-from cyst.api.logic.action import ActionDescription, ActionToken, ActionParameterType, ActionParameter
+from cyst.api.logic.action import ActionDescription, ActionParameterType, ActionParameter, ActionType, ExecutionEnvironment, ExecutionEnvironmentType
+from cyst.api.logic.behavioral_model import BehavioralModel, BehavioralModelDescription
+from cyst.api.logic.composite_action import CompositeActionManager
 from cyst.api.network.node import Node
 
 
@@ -26,9 +27,10 @@ class AuthenticationTracker:
     attempts: int
 
 
-class METAInterpreter(ActionInterpreter):
+class METAModel(BehavioralModel):
     def __init__(self, configuration: EnvironmentConfiguration, resources: EnvironmentResources,
-                 policy: EnvironmentPolicy, messaging: EnvironmentMessaging) -> None:
+                 policy: EnvironmentPolicy, messaging: EnvironmentMessaging,
+                 composite_action_manager: CompositeActionManager) -> None:
 
         self._configuration = configuration
         self._action_store = resources.action_store
@@ -36,18 +38,27 @@ class METAInterpreter(ActionInterpreter):
         self._policy = policy
         self._messaging = messaging
         self._authentications: Dict[Tuple[str, str, str, str, str], AuthenticationTracker] = {}
+        self._cam = composite_action_manager
 
-        self._action_store.add(ActionDescription("meta:inspect:node",
-                                                 "Discovery of hosts in a network. Equivalent to ping scanning.",
-                                                 [],
-                                                 [(ActionToken.SESSION, ActionToken.NONE)]))
+        self._action_store.add(ActionDescription(id="meta:inspect:node",
+                                                 type=ActionType.DIRECT,
+                                                 environment=ExecutionEnvironment(ExecutionEnvironmentType.SIMULATION, "CYST"),
+                                                 description="Discovery of hosts in a network. Equivalent to ping scanning.",
+                                                 parameters=[]))
 
-        self._action_store.add(ActionDescription("meta:authenticate",
-                                                 "Authentication against a service.",
-                                                 [ActionParameter(ActionParameterType.TOKEN, "auth_token", configuration.action.create_action_parameter_domain_any())],
-                                                 [(ActionToken.NONE, ActionToken.NONE)])) # Tokens are wrong, I know that
+        self._action_store.add(ActionDescription(id="meta:authenticate",
+                                                 type=ActionType.DIRECT,
+                                                 environment=ExecutionEnvironment(ExecutionEnvironmentType.SIMULATION, "CYST"),
+                                                 description="Authentication against a service.",
+                                                 parameters=[ActionParameter(ActionParameterType.TOKEN, "auth_token", configuration.action.create_action_parameter_domain_any())]))
 
-    def evaluate(self, message: Request, node: Node) -> Tuple[int, Response]:
+    async def action_flow(self, message: Request) -> Tuple[int, Response]:
+        pass
+
+    def action_components(self, message: Message) -> None:
+        pass
+
+    def action_effect(self, message: Request, node: Node) -> Tuple[int, Response]:
         if not message.action:
             raise ValueError("Action not provided")
 
@@ -108,7 +119,6 @@ class METAInterpreter(ActionInterpreter):
                                                       "Service does not exist on this node", session=message.session,
                                                       auth=message.auth)
 
-
         #  evaluate the token
         result = self._configuration.access.evaluate_token_for_service(s, token, node, message.dst_ip)
 
@@ -130,16 +140,15 @@ class METAInterpreter(ActionInterpreter):
                                                       auth=result)
 
 
+def create_meta_model(configuration: EnvironmentConfiguration, resources: EnvironmentResources,
+                      policy: EnvironmentPolicy, messaging: EnvironmentMessaging,
+                      composite_action_manager: CompositeActionManager) -> BehavioralModel:
+    model = METAModel(configuration, resources, policy, messaging, composite_action_manager)
+    return model
 
 
-def create_meta_interpreter(configuration: EnvironmentConfiguration, resources: EnvironmentResources,
-                            policy: EnvironmentPolicy, messaging: EnvironmentMessaging) -> ActionInterpreter:
-    interpreter = METAInterpreter(configuration, resources, policy, messaging)
-    return interpreter
-
-
-action_interpreter_description = ActionInterpreterDescription(
-    "meta",
-    "Interpreter for auxiliary actions needed to supplement",
-    create_meta_interpreter
+behavioral_model_description = BehavioralModelDescription(
+    namespace="meta",
+    description="Interpreter for auxiliary actions needed to supplement",
+    creation_fn=create_meta_model
 )
