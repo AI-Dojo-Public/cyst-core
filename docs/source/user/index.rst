@@ -993,9 +993,7 @@ Coming up next
 Writing documentation is a tedious and boring process, however, we are working really hard to document as much as
 possible in the shortest possible time. Here are some topics, that will be covered soon:
 
-        - Enriching the messages with metadata.
         - Creating a defensive service.
-        - Communication between agents.
         - Partitioning the network.
         - Visualizing what's going on.
         - Stuffing everything into a docker.

@@ -235,13 +235,33 @@ class MessageImpl(Message):
 
 class RequestImpl(MessageImpl, Request):
     def __init__(self, dst_ip: Union[str, IPAddress], dst_service: str = "", action: Action = None,
-                 session: Session = None, auth: Optional[Union[Authorization, AuthenticationToken, AuthenticationTarget]] = None):
+                 session: Session = None, auth: Optional[Union[Authorization, AuthenticationToken, AuthenticationTarget]] = None,
+                 original_request: Optional[Request] = None):
 
         if type(dst_ip) is str:
             dst_ip = IPAddress(dst_ip)
 
-        super(RequestImpl, self).__init__(MessageType.REQUEST, None, None, dst_ip, dst_service,
-                                          session=session, auth=auth)
+        _session = session
+        if not _session and original_request:
+            _session = original_request.session
+
+        _auth = auth
+        if not _auth and original_request:
+            _auth = original_request.auth
+
+        _origin = None
+        if original_request:
+            _origin = RequestImpl.cast_from(original_request).origin
+
+        _src_ip = None
+        if original_request:
+            _src_ip = original_request.src_ip
+
+        super(RequestImpl, self).__init__(MessageType.REQUEST, _origin, _src_ip, dst_ip, dst_service,
+                                          session=_session, auth=_auth)
+
+        if original_request:
+            self.src_service = original_request.src_service
 
         self._action = action
 
@@ -281,13 +301,18 @@ class RequestImpl(MessageImpl, Request):
 class ResponseImpl(MessageImpl, Response):
     def __init__(self, request: MessageImpl, status: Status = None,
                  content: Any = None, session: Session = None,
-                 auth: Optional[Union[Authorization, AuthenticationToken, AuthenticationTarget]] = None) -> None:
+                 auth: Optional[Union[Authorization, AuthenticationToken, AuthenticationTarget]] = None,
+                 original_response: Optional[Response] = None) -> None:
 
         super(ResponseImpl, self).__init__(MessageType.RESPONSE, request.current, request.dst_ip, request.src_ip,
                                            session=session, auth=auth, force_id=request.id)
 
         self._status = status
         self._content = content
+        if isinstance(request, Request):
+            self._action = request.action
+        else:
+            raise RuntimeError("Attempting to create a response from non-request Message")
         # Response switches the source and destination services
         self._src_service = request.dst_service
         self._dst_service = request.src_service
@@ -308,6 +333,10 @@ class ResponseImpl(MessageImpl, Response):
         result = "Response: [ID: {}, Type: {}, Origin: {}, Source: {}, Target: {}, Status: {}, Content: {}, Session: {}, Authorization: {}]"\
                    .format(self.id, self.type.name, self._origin.ip, self.src_ip, self.dst_ip, self._status, self._content, self.session, self.auth)
         return result
+
+    @property
+    def action(self) -> Action:
+        return self._action
 
     @property
     def status(self):
