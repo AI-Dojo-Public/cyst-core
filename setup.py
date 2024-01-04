@@ -74,9 +74,8 @@ setup(
     # executes the function `main` from this package when invoked:
     entry_points={
         'cyst.models': [
-            'cyst=cyst_models.cyst.main:action_interpreter_description',
-            'meta=cyst_models.meta.main:behavioral_model_description',
-            'cam=cyst_models.cam.main:behavioral_model_description'
+            'cyst=cyst_models.cyst.main:behavioral_model_description',
+            'meta=cyst_models.meta.main:behavioral_model_description'
         ],
         'cyst.services': [
             'scripted_actor=cyst_services.scripted_actor.main:service_description',
@@ -84,7 +83,6 @@ setup(
             'reverse_shell=cyst_services.reverse_shell.main:service_description'
         ],
         'cyst.metadata_providers': [
-            'cam=cyst_metadata_providers.cam.main:metadata_provider_description'
         ]
     },
 

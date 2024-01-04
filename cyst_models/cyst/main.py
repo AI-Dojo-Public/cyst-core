@@ -208,7 +208,7 @@ def create_cyst_model(configuration: EnvironmentConfiguration, resources: Enviro
     return model
 
 
-action_interpreter_description = BehavioralModelDescription(
+behavioral_model_description = BehavioralModelDescription(
     namespace="cyst",
     description="Behavioral model that is equivalent to CYST actionable API",
     creation_fn=create_cyst_model
