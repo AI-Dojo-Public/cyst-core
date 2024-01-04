@@ -11,7 +11,7 @@ long_description = (here / 'README.md').read_text(encoding='utf-8')
 
 setup(
     name='cyst-core',
-    version='0.4.0',
+    version='0.6.0',
     description='API and runtime of the CYST framework',
     long_description=long_description,
     long_description_content_type='text/markdown',
@@ -61,7 +61,8 @@ setup(
         'cachetools',
         'pyserde',
         'importlib_metadata',
-        'jsonpickle'
+        'jsonpickle',
+        'deprecated'
     ],
 
     # To provide executable scripts, use entry points in preference to the
@@ -73,13 +74,15 @@ setup(
     # executes the function `main` from this package when invoked:
     entry_points={
         'cyst.models': [
-            'cyst=cyst_models.cyst.main:action_interpreter_description',
-            'meta=cyst_models.meta.main:action_interpreter_description'
+            'cyst=cyst_models.cyst.main:behavioral_model_description',
+            'meta=cyst_models.meta.main:behavioral_model_description'
         ],
         'cyst.services': [
             'scripted_actor=cyst_services.scripted_actor.main:service_description',
             'forward_shell=cyst_services.forward_shell.main:service_description',
             'reverse_shell=cyst_services.reverse_shell.main:service_description'
+        ],
+        'cyst.metadata_providers': [
         ]
     },
 

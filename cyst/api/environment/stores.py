@@ -1,19 +1,21 @@
 from abc import ABC, abstractmethod
+from deprecated.sphinx import versionchanged
 from typing import List, Optional, Tuple, Union
 
 from cyst.api.environment.message import Message
-from cyst.api.logic.action import Action, ActionDescription
+from cyst.api.logic.action import Action, ActionDescription, ExecutionEnvironment, ExecutionEnvironmentType
 from cyst.api.logic.exploit import Exploit, ExploitCategory
 from cyst.api.network.node import Node
 
 
 class ActionStore(ABC):
     """
-    Action store provides an access to actions that are available to services.
+    Action store provides access to actions that are available to services.
     """
 
+    @versionchanged(version="0.6.0", reason="Added support for different execution environments.")
     @abstractmethod
-    def get(self, id: str = "") -> Optional[Action]:
+    def get(self, id: str = "", environment: Optional[ExecutionEnvironment] = None) -> Optional[Action]:
         """
         Returns an action with given ID. This function makes a copy of the object, which is present in the store. This
         is a preferred variant, because any parameters set on that action would propagate to the store.
@@ -21,11 +23,17 @@ class ActionStore(ABC):
         :param id: A unique ID of the action.
         :type id: str
 
-        :return: An action, if there is one with such ID.
+        :param environment: An execution environment for which the action should be queried. Actions with the same ID
+            may be completely different depending on the execution environment. If not specified, the default CYST
+            simulation environment is used.
+        :type environment: Optional[ExecutionEnvironment]
+
+        :return: An action, if there is one with such ID and for such execution environment.
         """
 
+    @versionchanged(version="0.6.0", reason="Added support for different execution environments.")
     @abstractmethod
-    def get_ref(self, id: str = "") -> Optional[Action]:
+    def get_ref(self, id: str = "", environment: Optional[ExecutionEnvironment] = None) -> Optional[Action]:
         """
         Return an action with give ID. This function returns a reference to the object stored in the store and any
         parameter alterations will propagate to all subsequent queries for this action.
@@ -33,11 +41,17 @@ class ActionStore(ABC):
         :param id: A unique ID of the action.
         :type id: str
 
-        :return: An action, if there is one with such ID.
+        :param environment: An execution environment for which the action should be queried. Actions with the same ID
+            may be completely different depending on the execution environment. If not specified, the default CYST
+            simulation environment is used.
+        :type environment: Optional[ExecutionEnvironment]
+
+        :return: An action, if there is one with such ID and for such execution environment.
         """
 
+    @versionchanged(version="0.6.0", reason="Added support for different execution environments.")
     @abstractmethod
-    def get_prefixed(self, prefix: str = "") -> List[Action]:
+    def get_prefixed(self, prefix: str = "", environment: Optional[ExecutionEnvironment] = None) -> List[Action]:
         """
         Gets a list of actions, whose ID starts with a given string. This is usually done to get access to the entire
         namespace of a particular behavioral model.
@@ -47,6 +61,11 @@ class ActionStore(ABC):
 
         :param prefix: The prefix all actions IDs must share.
         :type prefix: str
+
+        :param environment: An execution environment for which the actions should be queried. Actions with the same ID
+            may be completely different depending on the execution environment. If not specified, the default CYST
+            simulation environment is used.
+        :type environment: Optional[ExecutionEnvironment]
 
         :return: A list of actions with the same prefix.
         """
@@ -72,7 +91,7 @@ class ActionStore(ABC):
 
 class ExploitStore(ABC):
     """
-    Exploit store provides an access to exploits that can be used together with actions. Unlike the action store,
+    Exploit store provides access to exploits that can be used together with actions. Unlike the action store,
     runtime definition of exploits by services is not permitted. This must be done through the
     :class:`cyst.api.environment.configuration.ExploitConfiguration` interface.
     """

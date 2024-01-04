@@ -1,6 +1,7 @@
+import asyncio
 from typing import List, Optional, Tuple, Any, Dict
 
-from cyst.api.logic.action import Action, ActionDescription, ActionParameter, ActionToken, ActionParameterDomain, ActionParameterDomainType
+from cyst.api.logic.action import Action, ActionDescription, ActionParameter,ActionParameterDomain, ActionParameterDomainType, ActionType
 from cyst.api.logic.exploit import Exploit
 
 
@@ -101,42 +102,50 @@ class ActionParameterDomainImpl(ActionParameterDomain):
 
         return NotImplemented #MYPY Complains
 
+
 class ActionImpl(Action):
 
     def __init__(self, action: ActionDescription):
+        self._type = action.type
         self._id = action.id
         fragments = action.id.split(":")
         self._namespace = fragments[0]
         self._fragments = fragments[1:]
         self._description = action.description
-        self._tokens = action.tokens
         self._exploit: Optional[Exploit] = None
         self._parameters: Dict[str, ActionParameter] = {}
         for p in action.parameters:
             self._parameters[p.name] = p
+        self._components: List[Action] = []
 
     def __getstate__(self) -> dict:
         return {
+            "_type": self._type,
             "_id": self._id,
             "_description": self._description,
-            "_tokens": self._tokens,
             "_exploit": self._exploit,
-            "_parameters": self._parameters
+            "_parameters": self._parameters,
+            "_components": self._components
         }
 
     def __setstate__(self, state) -> None:
+        self._type = state["_type"]
         self._id = state["_id"]
         fragments = self._id.split(":")
         self._namespace = fragments[0]
         self._fragments = fragments[1:]
         self._description = state["_description"]
-        self._tokens = state["_tokens"]
         self._exploit = state["_exploit"]
         self._parameters = state["_parameters"]
+        self._components = state["_components"]
 
     @property
     def id(self) -> str:
         return self._id
+
+    @property
+    def type(self) -> ActionType:
+        return self._type
 
     @property
     def description(self) -> str:
@@ -166,8 +175,18 @@ class ActionImpl(Action):
             self._parameters[p.name] = p
 
     @property
-    def tokens(self) -> List[Tuple[ActionToken, ActionToken]]:
-        return self._tokens
+    def components(self) -> List[Action]:
+        # TODO: This enables modification of components in a non-standard way. Keeping this comment here, because
+        #   this is a problem that appears elsewhere.
+        return self._components
+
+    def add_components(self, *components: Action) -> None:
+        for c in components:
+            if isinstance(c, ActionImpl):
+                if c._type != ActionType.COMPONENT:
+                    raise RuntimeError(f"Cannot add non-component action as an action component. Provided type for action {c.id} is {c._type}")
+                else:
+                    self._components.append(c)
 
     @staticmethod
     def cast_from(o: Action) -> 'ActionImpl':
@@ -177,4 +196,45 @@ class ActionImpl(Action):
             raise ValueError("Malformed underlying object passed with the Action interface")
 
     def copy(self):
-        return ActionImpl(ActionDescription(self.id, self._description, list(self._parameters.values()), self._tokens))
+        return ActionImpl(ActionDescription(self.id, self.type, self._description, list(self._parameters.values())))
+
+
+class CompositeAction:
+    def __init__(self):
+        self._future = None
+
+    def id(self):
+        return 1
+
+    def __await__(self):
+        return self.execute().__await__()
+
+    async def call_action(self, action_id: str):
+        pass
+
+    async def execute(self):
+        print("Doing some action")
+        await self._future
+        print("Action done")
+
+
+class ScanTheNet(CompositeAction):
+    async def execute(self):
+        result_set = []
+        for i in range(3):
+            result_set.append(await self.call_action("scan:the:machine"))
+        return result_set
+
+
+class CompositeActionManager:
+    def __init__(self):
+        self._loop = asyncio.new_event_loop()
+
+    def process_request(self, composite_action: CompositeAction):
+        future = self._loop.create_future()
+        composite_action.set_loop(self._loop)
+        composite_action.execute(future)
+
+
+    def process_response(self):
+        pass

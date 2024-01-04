@@ -59,6 +59,7 @@ class ConnectionImpl(Connection):
         self._hop = hop
         self._blocked = False
         self._delay = 0
+        self._processing_time = 1  # Setting a processing time to a non-zero value
 
     @property
     def hop(self) -> Hop:
@@ -87,10 +88,7 @@ class ConnectionImpl(Connection):
             # TODO: return error message
             return -1, message
 
-        if self.delay > 0:
-            return self.delay, message
-
-        return 0, message
+        return self._processing_time + self._delay, message
 
     def __str__(self) -> str:
         return f"Connection({self._hop}, Blocked: {self._blocked}, Delay: {self._delay})"
