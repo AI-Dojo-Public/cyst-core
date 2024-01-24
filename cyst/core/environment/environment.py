@@ -25,6 +25,7 @@ from cyst.api.environment.interpreter import ActionInterpreterDescription
 from cyst.api.environment.messaging import EnvironmentMessaging
 from cyst.api.environment.metadata_provider import MetadataProvider
 from cyst.api.environment.policy import EnvironmentPolicy
+from cyst.api.environment.platform import Platform, PlatformSpecification, PlatformType
 from cyst.api.environment.resources import EnvironmentResources
 from cyst.api.environment.message import Message, MessageType, Request, StatusValue, StatusOrigin, Status, StatusDetail, Timeout
 from cyst.api.logic.access import AuthenticationToken
@@ -66,7 +67,7 @@ from cyst.core.network.session import SessionImpl
 # it being private if instantiated otherwise than via the create_environment()
 class _Environment(Environment, EnvironmentConfiguration):
 
-    def __init__(self) -> None:
+    def __init__(self, platform: Optional[Union[str, PlatformSpecification]]) -> None:
         self._time = 0
         self._start_time = localtime()
         self._tasks: List[Tuple[int, int, MessageImpl]] = []
@@ -90,6 +91,8 @@ class _Environment(Environment, EnvironmentConfiguration):
         self._behavioral_models: Dict[str, BehavioralModel] = {}
         # TODO currently, there can be only on metadata provider for one namespace
         self._metadata_providers: Dict[str, MetadataProvider] = {}
+        self._platforms: Dict[PlatformSpecification, Platform] = {}
+        self._platform = None
 
         self._policy = Policy(self)
 
@@ -110,6 +113,38 @@ class _Environment(Environment, EnvironmentConfiguration):
         self._register_services()
         self._register_actions()
         self._register_metadata_providers()
+        self._register_platforms()
+
+        # set a platform if it is requested
+        if platform:
+            platform_not_found = False
+            platform_underspecified = False
+
+            # This is rather ugly but is a price to pay for users to not need full specification
+            if isinstance(platform, str):
+                spec1 = PlatformSpecification(PlatformType.SIMULATION, platform)
+                spec2 = PlatformSpecification(PlatformType.EMULATION, platform)
+
+                spec1_flag = spec1 in self._platforms
+                spec2_flag = spec2 in self._platforms
+
+                if spec1_flag or spec2_flag == False:
+                    platform_not_found = True
+                elif spec1_flag and spec2_flag == True:
+                    platform_underspecified = True
+                else:
+                    platform_not_found = False
+                    platform = spec1 if spec1_flag else spec2
+            else:
+                platform_not_found = platform not in self._platforms
+
+            if platform_not_found:
+                raise RuntimeError(f"Platform {platform} is not registered into the system. Cannot continue.")
+
+            if platform_underspecified:
+                raise RuntimeError(f"Platform {platform} exists both as a simulation and emulation environment. Please, provide a full PlatformSpecification.")
+
+            self._platform = self._platforms[platform]
 
         self._network = Network(self._general_configuration)
 
@@ -297,7 +332,10 @@ class _Environment(Environment, EnvironmentConfiguration):
         return self._policy
 
     def configure(self, *config_item: ConfigItem) -> Environment:
-        return self._general_configuration.configure(*[copy.deepcopy(x) for x in config_item])
+        self._general_configuration.configure(*[copy.deepcopy(x) for x in config_item])
+        if self._platform:
+            self._platform.configure(*self._general_configuration.get_configuration())
+        return self
 
     # ------------------------------------------------------------------------------------------------------------------
     # EnvironmentConfiguration
@@ -767,7 +805,19 @@ class _Environment(Environment, EnvironmentConfiguration):
                 provider = provider_description.creation_fn()
                 self._metadata_providers[provider_description.namespace] = provider
 
+    def _register_platforms(self) -> None:
 
-def create_environment() -> Environment:
-    e = _Environment()
+        plugin_providers = entry_points(group="cyst.platforms")
+        for s in plugin_providers:
+            platform_description = s.load()
+
+            if platform_description.specification in self._platforms:
+                print("Platform with specification {} already registered, skipping ...".format(
+                    platform_description.namespace))
+            else:
+                platform = platform_description.creation_fn(self)
+                self._platforms[platform_description.specification] = platform
+
+def create_environment(platform: Optional[Union[str, PlatformSpecification]]) -> Environment:
+    e = _Environment(platform)
     return e

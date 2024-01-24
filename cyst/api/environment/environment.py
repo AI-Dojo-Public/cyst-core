@@ -1,6 +1,6 @@
 from abc import ABC, abstractmethod
 from enum import Enum, auto
-from typing import List
+from typing import Optional, Union
 
 from cyst.api.configuration.configuration import ConfigItem
 from cyst.api.environment.configuration import EnvironmentConfiguration
@@ -8,6 +8,7 @@ from cyst.api.environment.control import EnvironmentControl
 from cyst.api.environment.messaging import EnvironmentMessaging
 from cyst.api.environment.resources import EnvironmentResources
 from cyst.api.environment.policy import EnvironmentPolicy
+from cyst.api.environment.platform import PlatformSpecification
 
 
 class EnvironmentMode(Enum):
@@ -90,7 +91,7 @@ class Environment(ABC):
         """
 
     @classmethod
-    def create(cls, mode: EnvironmentMode = EnvironmentMode.SIMULATION) -> 'Environment':
+    def create(cls, platform: Optional[Union[str, PlatformSpecification]] = None) -> 'Environment':
         """
         Creates a new instance of the environment. A program using CYST can use multiple environments, however, each
         simulation run happens only in the context of one environment.
@@ -98,4 +99,4 @@ class Environment(ABC):
         :return: An environment instance.
         """
         import cyst.core.environment.environment
-        return cyst.core.environment.environment.create_environment()
+        return cyst.core.environment.environment.create_environment(platform)
