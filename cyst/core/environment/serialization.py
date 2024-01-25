@@ -29,23 +29,25 @@ from cyst.api.network.firewall import FirewallPolicy, FirewallChainType
 
 
 @jsonpickle.handlers.register(IPNetwork)
-class IPSerializer(jsonpickle.handlers.BaseHandler):
+class IPNetworkSerializer(jsonpickle.handlers.BaseHandler):
 
     def flatten(self, obj, data):
         data["_value"] = str(obj)
+        return data
 
-    def restore(self, obj: str):
-        return IPNetwork(obj)
+    def restore(self, obj):
+        return IPNetwork(obj["_value"])
 
 
 @jsonpickle.handlers.register(IPAddress)
-class IPSerializer(jsonpickle.handlers.BaseHandler):
+class IPAddressSerializer(jsonpickle.handlers.BaseHandler):
 
     def flatten(self, obj, data):
         data["_value"] = str(obj)
+        return data
 
-    def restore(self, obj: str):
-        return IPAddress(obj)
+    def restore(self, obj):
+        return IPAddress(obj["_value"])
 
 
 @jsonpickle.handlers.register(time.struct_time)
