@@ -104,6 +104,11 @@ class Router(NodeImpl):
             new_index = len(self._ports)
 
         if isinstance(ip, str):
+            # Empty port configuration
+            if ip == "":
+                self._ports.append(PortImpl(index=new_index))
+                return new_index
+
             ip = IPAddress(ip)
 
         self._ports.append(PortImpl(ip, mask, new_index))
@@ -178,6 +183,10 @@ class Router(NodeImpl):
             if not router_port.net:
                 router_port.set_ip(node_interface.gateway)
                 router_port.set_net(node_interface.net)
+
+                self._router_ips.add(node_interface.gateway)
+                if self._fw:
+                    self._fw.add_local_ip(node_interface.gateway)
 
             # Check if there is a conflict between router's IP and expected IP from connected node
             if node_interface.gateway != router_port.ip:
