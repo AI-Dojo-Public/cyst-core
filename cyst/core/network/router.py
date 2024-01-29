@@ -134,7 +134,7 @@ class Router(NodeImpl):
                 return True
         return False
 
-    def _connect_node(self, node: NodeImpl, connection: Connection, router_index: int = -1, node_index: int = 0, net: str = "") -> Tuple[bool, str]:
+    def _connect_node(self, node: NodeImpl, connection: Connection, router_index: int = -1, node_index: int = 0, net: str = "") -> Tuple[bool, Union[str, Tuple[int, int]]]:
         # If both a specific router index and network designation si provided, bail out
         if router_index != -1 and net:
             return False, "Cannot specify both router index and network designation"
@@ -203,9 +203,9 @@ class Router(NodeImpl):
         router_port.connect_endpoint(Endpoint(node.id, new_node_index, node_interface.ip), connection)
         node_interface.connect_gateway(router_port.ip, connection, self.id, new_router_index)
 
-        return True, ""
+        return True, (new_router_index, new_node_index)
 
-    def _connect_router(self, router: 'Router', connection: Connection, remote_port_index: int = -1, local_port_index: int = -1) -> Tuple[bool, str]:
+    def _connect_router(self, router: 'Router', connection: Connection, remote_port_index: int = -1, local_port_index: int = -1) -> Tuple[bool, Union[str, Tuple[int, int]]]:
 
         # Create missing ports if needed
         remote_port = remote_port_index
@@ -222,7 +222,7 @@ class Router(NodeImpl):
 
         # After routers' connection, routes must be added manually
 
-        return True, ""
+        return True, (remote_port, local_port)
 
     def add_routing_rule(self, rule: FirewallRule) -> None:
         # This can be brittle, but we assume that FW is always preprocessor no. 1

@@ -22,7 +22,7 @@ class RouterConfig(ConfigItem):
     between its routing, firewalling, and IDS/IPS activities. It will also be more fit for SDN modelling.
 
     :param interfaces: A list of network interfaces.
-    :type interfaces: List[Union[InterfaceConfig]]
+    :type interfaces: List[Union[InterfaceConfig, str]]
 
     :param traffic_processors: A list of either active services that are acting as traffic processors, or at most one
         firewall. Firewall is used as a mechanism for router to do inter-network routing, by means of a FORWARD chain.
@@ -39,7 +39,7 @@ class RouterConfig(ConfigItem):
     :param id: A unique identifier of the router configuration.
     :type id: str
     """
-    interfaces: List[Union[InterfaceConfig]]
+    interfaces: List[Union[InterfaceConfig, str]]
     traffic_processors: List[Union[FirewallConfig, ActiveServiceConfig, str]]
     routing_table: List[RouteConfig] = field(default_factory=list)  # TODO: check if such a default is ok
     id: str = field(default_factory=lambda: str(uuid4()))

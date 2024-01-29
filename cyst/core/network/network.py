@@ -31,15 +31,21 @@ class Network(Resolver):
         if not connection:
             connection = ConnectionImpl()
 
-        result = True
-        error = ""
+        success = True
+        result = None
         if isinstance(n1, Router):
             if isinstance(n2, Router):
-                result, error = n1._connect_router(n2, connection, n2_port_index, n1_port_index)
+                success, result = n1._connect_router(n2, connection, n2_port_index, n1_port_index)
+                if success:
+                    n2_port_index, n1_port_index = result
             else:
-                result, error = n1._connect_node(n2, connection, n1_port_index, n2_port_index, net)
+                success, result = n1._connect_node(n2, connection, n1_port_index, n2_port_index, net)
+                if success:
+                    n1_port_index, n2_port_index = result
         elif isinstance(n2, Router):
-            result, error = n2._connect_node(n1, connection, n2_port_index, n1_port_index, net)
+            success, result = n2._connect_node(n1, connection, n2_port_index, n1_port_index, net)
+            if success:
+                n2_port_index, n1_port_index = result
         # Direct connection
         else:
             InterfaceImpl.cast_from(n1.interfaces[n1_port_index]).connect_endpoint(
@@ -47,10 +53,11 @@ class Network(Resolver):
             InterfaceImpl.cast_from(n2.interfaces[n2_port_index]).connect_endpoint(
                 Endpoint(n1.id, n1_port_index, n1.interfaces[n1_port_index].ip), connection)
 
-        if not result:
-            raise Exception("Could not add connection between nodes {} and {}. Reason: {}".format(n1.id, n2.id, error))
+        if not success:
+            raise Exception("Could not add connection between nodes {} and {}. Reason: {}".format(n1.id, n2.id, result))
 
-        connection.hop = Hop(Endpoint(n1.id, n1_port_index), Endpoint(n2.id, n2_port_index))
+        connection.hop = Hop(Endpoint(n1.id, n1_port_index, n1.interfaces[n1_port_index].ip),
+                             Endpoint(n2.id, n2_port_index, n2.interfaces[n2_port_index].ip))
         self._graph.add_edge(n1.id, n2.id)
 
         return connection
