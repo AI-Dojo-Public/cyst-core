@@ -96,6 +96,13 @@ class ConnectionImpl(Connection):
     def __repr__(self) -> str:
         return self.__str__()
 
+    @staticmethod
+    def cast_from(o: Connection) -> 'ConnectionImpl':
+        if isinstance(o, ConnectionImpl):
+            return o
+        else:
+            raise ValueError("Malformed underlying object passed with the Connection interface")
+
 
 class PortImpl(Port):
     def __init__(self, ip: Union[str, IPAddress] = "", mask: str = "", index: int = 0, id: str = "") -> None:

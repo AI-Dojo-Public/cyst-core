@@ -26,6 +26,8 @@ from cyst.api.host.service import AccessLevel
 from cyst.api.network.node import Node
 
 from cyst.core.network.firewall import FirewallImpl
+from cyst.core.network.elements import ConnectionImpl
+from cyst.core.network.node import NodeImpl
 
 
 # ----------------------------------------------------------------------------------------------------------------------
@@ -328,10 +330,13 @@ class Configurator:
 
     def _process_cfg_item(self, cfg: Any) -> str:
         if hasattr(cfg, "id") and cfg.id in self._refs:
-            raise ValueError("Duplicate identifier found: {}".format(cfg.id))
-
-        fn: Callable[[ConfigItem], str] = getattr(self, "_process_" + type(cfg).__name__, self._process_default)
-        return fn(cfg)
+            if self._refs[cfg.id] != cfg:
+                raise ValueError("Duplicate identifier for different configuration objects found: {}".format(cfg.id))
+            else:
+                return cfg.id
+        else:
+            fn: Callable[[ConfigItem], str] = getattr(self, "_process_" + type(cfg).__name__, self._process_default)
+            return fn(cfg)
 
     def get_configuration_by_id(self, id: str) -> Optional[Any]:
         if id not in self._refs:
@@ -707,11 +712,51 @@ class Configurator:
             self._env.configuration.network.add_node(r)
 
         # 5) Connections
-        for conn in self._connections:
-            src = self._obj_refs[conn.src_id]
-            dst = self._obj_refs[conn.dst_id]
+        for conn_config in self._connections:
+            src: NodeImpl = self._obj_refs[conn_config.src_id]
+            dst: NodeImpl = self._obj_refs[conn_config.dst_id]
 
-            self._env.configuration.network.add_connection(src, dst, conn.src_port, conn.dst_port)
+            conn = self._env.configuration.network.add_connection(src, dst, conn_config.src_port, conn_config.dst_port)
+            conn = ConnectionImpl.cast_from(conn)
+
+            # Propagate new interfaces back into the configuration
+            src_config = self._refs[conn_config.src_id]
+            src_port_id = conn.hop.src.port
+            src_iface = src.interfaces[src_port_id]
+
+            if conn_config.src_port == -1:
+                if isinstance(src_config, RouterConfig):
+                    iface_cfg = PortConfig(ip=src_iface.ip, net=src_iface.net, index=src_port_id)
+                else:
+                    iface_cfg = InterfaceConfig(ip=src_iface.ip, net=src_iface.net, index=src_port_id)
+
+                src_config.interfaces.append(iface_cfg.id)
+                self._refs[iface_cfg.id] = iface_cfg
+                conn_config.src_port = src_port_id
+
+            # Fix interfaces without explicit index (i.e., taken from a list)
+            # At this point, ..._config contains only references to other objects, so the complaint about type mismatch
+            # is not valid
+            self._refs[src_config.interfaces[src_port_id]].index = src_port_id
+
+            dst_port_id = conn.hop.dst.port
+            dst_iface = dst.interfaces[dst_port_id]
+            dst_config = self._refs[conn_config.dst_id]
+
+            if conn_config.dst_port == -1:
+                if isinstance(dst_config, RouterConfig):
+                    iface_cfg = PortConfig(ip=dst_iface.ip, net=dst_iface.net, index=dst_port_id)
+                else:
+                    iface_cfg = InterfaceConfig(ip=dst_iface.ip, net=dst_iface.net, index=dst_port_id)
+
+                dst_config.interfaces.append(iface_cfg.id)
+                self._refs[iface_cfg.id] = iface_cfg
+                conn_config.dst_port = dst_port_id
+
+            # Fix interfaces without explicit index (i.e., taken from a list)
+            # At this point, ..._config contains only references to other objects, so the complaint about type mismatch
+            # is not valid
+            self._refs[dst_config.interfaces[dst_port_id]].index = dst_port_id
 
         return self._env
 
