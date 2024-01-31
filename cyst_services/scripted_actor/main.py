@@ -31,6 +31,10 @@ class ScriptedActorControl(ABC):
         pass
 
     @abstractmethod
+    def set_run_callback(self, fn: Callable[[EnvironmentMessaging, EnvironmentResources], None]):
+        pass
+
+    @abstractmethod
     def set_request_callback(self, fn: Callable[[EnvironmentMessaging, EnvironmentResources, Message], Tuple[bool, int]]):
         pass
 
@@ -45,6 +49,7 @@ class ScriptedActor(ActiveService, ScriptedActorControl):
         self._resources = res
         self._responses = []
         self._requests = []
+        self._run_callback = None
         self._response_callback = None
         self._request_callback = None
         self._last_message_type = None
@@ -53,6 +58,8 @@ class ScriptedActor(ActiveService, ScriptedActorControl):
     # This Actor only runs given actions. No own initiative
     def run(self):
         self._log.info("Launched a scripted Actor")
+        if self._run_callback:
+            self._run_callback(self._messaging, self._resources)
 
     def execute_action(self, target: str, service: str, action: Action, session: Session = None,
                        auth: Optional[Union[Authorization, AuthenticationToken]] = None) -> None:
@@ -97,6 +104,9 @@ class ScriptedActor(ActiveService, ScriptedActorControl):
 
     def set_response_callback(self, fn: Callable[[EnvironmentMessaging, EnvironmentResources, Message], Tuple[bool, int]]):
         self._response_callback = fn
+
+    def set_run_callback(self, fn: Callable[[EnvironmentMessaging, EnvironmentResources], None]):
+        self._run_callback = fn
 
     @staticmethod
     def cast_from(o: Service) -> 'ScriptedActor':

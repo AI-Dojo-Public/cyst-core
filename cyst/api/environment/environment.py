@@ -8,7 +8,7 @@ from cyst.api.environment.control import EnvironmentControl
 from cyst.api.environment.messaging import EnvironmentMessaging
 from cyst.api.environment.resources import EnvironmentResources
 from cyst.api.environment.policy import EnvironmentPolicy
-from cyst.api.environment.platform import PlatformSpecification
+from cyst.api.environment.platform import PlatformSpecification, EnvironmentPlatform
 
 
 class EnvironmentMode(Enum):
@@ -68,6 +68,15 @@ class Environment(ABC):
         This interface gives access to resources, such as actions or exploits.
 
         :rtype: EnvironmentResources
+        """
+
+    @property
+    @abstractmethod
+    def platform(self) -> EnvironmentPlatform:
+        """
+        This interface provides means for execution platforms to execute actions and to notify the results of actions.
+
+        :rtype: EnvironmentPlatform
         """
 
     @abstractmethod

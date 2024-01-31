@@ -1,9 +1,10 @@
 from abc import abstractmethod, ABC
 from dataclasses import dataclass
 from enum import Enum, auto
-from typing import Callable
+from typing import Callable, Tuple
 
 from cyst.api.configuration.configuration import ConfigItem
+from cyst.api.environment.message import Request, Response
 from cyst.api.environment.messaging import EnvironmentMessaging
 from cyst.api.environment.resources import EnvironmentResources
 
@@ -40,3 +41,14 @@ class PlatformDescription:
     specification: PlatformSpecification
     description: str
     creation_fn: Callable[['Environment'], Platform]
+
+
+class EnvironmentPlatform(ABC):
+
+    @abstractmethod
+    def execute_request(self, request: Request) -> Tuple[bool, int]:
+        pass
+
+    @abstractmethod
+    def process_response(self, response: Response) -> Tuple[bool, int]:
+        pass

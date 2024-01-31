@@ -6,6 +6,7 @@ import time
 from typing import Tuple, TYPE_CHECKING
 
 from cyst.api.environment.control import EnvironmentState, EnvironmentControl
+from cyst.api.environment.platform import PlatformType
 from cyst.api.environment.stats import Statistics
 from cyst.api.host.service import ServiceState
 
@@ -154,7 +155,11 @@ def _run(self: _Environment) -> Tuple[bool, EnvironmentState]:
 
     # Run
     self._state = EnvironmentState.RUNNING
-    self._process()
+
+    if self._platform and self._platform_spec.type == PlatformType.EMULATION:
+        self._process_emulated()
+    else:
+        self._process()
 
     return True, self._state
 
