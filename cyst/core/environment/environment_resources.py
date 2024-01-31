@@ -2,10 +2,11 @@ from __future__ import annotations
 
 from heapq import heappush
 from time import struct_time
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING, Any, Optional
 
 from cyst.api.environment.clock import Clock
 from cyst.api.environment.resources import EnvironmentResources
+from cyst.api.environment.platform import PlatformSpecification
 from cyst.api.environment.stats import Statistics
 from cyst.api.environment.stores import ExploitStore, ActionStore
 from cyst.api.host.service import ActiveService
@@ -50,9 +51,9 @@ def _timeout(self: _Environment, service: ActiveService, delay: int, content: An
 
 # ----------------------------------------------------------------------------------------------------------------------
 class EnvironmentResourcesImpl(EnvironmentResources):
-    def __init__(self, env: _Environment):
+    def __init__(self, env: _Environment, platform: Optional[PlatformSpecification] = None):
         self._env = env
-        self._action_store = ActionStoreImpl()
+        self._action_store = ActionStoreImpl(platform)
         self._exploit_store = ExploitStoreImpl()
         self._clock = _Clock(self._env)
         self._statistics = StatisticsImpl()
