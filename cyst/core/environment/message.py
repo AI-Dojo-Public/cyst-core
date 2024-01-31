@@ -1,7 +1,7 @@
 from typing import Any, List, Optional, Union, Type
 from netaddr import *
 
-from cyst.api.environment.message import MessageType, Message, Request, Response, Status, Timeout, T
+from cyst.api.environment.message import MessageType, Message, Request, Response, Status, Timeout, T, Resource
 from cyst.api.host.service import ActiveService
 from cyst.api.logic.access import Authorization, AuthenticationToken, AuthenticationTarget
 from cyst.api.logic.action import Action
@@ -392,3 +392,25 @@ class TimeoutImpl(MessageImpl, Timeout):
             return o
         else:
             raise ValueError("Malformed underlying object passed with the Request interface")
+
+
+class ResourceMessageImpl(MessageImpl, Resource):
+
+    def __init__(self, path: str, status: Status, service: str, data: Optional[str]):
+        super(ResourceMessageImpl, self).__init__(type=MessageType.RESOURCE, dst_service=service)
+
+        self._path = path
+        self._status = status
+        self._data = data
+
+    @property
+    def path(self) -> str:
+        return self._path
+
+    @property
+    def status(self) -> Status:
+        return self._status
+
+    @property
+    def data(self) -> Optional[str]:
+        return self._data
