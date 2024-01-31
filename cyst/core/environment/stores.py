@@ -4,6 +4,7 @@ from typing import List, Optional, Dict, Union, Tuple, Any
 from cyst.api.environment.environment import EnvironmentMessaging
 from cyst.api.environment.message import Message
 from cyst.api.environment.stores import ActionStore, ExploitStore
+from cyst.api.environment.platform import PlatformSpecification, PlatformType
 from cyst.api.environment.resources import EnvironmentResources
 from cyst.api.logic.access import AccessLevel
 from cyst.api.logic.action import ActionDescription, Action, ExecutionEnvironment, ExecutionEnvironmentType
@@ -48,53 +49,41 @@ class ServiceStoreImpl:
 
 class ActionStoreImpl(ActionStore):
 
-    def __init__(self):
+    def __init__(self, platform: Optional[PlatformSpecification] = None):
         self._actions = {}
-        self._default_env = ExecutionEnvironment(ExecutionEnvironmentType.SIMULATION, "CYST")
+        if platform:
+            self._platform = platform
+        else:
+            self._platform = PlatformSpecification(PlatformType.SIMULATION, "CYST")
 
-    def get(self, id: str = "", environment: Optional[ExecutionEnvironment] = None) -> Optional[Action]:
-        if not environment:
-            environment = self._default_env
-
-        if environment in self._actions:
-            if id in self._actions[environment]:
-                return deepcopy(self._actions[environment][id])
+    def get(self, id: str = "") -> Optional[Action]:
+        if id in self._actions:
+            return deepcopy(self._actions[id])
         return None
 
-    def get_ref(self, id: str = "", environment: Optional[ExecutionEnvironment] = None) -> Optional[Action]:
-        if not environment:
-            environment = self._default_env
-
-        if environment in self._actions:
-            if id in self._actions[environment]:
-                return self._actions[environment][id]
+    def get_ref(self, id: str = "") -> Optional[Action]:
+        if id in self._actions:
+            return self._actions[id]
         return None
 
-    def get_prefixed(self, prefix: str = "", environment: Optional[ExecutionEnvironment] = None) -> List[Action]:
-        if not environment:
-            environment = self._default_env
-
+    def get_prefixed(self, prefix: str = "") -> List[Action]:
         result = []
-        if environment in self._actions:
-            for id, value in self._actions[environment].items():
-                if id.startswith(prefix):
-                    result.append(deepcopy(value))
+        for id, value in self._actions.items():
+            if id.startswith(prefix):
+                result.append(deepcopy(value))
         return result
 
     def add(self, action: ActionDescription) -> None:
-        env = action.environment
-        if not env:
-            env = [self._default_env]
-        elif type(env) != list:
-            env = [env]
+        action_platform = action.environment
+        if type(action_platform) != list:
+            action_platform = [action_platform]
 
-        for e in env:
-            if e not in self._actions:
-                self._actions[e] = {}
+        if not self._platform in action_platform:
+            pass
 
-            if action.id in self._actions[e]:
-                raise RuntimeError(f"Attempting to add action with ID that is already present for environment {e}: {action.id}")
-            self._actions[e][action.id] = ActionImpl(action)
+        if action.id in self._actions:
+            raise RuntimeError(f"Attempting to add action with ID that is already present for platform {self._platform}: {action.id}")
+        self._actions[action.id] = ActionImpl(action)
 
 
 class ExploitStoreImpl(ExploitStore):
