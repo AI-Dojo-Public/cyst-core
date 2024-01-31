@@ -2,9 +2,9 @@ import argparse
 import copy
 import logging
 import os
+import signal
 import sys
-
-from cyst.api.environment.interpreter import ActionInterpreter
+import time
 
 if sys.version_info < (3, 10):
     from importlib_metadata import entry_points
@@ -15,6 +15,7 @@ from heapq import heappush, heappop
 from itertools import product
 from time import localtime
 from typing import Tuple, List, Union, Optional, Any, Dict
+from threading import Condition
 
 from cyst.api.configuration.configuration import ConfigItem
 from cyst.api.environment.environment import Environment
@@ -25,9 +26,9 @@ from cyst.api.environment.interpreter import ActionInterpreterDescription
 from cyst.api.environment.messaging import EnvironmentMessaging
 from cyst.api.environment.metadata_provider import MetadataProvider
 from cyst.api.environment.policy import EnvironmentPolicy
-from cyst.api.environment.platform import Platform, PlatformSpecification, PlatformType
+from cyst.api.environment.platform import Platform, PlatformSpecification, PlatformType, EnvironmentPlatform
 from cyst.api.environment.resources import EnvironmentResources
-from cyst.api.environment.message import Message, MessageType, Request, StatusValue, StatusOrigin, Status, StatusDetail, Timeout
+from cyst.api.environment.message import Message, MessageType, Request, StatusValue, StatusOrigin, Status, StatusDetail, Timeout, Response
 from cyst.api.logic.access import AuthenticationToken
 from cyst.api.logic.behavioral_model import BehavioralModelDescription, BehavioralModel
 from cyst.api.network.node import Node
@@ -53,6 +54,7 @@ from cyst.core.environment.proxy import EnvironmentProxy
 from cyst.core.environment.stores import ServiceStoreImpl
 from cyst.core.host.service import ServiceImpl
 from cyst.core.logic.access import AuthenticationTokenImpl
+from cyst.core.logic.action import ActionImpl, ActionType
 from cyst.core.logic.composite_action import CompositeActionManagerImpl
 from cyst.core.logic.policy import Policy
 from cyst.core.network.elements import Endpoint, InterfaceImpl, Hop
@@ -65,7 +67,7 @@ from cyst.core.network.session import SessionImpl
 
 # Environment is unlike other core implementation given an underscore-prefixed name to let python complain about
 # it being private if instantiated otherwise than via the create_environment()
-class _Environment(Environment, EnvironmentConfiguration):
+class _Environment(Environment, EnvironmentConfiguration, EnvironmentPlatform):
 
     def __init__(self, platform: Optional[Union[str, PlatformSpecification]]) -> None:
         self._time = 0
@@ -84,19 +86,17 @@ class _Environment(Environment, EnvironmentConfiguration):
         # Interface implementations
         self._environment_control = EnvironmentControlImpl(self)
         self._environment_messaging = EnvironmentMessagingImpl(self)
-        self._environment_resources = EnvironmentResourcesImpl(self)
-
-        self._service_store = ServiceStoreImpl(self.messaging, self.resources)
 
         self._behavioral_models: Dict[str, BehavioralModel] = {}
         # TODO currently, there can be only on metadata provider for one namespace
         self._metadata_providers: Dict[str, MetadataProvider] = {}
         self._platforms: Dict[PlatformSpecification, Platform] = {}
+
         self._platform = None
+        self._platform_spec = None
+        self._platform_notifier = Condition()
 
         self._policy = Policy(self)
-
-        self._cam = CompositeActionManagerImpl(self._behavioral_models, self._environment_messaging, self._environment_resources)
 
         self._sessions_to_add: List[Tuple[ str, List[Union[str, Node]],Optional[str] ,Optional[str], Optional[Session], bool]] = []
 
@@ -110,8 +110,6 @@ class _Environment(Environment, EnvironmentConfiguration):
         self._runtime_configuration = RuntimeConfiguration()
 
         self._configure_runtime()
-        self._register_services()
-        self._register_actions()
         self._register_metadata_providers()
         self._register_platforms()
 
@@ -145,6 +143,22 @@ class _Environment(Environment, EnvironmentConfiguration):
                 raise RuntimeError(f"Platform {platform} exists both as a simulation and emulation environment. Please, provide a full PlatformSpecification.")
 
             self._platform = self._platforms[platform]
+            self._platform_spec = platform
+
+        # Platform-dependent stores
+        if self._platform:
+            self._environment_resources = EnvironmentResourcesImpl(self, platform)
+            self._service_store = ServiceStoreImpl(self._platform.messaging, self._platform.resources)
+            signal.signal(signal.SIGINT, self._signal_handler)
+        else:
+            self._environment_resources = EnvironmentResourcesImpl(self)
+            self._service_store = ServiceStoreImpl(self.messaging, self.resources)
+
+        self._cam = CompositeActionManagerImpl(self._behavioral_models, self._environment_messaging, self._environment_resources)
+
+        # Services and actions depend on platform being initialized
+        self._register_services()
+        self._register_actions()
 
         self._network = Network(self._general_configuration)
 
@@ -153,6 +167,9 @@ class _Environment(Environment, EnvironmentConfiguration):
 
         # Logs
         self._message_log = logging.getLogger("messaging")
+
+    def _signal_handler(self, *args):
+        self._terminate = True
 
     def __getstate__(self) -> dict:
         return {
@@ -331,6 +348,10 @@ class _Environment(Environment, EnvironmentConfiguration):
     def policy(self) -> EnvironmentPolicy:
         return self._policy
 
+    @property
+    def platform(self) -> EnvironmentPlatform:
+        return self
+
     def configure(self, *config_item: ConfigItem) -> Environment:
         self._general_configuration.configure(*[copy.deepcopy(x) for x in config_item])
         if self._platform:
@@ -368,6 +389,17 @@ class _Environment(Environment, EnvironmentConfiguration):
     @property
     def access(self) -> AccessConfiguration:
         return self._access_configuration
+
+    # ------------------------------------------------------------------------------------------------------------------
+    # An interface between the environment and a platform
+    def execute_request(self, request: Request) -> Tuple[bool, int]:
+        print("Storing message in a queue")
+        heappush(self._tasks, (int(time.time()), Counter().get("msg"), MessageImpl.cast_from(request)))
+        # self._platform_notifier.notify_all()
+        return True, 0
+
+    def process_response(self, response: Response) -> Tuple[bool, int]:
+        pass
 
     # ------------------------------------------------------------------------------------------------------------------
     # Internal functions
@@ -755,6 +787,24 @@ class _Environment(Environment, EnvironmentConfiguration):
             self._state = EnvironmentState.FINISHED
 
         return True, self._state
+
+    def _process_emulated(self) -> Tuple[bool, EnvironmentState]:
+        while not self._pause and not self._terminate:
+
+            # TODO manage delays
+            while self._tasks:
+                task = heappop(self._tasks)[2]
+                # TODO responses
+                if isinstance(task, Request):
+                    action = ActionImpl.cast_from(task.action)
+                    if action.type == ActionType.DIRECT:
+                        print("Invoking behavioral model")
+                        self._behavioral_models[task.action.namespace].action_effect(task, None)
+
+            self._platform_notifier.acquire()
+            self._platform_notifier.wait(1)
+
+            print("*")
 
     def _register_services(self) -> None:
 
