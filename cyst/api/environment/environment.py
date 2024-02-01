@@ -8,12 +8,8 @@ from cyst.api.environment.control import EnvironmentControl
 from cyst.api.environment.messaging import EnvironmentMessaging
 from cyst.api.environment.resources import EnvironmentResources
 from cyst.api.environment.policy import EnvironmentPolicy
-from cyst.api.environment.platform import PlatformSpecification, EnvironmentPlatform
-
-
-class EnvironmentMode(Enum):
-    SIMULATION = auto()
-    EMULATION_CRYTON = auto()
+from cyst.api.environment.platform import PlatformSpecification
+from cyst.api.environment.platform_interface import PlatformInterface
 
 
 class Environment(ABC):
@@ -72,11 +68,11 @@ class Environment(ABC):
 
     @property
     @abstractmethod
-    def platform(self) -> EnvironmentPlatform:
+    def platform_interface(self) -> PlatformInterface:
         """
         This interface provides means for execution platforms to execute actions and to notify the results of actions.
 
-        :rtype: EnvironmentPlatform
+        :rtype: PlatformInterface
         """
 
     @abstractmethod

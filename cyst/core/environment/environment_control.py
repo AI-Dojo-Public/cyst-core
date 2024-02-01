@@ -6,7 +6,7 @@ import time
 from typing import Tuple, TYPE_CHECKING
 
 from cyst.api.environment.control import EnvironmentState, EnvironmentControl
-from cyst.api.environment.platform import PlatformType
+from cyst.api.environment.platform_specification import PlatformType
 from cyst.api.environment.stats import Statistics
 from cyst.api.host.service import ServiceState
 

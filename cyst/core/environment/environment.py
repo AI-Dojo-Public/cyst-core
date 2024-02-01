@@ -26,7 +26,9 @@ from cyst.api.environment.interpreter import ActionInterpreterDescription
 from cyst.api.environment.messaging import EnvironmentMessaging
 from cyst.api.environment.metadata_provider import MetadataProvider
 from cyst.api.environment.policy import EnvironmentPolicy
-from cyst.api.environment.platform import Platform, PlatformSpecification, PlatformType, EnvironmentPlatform
+from cyst.api.environment.platform import Platform
+from cyst.api.environment.platform_interface import PlatformInterface
+from cyst.api.environment.platform_specification import PlatformSpecification, PlatformType
 from cyst.api.environment.resources import EnvironmentResources
 from cyst.api.environment.message import Message, MessageType, Request, StatusValue, StatusOrigin, Status, StatusDetail, Timeout, Response
 from cyst.api.logic.access import AuthenticationToken
@@ -68,7 +70,7 @@ from cyst.core.network.session import SessionImpl
 
 # Environment is unlike other core implementation given an underscore-prefixed name to let python complain about
 # it being private if instantiated otherwise than via the create_environment()
-class _Environment(Environment, EnvironmentConfiguration, EnvironmentPlatform):
+class _Environment(Environment, EnvironmentConfiguration, PlatformInterface):
 
     def __init__(self, platform: Optional[Union[str, PlatformSpecification]]) -> None:
         self._time = 0
@@ -351,7 +353,7 @@ class _Environment(Environment, EnvironmentConfiguration, EnvironmentPlatform):
         return self._policy
 
     @property
-    def platform(self) -> EnvironmentPlatform:
+    def platform_interface(self) -> PlatformInterface:
         return self
 
     def configure(self, *config_item: ConfigItem) -> Environment:
@@ -815,11 +817,24 @@ class _Environment(Environment, EnvironmentConfiguration, EnvironmentPlatform):
         return True, self._state
 
     def _process_emulated(self) -> Tuple[bool, EnvironmentState]:
+        ri = ExternalResourcesImpl.cast_from(self._environment_resources.external)
+
         while not self._pause and not self._terminate:
+
+            resources_collected = False
 
             # TODO manage delays
             while self._tasks:
                 task = heappop(self._tasks)[2]
+                if task.type == MessageType.TIMEOUT:
+                    # Yay!
+                    timeout = TimeoutImpl.cast_from(task.cast_to(Timeout)) #type:ignore #MYPY: Probably an issue with mypy, requires creation of helper class
+                    timeout.service.process_message(task)
+                elif task.type == MessageType.RESOURCE:
+                    # Resources are collected only once per timeslot
+                    if not resources_collected:
+                        ri.collect_tasks(self._time)
+                        resources_collected = True
                 # TODO responses
                 if isinstance(task, Request):
                     action = ActionImpl.cast_from(task.action)
@@ -891,7 +906,7 @@ class _Environment(Environment, EnvironmentConfiguration, EnvironmentPlatform):
                 print("Platform with specification {} already registered, skipping ...".format(
                     platform_description.namespace))
             else:
-                platform = platform_description.creation_fn(self)
+                platform = platform_description.creation_fn(self.platform_interface, self.configuration, self.messaging, self.resources)
                 self._platforms[platform_description.specification] = platform
 
 def create_environment(platform: Optional[Union[str, PlatformSpecification]]) -> Environment:

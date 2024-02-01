@@ -4,20 +4,11 @@ from enum import Enum, auto
 from typing import Callable, Tuple
 
 from cyst.api.configuration.configuration import ConfigItem
-from cyst.api.environment.message import Request, Response
+from cyst.api.environment.configuration import EnvironmentConfiguration
 from cyst.api.environment.messaging import EnvironmentMessaging
+from cyst.api.environment.platform_interface import PlatformInterface
+from cyst.api.environment.platform_specification import PlatformSpecification
 from cyst.api.environment.resources import EnvironmentResources
-
-
-class PlatformType(Enum):
-    SIMULATION = auto()
-    EMULATION = auto()
-
-
-@dataclass(frozen=True)
-class PlatformSpecification:
-    type: PlatformType
-    provider: str
 
 
 class Platform(ABC):
@@ -40,15 +31,4 @@ class Platform(ABC):
 class PlatformDescription:
     specification: PlatformSpecification
     description: str
-    creation_fn: Callable[['Environment'], Platform]
-
-
-class EnvironmentPlatform(ABC):
-
-    @abstractmethod
-    def execute_request(self, request: Request) -> Tuple[bool, int]:
-        pass
-
-    @abstractmethod
-    def process_response(self, response: Response) -> Tuple[bool, int]:
-        pass
+    creation_fn: Callable[[PlatformInterface, EnvironmentConfiguration, EnvironmentMessaging, EnvironmentResources], Platform]

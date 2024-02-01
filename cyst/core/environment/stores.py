@@ -4,10 +4,10 @@ from typing import List, Optional, Dict, Union, Tuple, Any
 from cyst.api.environment.environment import EnvironmentMessaging
 from cyst.api.environment.message import Message
 from cyst.api.environment.stores import ActionStore, ExploitStore
-from cyst.api.environment.platform import PlatformSpecification, PlatformType
+from cyst.api.environment.platform_specification import PlatformSpecification, PlatformType
 from cyst.api.environment.resources import EnvironmentResources
 from cyst.api.logic.access import AccessLevel
-from cyst.api.logic.action import ActionDescription, Action, ExecutionEnvironment, ExecutionEnvironmentType
+from cyst.api.logic.action import ActionDescription, Action
 from cyst.api.logic.exploit import Exploit, ExploitCategory, ExploitLocality
 from cyst.api.host.service import PassiveService, ActiveServiceDescription, Service
 from cyst.api.network.node import Node
@@ -74,7 +74,7 @@ class ActionStoreImpl(ActionStore):
         return result
 
     def add(self, action: ActionDescription) -> None:
-        action_platform = action.environment
+        action_platform = action.platform
         if type(action_platform) != list:
             action_platform = [action_platform]
 

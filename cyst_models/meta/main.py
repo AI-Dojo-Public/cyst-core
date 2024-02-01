@@ -7,9 +7,10 @@ from cyst.api.environment.configuration import EnvironmentConfiguration
 from cyst.api.environment.message import Request, Response, Status, StatusOrigin, StatusValue, StatusDetail, Message
 from cyst.api.environment.messaging import EnvironmentMessaging
 from cyst.api.environment.policy import EnvironmentPolicy
+from cyst.api.environment.platform_specification import PlatformSpecification, PlatformType
 from cyst.api.environment.resources import EnvironmentResources
 from cyst.api.logic.access import AuthenticationTarget, Authorization
-from cyst.api.logic.action import ActionDescription, ActionParameterType, ActionParameter, ActionType, ExecutionEnvironment, ExecutionEnvironmentType, Action
+from cyst.api.logic.action import ActionDescription, ActionParameterType, ActionParameter, ActionType, Action
 from cyst.api.logic.behavioral_model import BehavioralModel, BehavioralModelDescription
 from cyst.api.logic.composite_action import CompositeActionManager
 from cyst.api.network.node import Node
@@ -42,13 +43,13 @@ class METAModel(BehavioralModel):
 
         self._action_store.add(ActionDescription(id="meta:inspect:node",
                                                  type=ActionType.DIRECT,
-                                                 environment=ExecutionEnvironment(ExecutionEnvironmentType.SIMULATION, "CYST"),
+                                                 platform=PlatformSpecification(PlatformType.SIMULATION, "CYST"),
                                                  description="Discovery of hosts in a network. Equivalent to ping scanning.",
                                                  parameters=[]))
 
         self._action_store.add(ActionDescription(id="meta:authenticate",
                                                  type=ActionType.DIRECT,
-                                                 environment=ExecutionEnvironment(ExecutionEnvironmentType.SIMULATION, "CYST"),
+                                                 platform=PlatformSpecification(PlatformType.SIMULATION, "CYST"),
                                                  description="Authentication against a service.",
                                                  parameters=[ActionParameter(ActionParameterType.TOKEN, "auth_token", configuration.action.create_action_parameter_domain_any())]))
 

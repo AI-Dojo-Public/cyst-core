@@ -3,7 +3,7 @@ from deprecated.sphinx import versionchanged
 from typing import List, Optional, Tuple, Union
 
 from cyst.api.environment.message import Message
-from cyst.api.logic.action import Action, ActionDescription, ExecutionEnvironment, ExecutionEnvironmentType
+from cyst.api.logic.action import Action, ActionDescription
 from cyst.api.logic.exploit import Exploit, ExploitCategory
 from cyst.api.network.node import Node
 
