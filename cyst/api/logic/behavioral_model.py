@@ -1,12 +1,13 @@
 from abc import ABC, abstractmethod
 from dataclasses import dataclass
-from deprecated.sphinx import versionadded
+from deprecated.sphinx import versionadded, versionchanged
 from enum import Enum
 from typing import Callable, List, Tuple, Union
 
 from cyst.api.environment.messaging import EnvironmentMessaging
 from cyst.api.environment.resources import EnvironmentResources
 from cyst.api.environment.configuration import EnvironmentConfiguration
+from cyst.api.environment.platform_specification import PlatformSpecification, PlatformType
 from cyst.api.environment.policy import EnvironmentPolicy
 from cyst.api.environment.message import Request, Response
 from cyst.api.logic.action import Action
@@ -29,6 +30,7 @@ class BehavioralModel(ABC):
         pass
 
 
+@versionchanged(version="0.6.0", reason="Added platform specification")
 @dataclass
 class BehavioralModelDescription:
     """
@@ -45,7 +47,12 @@ class BehavioralModelDescription:
     :param creation_fn: A factory function that can create the interpreter.
     :type creation_fn: Callable[[EnvironmentConfiguration, EnvironmentResources, EnvironmentPolicy, EnvironmentMessaging, CompositeActionManager], ActionInterpreter]
 
+    :param platform: A platform or platforms for which this behavioral model is constructed. Different modules can
+        support one namespace for different platforms.
+    :type platform: Union[PlatformSpecification, List[PlatformSpecification]]
+
     """
     namespace: str
     description: str
     creation_fn: Callable[[EnvironmentConfiguration, EnvironmentResources, EnvironmentPolicy, EnvironmentMessaging, CompositeActionManager], BehavioralModel]
+    platform: Union[PlatformSpecification, List[PlatformSpecification]] = PlatformSpecification(PlatformType.SIMULATION, "CYST")

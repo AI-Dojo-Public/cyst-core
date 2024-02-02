@@ -148,6 +148,9 @@ class _Environment(Environment, EnvironmentConfiguration, PlatformInterface):
 
             self._platform = self._platforms[platform]
             self._platform_spec = platform
+        else:
+            # When no specific platform is used, CYST simulation is set
+            self._platform_spec = PlatformSpecification(PlatformType.SIMULATION, "CYST")
 
         # Platform-dependent stores
         if self._platform:
@@ -874,6 +877,14 @@ class _Environment(Environment, EnvironmentConfiguration, PlatformInterface):
                           f"From version 0.6.0 only BehavioralModelDescription is supported. This model will be ignored.")
                     continue
                 raise RuntimeError(f"Model of unsupported type [{type(model_description)}] intercepted. Please, fix the installation.")
+
+            model_platform = model_description.platform
+            if not isinstance(model_platform, list):
+                model_platform = [model_platform]
+
+            # Skip behavioral models not supported for this platform
+            if self._platform_spec not in model_platform:
+                continue
 
             if model_description.namespace in self._behavioral_models:
                 print("Behavioral model with namespace {} already registered, skipping it ...".format(
