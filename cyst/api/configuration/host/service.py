@@ -1,4 +1,5 @@
 from dataclasses import dataclass, field
+from flags import Flags
 from typing import Optional, Dict, Any, List, Union, Tuple
 from uuid import uuid4
 
@@ -7,10 +8,23 @@ from serde import serialize
 from cyst.api.configuration.configuration import ConfigItem
 from cyst.api.configuration.logic.access import AuthorizationConfig, AccessSchemeConfig, AuthenticationProviderConfig
 from cyst.api.configuration.logic.data import DataConfig
-# TODO: This should be probably moved somewhere else
-from cyst.api.environment.configuration import ServiceParameter
 
 from cyst.api.logic.access import AccessLevel
+
+
+class ServiceParameter(Flags):
+    """
+    Service parameter represents a domain of parametrization for passive services.
+
+    Values
+        :ENABLE_SESSION: A service can be a destination of a session, e.g., SSH or VPN tunnel, or HTTP server.
+            Possible values: True|False
+        :SESSION_ACCESS_LEVEL: An access level of a session when it is established. This can be different from the
+            service access level, e.g., SSH daemon has an elevated service access level, but its sessions are always
+            limited. Possible values: the domain of cyst.api.logic.access.AccessLevel.
+    """
+    ENABLE_SESSION = ()
+    SESSION_ACCESS_LEVEL = ()
 
 
 @serialize

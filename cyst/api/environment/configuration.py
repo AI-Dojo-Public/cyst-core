@@ -2,9 +2,9 @@ import uuid
 from abc import ABC, abstractmethod
 from typing import Any, List, Optional, Union, Dict, TypeVar, Type
 from netaddr import IPAddress, IPNetwork
-from flags import Flags
 
 from cyst.api.configuration.configuration import ConfigItem
+from cyst.api.configuration import ServiceParameter
 from cyst.api.environment.messaging import EnvironmentMessaging
 from cyst.api.environment.message import Message
 from cyst.api.host.service import Service, PassiveService, ActiveService
@@ -455,21 +455,6 @@ class NodeConfiguration(ABC):
 
         :return: A list of routes.
         """
-
-
-class ServiceParameter(Flags):
-    """
-    Service parameter represents a domain of parametrization for passive services.
-
-    Values
-        :ENABLE_SESSION: A service can be a destination of a session, e.g., SSH or VPN tunnel, or HTTP server.
-            Possible values: True|False
-        :SESSION_ACCESS_LEVEL: An access level of a session when it is established. This can be different from the
-            service access level, e.g., SSH daemon has an elevated service access level, but its sessions are always
-            limited. Possible values: the domain of cyst.api.logic.access.AccessLevel.
-    """
-    ENABLE_SESSION = ()
-    SESSION_ACCESS_LEVEL = ()
 
 
 class ServiceConfiguration(ABC):
