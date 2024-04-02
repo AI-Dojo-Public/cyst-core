@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from datetime import datetime
 from heapq import heappush
 from time import struct_time, localtime
 from typing import TYPE_CHECKING, Any, Optional
@@ -27,14 +28,14 @@ class _Clock(Clock):
     def __init__(self, env: _Environment):
         self._env = env
 
-    def simulation_time(self) -> int:
+    def current_time(self) -> float:
         return _simulation_time(self._env)
 
-    def hybrid_time(self) -> struct_time:
-        return _hybrid_time(self._env)
+    def advance_time(self, delta: float) -> float:
+        return _advance_time(self._env, delta)
 
-    def real_time(self) -> struct_time:
-        return localtime()
+    def real_time(self) -> datetime:
+        pass
 
     def timeout(self, service: ActiveService, delay: int, content: Any) -> None:
         return _timeout(self._env, service, delay, content)
@@ -44,6 +45,10 @@ def _simulation_time(self: _Environment) -> int:
     return self._time
 
 
+def _advance_time(self: _Environment, delta: float) -> float:
+    self._time += int(delta)
+    return float(self._time)
+
 def _hybrid_time(self: _Environment) -> struct_time:
     # TODO this should be local time + self._time miliseconds
     return self._start_time
@@ -51,7 +56,7 @@ def _hybrid_time(self: _Environment) -> struct_time:
 
 def _timeout(self: _Environment, service: ActiveService, delay: int, content: Any) -> None:
     m = TimeoutImpl(service, self._time, delay, content)
-    heappush(self._tasks, (self._time + delay, Counter().get("msg"), m))
+    heappush(self._message_queue, (self._time + delay, Counter().get("msg"), m))
 
 
 # ----------------------------------------------------------------------------------------------------------------------

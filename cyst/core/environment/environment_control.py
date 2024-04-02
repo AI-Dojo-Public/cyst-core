@@ -101,6 +101,10 @@ def _init(self: _Environment, run_id: str = str(uuid.uuid4())) -> Tuple[bool, En
     s.configuration_id = self._runtime_configuration.config_id
     s.start_time_real = time.time()
 
+    # Initialize the platform, if needed
+    if self._platform:
+        self._platform.init()
+
     self._initialized = True
 
     return True, self._state
@@ -113,7 +117,7 @@ def _reset(self: _Environment, run_id: str = str(uuid.uuid4())) -> Tuple[bool, E
     self._network.reset()
     self._time = 0
     self._start_time = time.localtime()
-    self._tasks.clear()
+    self._message_queue.clear()
     self._pause = False
     self._terminate = False
     self._run_id = run_id
@@ -152,14 +156,38 @@ def _run(self: _Environment) -> Tuple[bool, EnvironmentState]:
                         PassiveServiceImpl.cast_from(s.passive_service).set_state(ServiceState.RUNNING)
                     else:
                         s.active_service.run()
+            # All traffic processors are active services
+            for p in n.traffic_processors:
+                p.run()
 
     # Run
     self._state = EnvironmentState.RUNNING
+    self._finish = False
 
-    if self._platform and self._platform_spec.type == PlatformType.EMULATION:
-        self._process_emulated()
+    while not (self._pause or self._finish or self._terminate):
+        self._loop.create_task(self._process_async())
+        self._loop.call_soon(self._loop.stop)
+        self._loop.run_forever()
+
+    # Realistically, we need some more loop steps to serve the awaits when all futures are set
+    # The number 4 was chosen because it works and gives also a hefty margin. As far as I checked, 1 is enough.
+    for _ in range(4):
+        self._loop.create_task(self._process_async())
+        self._loop.call_soon(self._loop.stop)
+        self._loop.run_forever()
+
+    # Pause causes the system to stop processing and to keep task queue intact
+    if self._pause:
+        self._state = EnvironmentState.PAUSED
+
+    # Terminate clears the task queue and sets the clock back to zero
+    elif self._terminate:
+        self._state = EnvironmentState.TERMINATED
+        self._time = 0
+        self._message_queue.clear()
+
     else:
-        self._process()
+        self._state = EnvironmentState.FINISHED
 
     return True, self._state
 
@@ -181,6 +209,10 @@ def _terminate(self: _Environment) -> Tuple[bool, EnvironmentState]:
         return False, self._state
 
     self._terminate = True
+
+    if self._platform:
+        self._platform.terminate()
+
     return True, self._state
 
 
@@ -190,6 +222,10 @@ def _commit(self: _Environment) -> None:
     s.end_time_virtual = self._time
 
     self._data_store.set(self._run_id, self.resources.statistics, Statistics)
+
+    # TODO: What?
+    if self._platform:
+        self._platform.terminate()
 
 
 def _add_pause_on_request(self: _Environment, id: str) -> None:

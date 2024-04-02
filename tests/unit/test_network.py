@@ -1015,7 +1015,7 @@ class TestConnection(unittest.TestCase):
         self.attacker.execute_action(self.DESTINATION, "", action)
         self.env.control.run()
         # Request is delayed by 10 units and it's response by another 10
-        self.assertGreaterEqual(self.env.resources.clock.simulation_time(), 20, "Time moved by 20 seconds")
+        self.assertGreaterEqual(self.env.resources.clock.current_time(), 20, "Time moved by 20 seconds")
 
     def test_0004_block(self) -> None:
         # TODO: Blocking of connection is not yet implemented

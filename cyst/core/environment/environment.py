@@ -1,4 +1,6 @@
 import argparse
+import asyncio
+import atexit
 import copy
 import logging
 import os
@@ -14,7 +16,7 @@ else:
 from heapq import heappush, heappop
 from itertools import product
 from time import localtime
-from typing import Tuple, List, Union, Optional, Any, Dict
+from typing import Tuple, List, Union, Optional, Any, Dict, Set
 from threading import Condition
 
 from cyst.api.configuration.configuration import ConfigItem
@@ -53,6 +55,7 @@ from cyst.core.environment.environment_resources import EnvironmentResourcesImpl
 from cyst.core.environment.data_store import DataStore
 from cyst.core.environment.message import MessageImpl, RequestImpl, ResponseImpl, TimeoutImpl
 from cyst.core.environment.proxy import EnvironmentProxy
+from cyst.core.environment.simulation_platform import CYSTSimulationPlatform
 from cyst.core.environment.stores import ServiceStoreImpl
 from cyst.core.environment.external_resources import ExternalResourcesImpl
 from cyst.core.host.service import ServiceImpl
@@ -75,11 +78,16 @@ class _Environment(Environment, EnvironmentConfiguration, PlatformInterface):
     def __init__(self, platform: Optional[Union[str, PlatformSpecification]]) -> None:
         self._time = 0
         self._start_time = localtime()
-        self._tasks: List[Tuple[int, int, MessageImpl]] = []
+        self._message_queue: List[Tuple[int, int, MessageImpl]] = []
+        self._executables: List[Tuple[float, int, MessageImpl, Optional[Node]]] = []
+        self._executed: Set[asyncio.Task] = set()
         self._pause = False
         self._terminate = False
         self._initialized = False
+        self._finish = False
         self._state = EnvironmentState.INIT
+
+        self._loop = asyncio.new_event_loop()
 
         self._run_id = ""
 
@@ -151,15 +159,12 @@ class _Environment(Environment, EnvironmentConfiguration, PlatformInterface):
         else:
             # When no specific platform is used, CYST simulation is set
             self._platform_spec = PlatformSpecification(PlatformType.SIMULATION, "CYST")
+            self._platform = CYSTSimulationPlatform(self)
 
-        # Platform-dependent stores
-        if self._platform:
-            self._environment_resources = EnvironmentResourcesImpl(self, platform)
-            self._service_store = ServiceStoreImpl(self._platform.messaging, self._platform.resources)
-            signal.signal(signal.SIGINT, self._signal_handler)
-        else:
-            self._environment_resources = EnvironmentResourcesImpl(self)
-            self._service_store = ServiceStoreImpl(self.messaging, self.resources)
+        # Initialize stores in a platform-dependent manner
+        self._environment_resources = EnvironmentResourcesImpl(self, platform)
+        self._service_store = ServiceStoreImpl(self._platform.messaging, self._platform.resources)
+        signal.signal(signal.SIGINT, self._signal_handler)
 
         self._cam = CompositeActionManagerImpl(self._behavioral_models, self._environment_messaging, self._environment_resources)
 
@@ -174,6 +179,11 @@ class _Environment(Environment, EnvironmentConfiguration, PlatformInterface):
 
         # Logs
         self._message_log = logging.getLogger("messaging")
+
+        atexit.register(self.cleanup)
+
+    def cleanup(self):
+        self._loop.close()
 
     def _signal_handler(self, *args):
         self._terminate = True
@@ -360,8 +370,10 @@ class _Environment(Environment, EnvironmentConfiguration, PlatformInterface):
         return self
 
     def configure(self, *config_item: ConfigItem) -> Environment:
+        # In-built configuration process is always ran to resolve all special issues
         self._general_configuration.configure(*[copy.deepcopy(x) for x in config_item])
-        if self._platform:
+        # Platform configuration is then ran on the preprocessed data
+        if self._platform_spec != PlatformSpecification(PlatformType.SIMULATION, "CYST"):
             self._platform.configure(*self._general_configuration.get_configuration())
         return self
 
@@ -399,17 +411,23 @@ class _Environment(Environment, EnvironmentConfiguration, PlatformInterface):
 
     # ------------------------------------------------------------------------------------------------------------------
     # An interface between the environment and a platform
-    def execute_request(self, request: Request) -> Tuple[bool, int]:
-        print("Storing message in a queue")
-        heappush(self._tasks, (int(time.time()), Counter().get("msg"), MessageImpl.cast_from(request)))
-        # self._platform_notifier.notify_all()
+    def execute_request(self, request: Request, delay: float = 0, node: Optional[Node] = None) -> Tuple[bool, int]:
+        exec_time = self._platform.resources.clock.current_time() + delay
+        heappush(self._executables, (exec_time, Counter().get("msg"), MessageImpl.cast_from(request), node))
+
         return True, 0
 
-    def process_response(self, response: Response) -> Tuple[bool, int]:
-        pass
+    def process_response(self, response: Response, delay: float = 0) -> Tuple[bool, int]:
+        self.messaging.send_message(response, int(delay))
+        return True, 0
 
     # ------------------------------------------------------------------------------------------------------------------
     # Internal functions
+    def _process_finalized_task(self, task: asyncio.Task) -> None:
+        delay, response = task.result()
+        self.process_response(response, delay)
+        self._executed.remove(task)
+
     @property
     def _get_network(self) -> Network:
         return self._network
@@ -541,7 +559,7 @@ class _Environment(Environment, EnvironmentConfiguration, PlatformInterface):
 
         return SessionImpl(owner, parent, path, src_service, dst_service, self._network) #MYPY: Services can be None, they are optional
 
-    def _process_passive(self, message: Request, node: Node):
+    def _execute_simulated(self, message: Request, node: Node):
         time = 0
         response = None
 
@@ -561,7 +579,7 @@ class _Environment(Environment, EnvironmentConfiguration, PlatformInterface):
             auth_action = self._environment_resources.action_store.get("meta:authenticate")
             auth_action.parameters["auth_token"].value = message.auth
             message.action = auth_action  # swap to authentication
-            auth_time, auth_response = self._behavioral_models["meta"].action_effect(message, node)
+            auth_time, auth_response = asyncio.run(self._behavioral_models["meta"].action_effect(message, node))
 
             if auth_response.status.value == StatusValue.FAILURE:  # not authorized
                 return auth_time, auth_response
@@ -570,9 +588,11 @@ class _Environment(Environment, EnvironmentConfiguration, PlatformInterface):
             message.action = original_action  # swap back original action
         #  and continue to action
 
-        # TODO: In light of tags abandonment, how to deal with splitting id into namespace and action name
         if message.action.namespace in self._behavioral_models:
-            time, response = self._behavioral_models[message.action.namespace].action_effect(message, node)
+            # action_effect is a coroutine to make it work with emulated systems. However, for simulation, we prefer
+            # to work in a fully sync fashion, so we just execute it.
+            # TODO: Do we?
+            time, response = asyncio.run(self._behavioral_models[message.action.namespace].action_effect(message, node))
         else:
             raise RuntimeError(f"Could not find behavioral model for action namespace {message.action.namespace}")
 
@@ -621,7 +641,7 @@ class _Environment(Environment, EnvironmentConfiguration, PlatformInterface):
             result, delay = current_node.process_message(message) #MYPY: This only returns one int, will crash
             processing_time += delay
             if result:
-                heappush(self._tasks, (self._time + processing_time, Counter().get("msg"), message))
+                heappush(self._message_queue, (self._time + processing_time, Counter().get("msg"), message))
 
             return
 
@@ -631,7 +651,7 @@ class _Environment(Environment, EnvironmentConfiguration, PlatformInterface):
             # Message still in session, pass it along
             if message.in_session:
                 message.set_next_hop()
-                heappush(self._tasks, (self._time + processing_time, Counter().get("msg"), message))
+                heappush(self._message_queue, (self._time + processing_time, Counter().get("msg"), message))
                 return
             # The session ends in the current node
             elif message.session.endpoint.id == current_node.id or message.session.startpoint.id == current_node.id:  #MYPY: here on multiple line, session only has an end and start, not endpoint and startpoint
@@ -660,7 +680,7 @@ class _Environment(Environment, EnvironmentConfiguration, PlatformInterface):
                     # ##################
                     self._message_log.debug(
                         f"Proxying {message_type} to {message.dst_ip} via {message.next_hop.id} on a node {current_node.id}")
-                    heappush(self._tasks, (self._time + processing_time, Counter().get("msg"), message))
+                    heappush(self._message_queue, (self._time + processing_time, Counter().get("msg"), message))
                     return
 
         # Message has to be processed locally
@@ -710,12 +730,14 @@ class _Environment(Environment, EnvironmentConfiguration, PlatformInterface):
                                             session=message.session, auth=message.auth)
                     self._environment_messaging.send_message(response, processing_time)
                 else:
-                    delay, response = self._process_passive(message, current_node)
-                    processing_time += delay
-                    if response.status.origin == StatusOrigin.SYSTEM and response.status.value == StatusValue.ERROR:
-                        print("Could not process the request, unknown semantics.")
-                    else:
-                        self._environment_messaging.send_message(response, processing_time)
+                    # Delay it by the time it took to process the last hop
+                    self.execute_request(message.cast_to(Request), processing_time, current_node)
+                    #delay, response = self._process_passive(message, current_node)
+                    #processing_time += delay
+                    #if response.status.origin == StatusOrigin.SYSTEM and response.status.value == StatusValue.ERROR:
+                    #    print("Could not process the request, unknown semantics.")
+                    #else:
+                    #    self._environment_messaging.send_message(response, processing_time)
             # Service exists and it is active
             else:
                 # An active service does not necessarily produce Responses, so we should just move time
@@ -750,30 +772,38 @@ class _Environment(Environment, EnvironmentConfiguration, PlatformInterface):
                 return
 
             # If it is a request, then it is processed as a request for passive service and processed with the interpreter
-            delay, response = self._process_passive(message, current_node) #MYPY: messageimpl vs request
-            processing_time += delay
-            if response.status.origin == StatusOrigin.SYSTEM and response.status.value == StatusValue.ERROR: #MYPY: same as above, response None?
-                print("Could not process the request, unknown semantics.")
-            else:
-                self._environment_messaging.send_message(response, processing_time)
+            # Delay it by the time it took to process the last hop
+            self.execute_request(message.cast_to(Request), processing_time, current_node)
+            #delay, response = self._process_passive(message, current_node) #MYPY: messageimpl vs request
+            #processing_time += delay
+            #if response.status.origin == StatusOrigin.SYSTEM and response.status.value == StatusValue.ERROR: #MYPY: same as above, response None?
+            #    print("Could not process the request, unknown semantics.")
+            #else:
+            #    self._environment_messaging.send_message(response, processing_time)
 
     # Resource tasks are always collected as a first thing in the timeslot to supply services with data on time.
     def add_resource_task_collection(self, virtual_time: int):
-        heappush(self._tasks, (virtual_time, -1, MessageImpl(MessageType.RESOURCE)))
+        heappush(self._message_queue, (virtual_time, -1, MessageImpl(MessageType.RESOURCE)))
 
     def _process(self) -> Tuple[bool, EnvironmentState]:
         ri = ExternalResourcesImpl.cast_from(self._environment_resources.external)
 
         # The processing runs as long as there are tasks to do, composite events to process and no one ordered pause
         # or termination.
-        while (self._tasks or self._cam.processing()) and not self._pause and not self._terminate:
+        while (self._message_queue or self._executables or self._cam.processing()) and not self._pause and not self._terminate:
             # Get the time of nearest task. It can happen that there are no tasks in the queue, but composite
             # events are being processed. In that case, the time must not jump to another time window, until all
             # composite events are processed.
-            delta = 0
-            if self._tasks:
-                next_time = self._tasks[0][0]
+            delta = -1
+            if self._message_queue:
+                next_time = self._message_queue[0][0]
                 delta = next_time - self._time
+
+            if self._executables:
+                next_time = self._executables[0][0]
+                e_delta = next_time - self._time
+                if e_delta < delta or delta == -1:
+                    delta = e_delta
 
             if self._cam.processing():
                 self._cam.process(self._time)
@@ -786,8 +816,8 @@ class _Environment(Environment, EnvironmentConfiguration, PlatformInterface):
             resources_collected = False
 
             current_tasks: List[MessageImpl] = []
-            while self._tasks and self._tasks[0][0] == self._time:
-                current_tasks.append(heappop(self._tasks)[2])
+            while self._message_queue and self._message_queue[0][0] == self._time:
+                current_tasks.append(heappop(self._message_queue)[2])
 
             for task in current_tasks:
                 if task.type == MessageType.TIMEOUT:
@@ -804,6 +834,20 @@ class _Environment(Environment, EnvironmentConfiguration, PlatformInterface):
                 else:
                     self._send_message(task)
 
+            # Executables are a simulation-only queue. This will always be a (mostly) noop for emulated platforms
+            current_executables: List[Tuple[MessageImpl, Node]] = []
+            while self._executables and self._executables[0][0] <= self._time:
+                e = heappop(self._executables)
+                current_executables.append((e[2], e[3]))
+
+            for e in current_executables:
+                delay, response = self._execute_simulated(e[0].cast_to(Request), e[1])
+
+                if response.status.origin == StatusOrigin.SYSTEM and response.status.value == StatusValue.ERROR: #MYPY: same as above, response None?
+                   print("Could not process the request, unknown semantics.")
+                else:
+                   self._environment_messaging.send_message(response, delay)
+
         # Pause causes the system to stop processing and to keep task queue intact
         if self._pause:
             self._state = EnvironmentState.PAUSED
@@ -812,7 +856,7 @@ class _Environment(Environment, EnvironmentConfiguration, PlatformInterface):
         elif self._terminate:
             self._state = EnvironmentState.TERMINATED
             self._time = 0
-            self._tasks.clear()
+            self._message_queue.clear()
 
         else:
             self._state = EnvironmentState.FINISHED
@@ -827,8 +871,8 @@ class _Environment(Environment, EnvironmentConfiguration, PlatformInterface):
             resources_collected = False
 
             # TODO manage delays
-            while self._tasks:
-                task = heappop(self._tasks)[2]
+            while self._message_queue:
+                task = heappop(self._message_queue)[2]
                 if task.type == MessageType.TIMEOUT:
                     # Yay!
                     timeout = TimeoutImpl.cast_from(task.cast_to(Timeout)) #type:ignore #MYPY: Probably an issue with mypy, requires creation of helper class
@@ -849,6 +893,79 @@ class _Environment(Environment, EnvironmentConfiguration, PlatformInterface):
             self._platform_notifier.wait(1)
 
             print("*")
+
+    async def _process_async(self) -> None:
+        # The async processing works thus:
+        #   - get the current time from the platform
+        #   - gather all tasks which should be processed in the current or previous time windows
+        #   - execute all the tasks
+        #   - ask platform to advance time
+
+        current_time = self._platform.resources.clock.current_time()
+        time_jump = 1000
+
+        # --------------------------------------------------------------------------------------------------------------
+        # Task gathering
+        messages_to_process = []
+        tasks_to_execute = []
+
+        # Message-passing tasks
+        if self._message_queue:
+            next_time = self._message_queue[0][0]
+            while next_time <= current_time:
+                messages_to_process.append(heappop(self._message_queue)[2])
+                if self._message_queue:
+                    next_time = self._message_queue[0][0]
+                else:
+                    break
+
+            delta = next_time - current_time
+            if delta < time_jump:
+                time_jump = delta
+
+        # Tasks scheduled for execution
+        if self._executables:
+            next_time = self._executables[0][0]
+            while next_time <= current_time:
+                task = heappop(self._executables)
+                tasks_to_execute.append((task[2], task[3]))
+                if self._executables:
+                    next_time = self._executables[0][0]
+                else:
+                    break
+
+            delta = next_time - current_time
+            if delta < time_jump:
+                time_jump = delta
+
+        # --------------------------------------------------------------------------------------------------------------
+        # Task processing
+        for message in messages_to_process:
+            if message.type == MessageType.TIMEOUT:
+                # Yay!
+                timeout = TimeoutImpl.cast_from(message.cast_to(Timeout)) #type:ignore #MYPY: Probably an issue with mypy, requires creation of helper class
+                timeout.service.process_message(message)
+            else:
+                # TODO: This relies on emulated platforms never adding stuff to message queues. There will probably
+                #       have to be an extension to platform API to support message hopping.
+                #       Maybe rename _send_message to (_hop|_push)_message
+                self._send_message(message)
+
+        for task in tasks_to_execute:
+            request = task[0].cast_to(RequestImpl)
+            node = task[1]
+            namespace = request.action.namespace
+            t = self._loop.create_task(self._behavioral_models[namespace].action_effect(request, node))
+            self._executed.add(t)
+            t.add_done_callback(self._process_finalized_task)
+
+        # Advance the time if nothing is executed, and we are just waiting for something to happen
+        if not self._executed:
+            # However, if there is no message in any queue. Finish the run.
+            if not self._message_queue and not self._executables:
+                self._finish = True
+            else:
+                self._platform.resources.clock.advance_time(time_jump)
 
     def _register_services(self) -> None:
 

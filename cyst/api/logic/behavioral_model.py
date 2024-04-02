@@ -22,7 +22,7 @@ class BehavioralModel(ABC):
         pass
 
     @abstractmethod
-    def action_effect(self, message: Request, node: Node) -> Tuple[int, Response]:
+    async def action_effect(self, message: Request, node: Node) -> Tuple[int, Response]:
         pass
 
     @abstractmethod

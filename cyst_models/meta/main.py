@@ -60,7 +60,7 @@ class METAModel(BehavioralModel):
         # META actions are component-less
         return []
 
-    def action_effect(self, message: Request, node: Node) -> Tuple[int, Response]:
+    async def action_effect(self, message: Request, node: Node) -> Tuple[int, Response]:
         if not message.action:
             raise ValueError("Action not provided")
 

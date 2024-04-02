@@ -210,7 +210,7 @@ def _send_message(self: _Environment, message: MessageImpl, delay: int = 0) -> N
                 message.set_next_hop(message.origin, iface.endpoint)
 
     try:
-        heappush(self._tasks, (self._time + delay, Counter().get("msg"), message))
+        heappush(self._message_queue, (self._time + delay, Counter().get("msg"), message))
     except Exception as e:
         self._message_log.error(f"Error sending a message, reason: {e}")
 

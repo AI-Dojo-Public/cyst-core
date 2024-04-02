@@ -75,11 +75,15 @@ class ActionStoreImpl(ActionStore):
 
     def add(self, action: ActionDescription) -> None:
         action_platform = action.platform
+
+        if not action_platform:
+            action_platform = PlatformSpecification(PlatformType.SIMULATION, "CYST")
+
         if type(action_platform) != list:
             action_platform = [action_platform]
 
         if not self._platform in action_platform:
-            pass
+            return
 
         if action.id in self._actions:
             raise RuntimeError(f"Attempting to add action with ID that is already present for platform {self._platform}: {action.id}")
