@@ -3,7 +3,7 @@ from dataclasses import dataclass
 from deprecated.sphinx import versionadded
 from enum import Enum, auto
 from netaddr import IPAddress
-from typing import Any, Optional, Union, TypeVar, Type
+from typing import Any, Optional, Union, TypeVar, Type, Dict
 
 from cyst.api.network.session import Session
 from cyst.api.logic.access import Authorization, AuthenticationToken, AuthenticationTarget
@@ -291,6 +291,17 @@ class Message(ABC):
 
         :param metadata: A new value of the metadata.
         :type metdata: Metadata
+        """
+
+    @versionadded(version="0.6.0")
+    @property
+    @abstractmethod
+    def platform_specific(self) -> Dict[str, Any]:
+        """
+        Provides access to platform-specific parameters of a message. Their contents can be arbitrary and are intended
+        for assisting with message handling in a non CYST-simulated environments.
+
+        :rtype: Dict[str, Any]
         """
 
     @abstractmethod

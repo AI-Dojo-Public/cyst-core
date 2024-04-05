@@ -1,4 +1,4 @@
-from typing import Any, List, Optional, Union, Type
+from typing import Any, List, Optional, Union, Type, Dict
 from netaddr import *
 
 from cyst.api.environment.message import MessageType, Message, Request, Response, Status, Timeout, T, Resource
@@ -56,6 +56,7 @@ class MessageImpl(Message):
         self._ttl = ttl
 
         self._metadata = None
+        self._platform_specific: Dict[str, Any] = {}
 
     @property
     def id(self) -> int:
@@ -218,6 +219,10 @@ class MessageImpl(Message):
 
     def set_metadata(self, metadata: Metadata) -> None:
         self._metadata = metadata
+
+    @property
+    def platform_specific(self) -> Dict[str, Any]:
+        return self._platform_specific
 
     @staticmethod
     def cast_from(o: Message) -> 'MessageImpl':
