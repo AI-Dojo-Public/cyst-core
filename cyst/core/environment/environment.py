@@ -421,6 +421,9 @@ class _Environment(Environment, EnvironmentConfiguration, PlatformInterface):
         self.messaging.send_message(response, int(delay))
         return True, 0
 
+    def get_message_internals(self, message: Message) -> MessageImpl:
+        return MessageImpl.cast_from(message)
+
     # ------------------------------------------------------------------------------------------------------------------
     # Internal functions
     def _process_finalized_task(self, task: asyncio.Task) -> None:
