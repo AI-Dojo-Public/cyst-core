@@ -1,30 +1,34 @@
+import builtins
+
 from copy import deepcopy
 from typing import List, Optional, Dict, Union, Tuple, Any
 
 from cyst.api.environment.environment import EnvironmentMessaging
 from cyst.api.environment.message import Message
-from cyst.api.environment.stores import ActionStore, ExploitStore
+from cyst.api.environment.stores import ActionStore, ExploitStore, ServiceStore
 from cyst.api.environment.platform_specification import PlatformSpecification, PlatformType
 from cyst.api.environment.resources import EnvironmentResources
 from cyst.api.logic.access import AccessLevel
 from cyst.api.logic.action import ActionDescription, Action
 from cyst.api.logic.exploit import Exploit, ExploitCategory, ExploitLocality
-from cyst.api.host.service import PassiveService, ActiveServiceDescription, Service
+from cyst.api.host.service import PassiveService, ActiveServiceDescription, ActiveService
 from cyst.api.network.node import Node
 
-from cyst.core.environment.proxy import EnvironmentProxy
 from cyst.core.logic.action import ActionImpl
-from cyst.core.host.service import ServiceImpl
-from cyst.core.network.session import SessionImpl
-from cyst.core.network.node import NodeImpl
+# from cyst.core.host.service import ServiceImpl
+# from cyst.core.network.session import SessionImpl
+# from cyst.core.network.node import NodeImpl
 
 
-class ServiceStoreImpl:
+class ServiceStoreImpl(ServiceStore):
 
     def __init__(self, messaging: EnvironmentMessaging, resources: EnvironmentResources):
         self._services = {}
         self._messaging = messaging
         self._resources = resources
+
+        self._service_instances = {}
+        self._service_instance_ids = {}
 
     def add_service(self, description: ActiveServiceDescription) -> None:
         self._services[description.name] = description
@@ -37,15 +41,28 @@ class ServiceStoreImpl:
 
     def create_active_service(self, type: str, owner: str, name: str, node: Node,
                               service_access_level: AccessLevel = AccessLevel.LIMITED,
-                              configuration: Optional[Dict[str, Any]] = None, id: str = "") -> Optional[Service]:
+                              configuration: Optional[Dict[str, Any]] = None, id: str = "") -> Optional[ActiveService]:
         if not type in self._services:
-            return None
-        node = NodeImpl.cast_from(node)
-        proxy = EnvironmentProxy(self._messaging, node.id, name)
+            raise RuntimeError(f"Attempting to create nonexistent service {type}.")
         service_description: ActiveServiceDescription = self._services[type]
-        service = service_description.creation_fn(proxy, self._resources, configuration)
-        return ServiceImpl(type, service, name, owner, service_access_level, id)
+        service = service_description.creation_fn(self._messaging, self._resources, configuration)
+        #return ServiceImpl(type, service, name, owner, service_access_level, id)
 
+        # service is stored according to its in-engine ID as well as its address to help with message sending
+        self._service_instances[id] = service
+        self._service_instance_ids[builtins.id(service)] = id
+
+        return service
+
+    def get_active_service(self, id) -> Optional[ActiveService]:
+        return self._service_instances[id]
+
+
+    def get_active_services(self) -> List[ActiveService]:
+        return list(self._service_instances.values())
+
+    def get_active_service_id(self, address: str) -> str:
+        return self._service_instance_ids[address]
 
 class ActionStoreImpl(ActionStore):
 
@@ -153,7 +170,7 @@ class ExploitStoreImpl(ExploitStore):
         if exploit.locality == ExploitLocality.LOCAL:
             if not message.session:
                 return False, "Local exploits can only be used from within an existing session"
-            elif SessionImpl.cast_from(message.session).endpoint.id != NodeImpl.cast_from(node).id:
+            elif not message.session.end[0] in [iface.ip for iface in node.interfaces]:
                 return False, "Local exploits can only be used at session endpoint."
 
         # 2) Exploits must be applicable on given service_id

@@ -1,5 +1,6 @@
 import uuid
 from abc import ABC, abstractmethod
+from dataclasses import dataclass, field
 from typing import Any, List, Optional, Union, Dict, TypeVar, Type
 from netaddr import IPAddress, IPNetwork
 
@@ -158,16 +159,10 @@ class GeneralConfiguration(ABC):
     @abstractmethod
     def get_object_by_id(self, id: str, object_type: Type[ObjectType]) -> ObjectType:
         """
-        Get any object instantiated within a simulation.
-
-        :param id: The ID of the object.
-        :type id: str
-
-        :param object_type: A type of object to get. While not technically necessary, given the state of Python's type
-            system, it is there to satisfy static typing inspection.
-        :type object_type: Type[TypeVar('ObjectType')]
-
-        :return: An object with give ID.
+        Get this back...
+        :param id:
+        :param object_type:
+        :return:
         """
 
 
@@ -1299,3 +1294,14 @@ class AccessConfiguration(ABC):
 
         :return: True if successful, False otherwise.
         """
+
+
+# ----------------------------------------------------------------------------------------------------------------------
+# Runtime configuration of the environment. Can be filled from different sources
+@dataclass
+class RuntimeConfiguration:
+    data_backend: str = "MEMORY"
+    data_backend_params: Dict[str, str] = field(default_factory=lambda: {})
+    run_id: str = field(default_factory=lambda: str(uuid.uuid4()))
+    config_id: str = ""
+    config_filename: str = ""

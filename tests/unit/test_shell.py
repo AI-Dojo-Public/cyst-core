@@ -14,8 +14,8 @@ from cyst.api.host.service import Service
 from cyst.api.logic.access import AccessLevel
 from cyst.api.network.firewall import FirewallPolicy, FirewallChainType
 from cyst.api.network.node import Node
-from cyst.core.environment.message import MessageImpl
-from cyst.core.network.elements import Endpoint
+#from cyst.core.environment.message import MessageImpl
+#from cyst.core.network.elements import Endpoint
 from cyst_services.forward_shell.main import ForwardShell
 from cyst_services.scripted_actor.main import ScriptedActorControl
 
@@ -31,7 +31,7 @@ target = NodeConfig(
     active_services=[
         ActiveServiceConfig(
             "forward_shell",
-            "forward_shell_service",
+            "forward_shell",
             "target",
             AccessLevel.LIMITED,
             id="forward_shell_service",
@@ -44,7 +44,7 @@ target = NodeConfig(
     traffic_processors=[],
     shell="",
     interfaces=[InterfaceConfig(IPAddress(TARGET), IPNetwork("192.168.0/24"))],
-    id="target")
+    id="target_node")
 
 attacker = NodeConfig(active_services=[
     ActiveServiceConfig("scripted_actor",
@@ -57,7 +57,7 @@ attacker = NodeConfig(active_services=[
                       traffic_processors=[],
                       shell="",
                       interfaces=[InterfaceConfig(IPAddress(ATTACKER), IPNetwork("192.168.0/24"))],
-                      id="attacker")
+                      id="attacker_node")
 
 router = RouterConfig(
     traffic_processors=[
@@ -84,8 +84,8 @@ router = RouterConfig(
 )
 
 connections = [
-    ConnectionConfig("target", 0, "router", 0),
-    ConnectionConfig("attacker", 0, "router", 1),
+    ConnectionConfig("target_node", 0, "router", 0),
+    ConnectionConfig("attacker_node", 0, "router", 1),
 ]
 
 
@@ -95,18 +95,18 @@ class TestForwardShell(unittest.TestCase):
     def setUpClass(cls) -> None:
         cls.env = Environment.create().configure(target, attacker, router, *connections)
         cls.env.control.init()
-        cls.env.control.add_pause_on_response("attacker.scripted_attacker")
+        cls.env.control.add_pause_on_response("attacker_node.scripted_attacker")
 
         cls.attacker = cls.env.configuration.service.get_service_interface(
-            cls.env.configuration.general.get_object_by_id("attacker_service",
+            cls.env.configuration.general.get_object_by_id("attacker_node.scripted_attacker",
                                                            Service).active_service,
             ScriptedActorControl)
 
         cls.shell = cls.env.configuration.service.get_service_interface(
-            cls.env.configuration.general.get_object_by_id("forward_shell_service",
+            cls.env.configuration.general.get_object_by_id("target_node.forward_shell",
                                                            Service).active_service, ForwardShell)
 
-        cls.node = cls.env.configuration.general.get_object_by_id("target", Node)
+        cls.node = cls.env.configuration.general.get_object_by_id("target_node", Node)
 
         cls.actions = {a.id: a for a in cls.env.resources.action_store.get_prefixed("cyst")}
 
@@ -118,7 +118,7 @@ class TestForwardShell(unittest.TestCase):
     def test_0001_send_action(self) -> None:
         open_session = self.actions["cyst:active_service:open_session"]
 
-        self.attacker.execute_action(TARGET, "forward_shell_service", open_session)
+        self.attacker.execute_action(TARGET, "forward_shell", open_session)
         self.env.control.run()
         response = self.attacker.get_last_response()
 
@@ -126,13 +126,13 @@ class TestForwardShell(unittest.TestCase):
         self.assertIsNotNone(response.session, "Session was not received")
         self.assertTupleEqual(response.session.start, (IPAddress(ATTACKER), "scripted_attacker"),
                               "Session should start at the attacker service")
-        self.assertTupleEqual(response.session.end, (IPAddress(TARGET), "forward_shell_service"),
+        self.assertTupleEqual(response.session.end, (IPAddress(TARGET), "forward_shell"),
                               "Session should end at the forward shell")
 
     def test_0002_invalid_action(self) -> None:
         invalid_action = self.actions["cyst:active_service:action_1"]
 
-        self.attacker.execute_action(TARGET, "forward_shell_service", invalid_action)
+        self.attacker.execute_action(TARGET, "forward_shell", invalid_action)
         self.env.control.run()
         response = self.attacker.get_last_response()
 
@@ -159,14 +159,14 @@ class TestReverseShell(unittest.TestCase):
     def setUpClass(cls) -> None:
         cls.env = Environment.create().configure(target, attacker, router, *connections)
         cls.env.control.init()
-        cls.env.control.add_pause_on_response("attacker.scripted_attacker")
-        cls.env.control.add_pause_on_response("target.reverse_shell")
+        cls.env.control.add_pause_on_response("attacker_node.scripted_attacker")
+        cls.env.control.add_pause_on_response("target_node.reverse_shell")
 
         cls.attacker = cls.env.configuration.service.get_service_interface(
-            cls.env.configuration.general.get_object_by_id("attacker_service",
+            cls.env.configuration.general.get_object_by_id("attacker_node.scripted_attacker",
                                                            Service).active_service,
             ScriptedActorControl)
-        cls.node = cls.env.configuration.general.get_object_by_id("target", Node)
+        cls.node = cls.env.configuration.general.get_object_by_id("target_node", Node)
 
         cls.actions = {a.id: a for a in cls.env.resources.action_store.get_prefixed("cyst")}
 

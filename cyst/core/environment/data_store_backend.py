@@ -5,7 +5,7 @@ from abc import abstractmethod, ABC
 from cyst.api.environment.message import Message, MessageType, Response, Request
 from cyst.api.environment.stats import Statistics
 
-from cyst.core.environment.message import MessageImpl
+# from cyst.core.environment.message import MessageImpl
 
 read_write_data = [Statistics]
 write_only_data = [Message]

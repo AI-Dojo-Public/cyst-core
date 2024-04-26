@@ -10,9 +10,6 @@ from cyst.api.environment.platform_specification import PlatformType
 from cyst.api.environment.stats import Statistics
 from cyst.api.host.service import ServiceState
 
-from cyst.core.host.service import ServiceImpl, PassiveServiceImpl
-from cyst.core.network.node import NodeImpl
-from cyst.core.environment.configuration_general import GeneralConfigurationImpl
 from cyst.core.environment.serialization import Serializer
 from cyst.core.environment.stats import StatisticsImpl
 
@@ -93,10 +90,8 @@ def _init(self: _Environment, run_id: str = str(uuid.uuid4())) -> Tuple[bool, En
     self._state = EnvironmentState.INIT
     self._run_id = run_id
 
-    _establish_sessions(self)
-
     # Set basic statistics
-    s = StatisticsImpl.cast_from(self.resources.statistics)
+    s = StatisticsImpl.cast_from(self.infrastructure.statistics)
     s.run_id = self._runtime_configuration.run_id if self._runtime_configuration.run_id else self._run_id
     s.configuration_id = self._runtime_configuration.config_id
     s.start_time_real = time.time()
@@ -126,18 +121,6 @@ def _reset(self: _Environment, run_id: str = str(uuid.uuid4())) -> Tuple[bool, E
     return True, self._state
 
 
-def _establish_sessions(self: _Environment) -> None:
-    for session in self._sessions_to_add:
-        owner = session[0]
-        waypoints = session[1]
-        src_service = session[2]
-        dst_service = session[3]
-        parent = session[4]
-        reverse = session[5]
-
-        self.configuration.network.create_session(owner, waypoints, src_service, dst_service, parent, False, reverse)
-
-
 def _run(self: _Environment) -> Tuple[bool, EnvironmentState]:
 
     if not self._initialized:
@@ -149,16 +132,8 @@ def _run(self: _Environment) -> Tuple[bool, EnvironmentState]:
 
     # if this is the first run() after init, call all run() methods of active services and activate passive services
     if self._state == EnvironmentState.INIT:
-        for n in GeneralConfigurationImpl.cast_from(self.configuration.general).get_objects_by_type(NodeImpl):
-            for s in n.services.values():
-                if isinstance(s, ServiceImpl):
-                    if s.passive:
-                        PassiveServiceImpl.cast_from(s.passive_service).set_state(ServiceState.RUNNING)
-                    else:
-                        s.active_service.run()
-            # All traffic processors are active services
-            for p in n.traffic_processors:
-                p.run()
+        for service in self._service_store.get_active_services():
+            service.run()
 
     # Run
     self._state = EnvironmentState.RUNNING
@@ -169,25 +144,24 @@ def _run(self: _Environment) -> Tuple[bool, EnvironmentState]:
         self._loop.call_soon(self._loop.stop)
         self._loop.run_forever()
 
-    # Realistically, we need some more loop steps to serve the awaits when all futures are set
-    # The number 4 was chosen because it works and gives also a hefty margin. As far as I checked, 1 is enough.
-    for _ in range(4):
-        self._loop.create_task(self._process_async())
-        self._loop.call_soon(self._loop.stop)
-        self._loop.run_forever()
-
-    # Pause causes the system to stop processing and to keep task queue intact
     if self._pause:
         self._state = EnvironmentState.PAUSED
-
-    # Terminate clears the task queue and sets the clock back to zero
-    elif self._terminate:
-        self._state = EnvironmentState.TERMINATED
-        self._time = 0
-        self._message_queue.clear()
-
     else:
-        self._state = EnvironmentState.FINISHED
+        # Realistically, we need some more loop steps to serve the awaits when all futures are set
+        # The number 4 was chosen because it works and gives also a hefty margin. As far as I checked, 1 is enough.
+        for _ in range(4):
+            self._loop.create_task(self._process_async())
+            self._loop.call_soon(self._loop.stop)
+            self._loop.run_forever()
+
+        # Terminate clears the task queue and sets the clock back to zero
+        if self._terminate:
+            self._state = EnvironmentState.TERMINATED
+            self._time = 0
+            self._message_queue.clear()
+
+        else:
+            self._state = EnvironmentState.FINISHED
 
     return True, self._state
 
@@ -217,11 +191,11 @@ def _terminate(self: _Environment) -> Tuple[bool, EnvironmentState]:
 
 
 def _commit(self: _Environment) -> None:
-    s = StatisticsImpl.cast_from(self.resources.statistics)
+    s = StatisticsImpl.cast_from(self.infrastructure.statistics)
     s.end_time_real = time.time()
     s.end_time_virtual = self._time
 
-    self._data_store.set(self._run_id, self.resources.statistics, Statistics)
+    self._data_store.set(self._run_id, self.infrastructure.statistics, Statistics)
 
     # TODO: What?
     if self._platform:

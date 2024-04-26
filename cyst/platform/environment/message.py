@@ -7,10 +7,10 @@ from cyst.api.logic.access import Authorization, AuthenticationToken, Authentica
 from cyst.api.logic.action import Action
 from cyst.api.logic.metadata import Metadata
 from cyst.api.network.session import Session
-
 from cyst.api.utils.counter import Counter
-from cyst.core.network.elements import Endpoint, Hop
-from cyst.core.network.session import SessionImpl
+
+from cyst.platform.network.elements import Endpoint, Hop
+from cyst.platform.network.session import SessionImpl
 
 
 # TODO No repeated encapsulation of content yet
@@ -324,6 +324,9 @@ class ResponseImpl(MessageImpl, Response):
         self._non_session_path = request._non_session_path
         self._path_index = len(self._non_session_path)
         self.set_origin(request.current)
+
+        # Copy platform-specific information
+        self._platform_specific = request.platform_specific
 
     def set_next_hop(self, origin_endpoint: Endpoint = None, destination_endpoint: Endpoint = None) -> None:
         # Traversing the pre-session connections is done by traversing back the non-session path

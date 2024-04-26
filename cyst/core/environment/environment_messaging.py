@@ -1,21 +1,19 @@
 from __future__ import annotations
 
+import sys
+
 from heapq import heappush
 from netaddr import IPAddress
 from typing import TYPE_CHECKING, Optional, Any, Union, Dict, List
 
-from cyst.api.environment.message import Request, Response, Status, Message
+from cyst.api.environment.message import Request, Response, Status, Message, MessageType
 from cyst.api.environment.messaging import EnvironmentMessaging
 from cyst.api.logic.access import Authorization, AuthenticationTarget, AuthenticationToken
 from cyst.api.logic.action import Action, ActionType
 from cyst.api.logic.metadata import Metadata
 from cyst.api.network.session import Session
+from cyst.api.host.service import ActiveService
 from cyst.api.utils.counter import Counter
-
-from cyst.core.environment.message import RequestImpl, ResponseImpl, MessageImpl, MessageType
-from cyst.core.logic.action import ActionImpl
-from cyst.core.network.elements import Endpoint, InterfaceImpl
-from cyst.core.network.session import SessionImpl
 
 if TYPE_CHECKING:
     from cyst.core.environment.environment import _Environment
@@ -26,58 +24,25 @@ class EnvironmentMessagingImpl(EnvironmentMessaging):
         self._env = env
 
     def send_message(self, message: Message, delay: int = 0) -> None:
-        # Messages with composite actions need to be processed via ActionManager
-        # Logic:
-        # if message.action.is_composite_action:
-        #    self._env.composite_action_manager.process_composite_action(message)
-        # else:
-        #    # the rest
-        m = MessageImpl.cast_from(message)
-        _send_message(self._env, m, delay)
+        _send_message(self._env, message, delay)
 
     def create_request(self, dst_ip: Union[str, IPAddress], dst_service: str = "", action: Optional[Action] = None,
                        session: Optional[Session] = None,
                        auth: Optional[Union[Authorization, AuthenticationToken]] = None,
                        original_request: Optional[Request] = None) -> Request:
-        return _create_request(dst_ip, dst_service, action, session, auth, original_request)
+        return self._env.platform.messaging.create_request(dst_ip, dst_service, action, session, auth, original_request)
 
     def create_response(self, request: Request, status: Status, content: Optional[Any] = None,
                         session: Optional[Session] = None,
                         auth: Optional[Union[Authorization, AuthenticationTarget]] = None,
                         original_response: Optional[Response] = None):
-        return _create_response(request, status, content, session, auth, original_response)
+        return self._env.platform.messaging.create_response(request, status, content, session, auth, original_response)
 
     def open_session(self, request: Request) -> Session:
-        return _open_session(self._env, request)
+        return self._env.platform.messaging.open_session(request)
 
 
 # ----------------------------------------------------------------------------------------------------------------------
-# Free function implementations of the above class. It is being done this way to shut up the type checking and to
-# overcome python's limitation on having a class implemented in multiple files.
-def _create_request(dst_ip: Union[str, IPAddress], dst_service: str = "",
-                    action: Action = None, session: Session = None,
-                    auth: Optional[Union[Authorization, AuthenticationToken]] = None,
-                    original_request: Optional[Request] = None) -> Request:
-    request = RequestImpl(dst_ip, dst_service, action, session, auth, original_request)
-    return request
-
-
-def _create_response(request: Request, status: Status, content: Optional[Any] = None,
-                     session: Optional[Session] = None,
-                     auth: Optional[Union[Authorization, AuthenticationTarget]] = None,
-                     original_response: Optional[Response] = None) -> Response:
-    # Let's abuse the duck typing and "cast" Request to RequestImpl
-    if isinstance(request, RequestImpl):
-        response = ResponseImpl(request, status, content, session, auth, original_response)
-        return response
-    else:
-        raise ValueError("Malformed request passed to create a response from")
-
-
-def _open_session(self: _Environment, request: Request) -> Session:
-    return self._network_configuration.create_session_from_message(request)
-
-
 def extract_metadata_action(action: Action, action_list: List[Action]):
     if not action.components:
         action_list.append(action)
@@ -86,7 +51,35 @@ def extract_metadata_action(action: Action, action_list: List[Action]):
             extract_metadata_action(c, action_list)
 
 
-def _send_message(self: _Environment, message: MessageImpl, delay: int = 0) -> None:
+def _send_message(self: _Environment, message: Message, delay: int = 0) -> None:
+    # Get caller service id
+    # HACK: This is patently ugly, but oh so much better from the API point of view. So, future me, do not think bad of your past self...
+    if isinstance(message, Request):
+        caller = sys._getframe(2).f_locals["self"]
+        if isinstance(caller, ActiveService):
+            message.platform_specific["caller_id"] = self._service_store.get_active_service_id(id(caller))
+
+    # ------------------------------------------------------------------------------------------------------------------
+    # Message sending pre-processing
+    # ------------------------------------------------------------------------------------------------------------------
+    # I would much rather check by the MessageType, but then the type inspection would not work down the line :-/
+    if isinstance(message, Request) or isinstance(message, Response):
+
+        # --------------------------------------------------------------------------------------------------------------
+        # Message components extraction
+        # --------------------------------------------------------------------------------------------------------------
+        # Call the behavioral model to add components to direct actions
+        message.action.components.extend(self._behavioral_models[message.action.namespace].action_components(message))
+
+
+    # Send it to the platform.
+    # Composite actions are another can of worms. TODO
+    self._platform.messaging.send_message(message, delay)
+
+    if message.type is MessageType.REQUEST and message.platform_specific["caller_id"] in self._pause_on_request:
+        self._pause = True
+
+    """
     action_type = None
     if isinstance(message, Request) or isinstance(message, Response):
         action_type = ActionImpl.cast_from(message.action).type
@@ -220,3 +213,4 @@ def _send_message(self: _Environment, message: MessageImpl, delay: int = 0) -> N
 
     if message.type is MessageType.REQUEST and f"{message.origin.id}.{message.src_service}" in self._pause_on_request:
         self._pause = True
+    """

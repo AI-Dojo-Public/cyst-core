@@ -1,8 +1,10 @@
 from abc import ABC, abstractmethod
-from deprecated.sphinx import versionchanged
-from typing import List, Optional, Tuple, Union
+from deprecated.sphinx import versionchanged, versionadded
+from typing import List, Optional, Tuple, Union, Dict, Any
 
 from cyst.api.environment.message import Message
+from cyst.api.host.service import ActiveService
+from cyst.api.logic.access import AccessLevel
 from cyst.api.logic.action import Action, ActionDescription
 from cyst.api.logic.exploit import Exploit, ExploitCategory
 from cyst.api.network.node import Node
@@ -113,4 +115,38 @@ class ExploitStore(ABC):
         :type node: Node
 
         :return: (True, _) if exploit is applicable, (False, reason) otherwise.
+        """
+
+
+@versionadded(version="0.6.0")
+class ServiceStore(ABC):
+    """
+    Service store provides a unified interface for creating active services. Due to centrality of this concept to all
+    CYST, regardless of the platform it uses, all services must be instantiated through this store.
+    TODO: Better description for service store
+    """
+
+    @abstractmethod
+    def create_active_service(self, type: str, owner: str, name: str, node: Node,
+                              service_access_level: AccessLevel = AccessLevel.LIMITED,
+                              configuration: Optional[Dict[str, Any]] = None, id: str = "") -> Optional[ActiveService]:
+        """
+        Creates an active service...
+
+        :param type:
+        :param owner:
+        :param name:
+        :param node:
+        :param service_access_level:
+        :param configuration:
+        :param id:
+        :return:
+        """
+
+    @abstractmethod
+    def get_active_service(self, id) -> Optional[ActiveService]:
+        """
+        Returns an already instantiated active service
+        :param id:
+        :return:
         """

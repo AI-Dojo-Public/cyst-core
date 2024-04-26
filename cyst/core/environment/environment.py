@@ -2,6 +2,7 @@ import argparse
 import asyncio
 import atexit
 import copy
+import functools
 import logging
 import os
 import signal
@@ -14,7 +15,6 @@ else:
     from importlib.metadata import entry_points
 
 from heapq import heappush, heappop
-from itertools import product
 from time import localtime
 from typing import Tuple, List, Union, Optional, Any, Dict, Set
 from threading import Condition
@@ -23,12 +23,13 @@ from cyst.api.configuration.configuration import ConfigItem
 from cyst.api.environment.environment import Environment
 from cyst.api.environment.control import EnvironmentState, EnvironmentControl
 from cyst.api.environment.configuration import EnvironmentConfiguration, GeneralConfiguration, NodeConfiguration, \
-    ServiceConfiguration, NetworkConfiguration, ExploitConfiguration, AccessConfiguration, ActionConfiguration
+    ServiceConfiguration, NetworkConfiguration, ExploitConfiguration, AccessConfiguration, ActionConfiguration, RuntimeConfiguration
+from cyst.api.environment.infrastructure import EnvironmentInfrastructure
 from cyst.api.environment.interpreter import ActionInterpreterDescription
 from cyst.api.environment.messaging import EnvironmentMessaging
 from cyst.api.environment.metadata_provider import MetadataProvider
 from cyst.api.environment.policy import EnvironmentPolicy
-from cyst.api.environment.platform import Platform
+from cyst.api.environment.platform import Platform, PlatformDescription
 from cyst.api.environment.platform_interface import PlatformInterface
 from cyst.api.environment.platform_specification import PlatformSpecification, PlatformType
 from cyst.api.environment.resources import EnvironmentResources
@@ -42,44 +43,32 @@ from cyst.api.host.service import Service, PassiveService, ActiveService, Servic
 from cyst.api.configuration.configuration import ConfigItem
 from cyst.api.utils.counter import Counter
 
-from cyst.core.environment.configuration_access import AccessConfigurationImpl
+from cyst.core.environment.configuration import GeneralConfigurationImpl
 from cyst.core.environment.configuration_action import ActionConfigurationImpl
 from cyst.core.environment.configuration_exploit import ExploitConfigurationImpl
-from cyst.core.environment.configuration_general import GeneralConfigurationImpl, RuntimeConfiguration
-from cyst.core.environment.configuration_network import NetworkConfigurationImpl
-from cyst.core.environment.configuration_node import NodeConfigurationImpl
-from cyst.core.environment.configuration_service import ServiceConfigurationImpl
+from cyst.core.environment.environment_configuration import EnvironmentConfigurationImpl
 from cyst.core.environment.environment_control import EnvironmentControlImpl
 from cyst.core.environment.environment_messaging import EnvironmentMessagingImpl
 from cyst.core.environment.environment_resources import EnvironmentResourcesImpl
 from cyst.core.environment.data_store import DataStore
-from cyst.core.environment.message import MessageImpl, RequestImpl, ResponseImpl, TimeoutImpl
-from cyst.core.environment.proxy import EnvironmentProxy
-from cyst.core.environment.simulation_platform import CYSTSimulationPlatform
+from cyst.core.environment.infrastructure import EnvironmentInfrastructureImpl
+from cyst.core.environment.stats import StatisticsImpl
+
 from cyst.core.environment.stores import ServiceStoreImpl
 from cyst.core.environment.external_resources import ExternalResourcesImpl
-from cyst.core.host.service import ServiceImpl
-from cyst.core.logic.access import AuthenticationTokenImpl
 from cyst.core.logic.action import ActionImpl, ActionType
 from cyst.core.logic.composite_action import CompositeActionManagerImpl
-from cyst.core.logic.policy import Policy
-from cyst.core.network.elements import Endpoint, InterfaceImpl, Hop
-from cyst.core.network.firewall import service_description as firewall_service_description, Firewall
-from cyst.core.network.network import Network
-from cyst.core.network.node import NodeImpl
-from cyst.core.network.router import Router
-from cyst.core.network.session import SessionImpl
 
 
 # Environment is unlike other core implementation given an underscore-prefixed name to let python complain about
 # it being private if instantiated otherwise than via the create_environment()
-class _Environment(Environment, EnvironmentConfiguration, PlatformInterface):
+class _Environment(Environment, PlatformInterface):
 
     def __init__(self, platform: Optional[Union[str, PlatformSpecification]]) -> None:
         self._time = 0
         self._start_time = localtime()
-        self._message_queue: List[Tuple[int, int, MessageImpl]] = []
-        self._executables: List[Tuple[float, int, MessageImpl, Optional[Node]]] = []
+        self._message_queue: List[Tuple[int, int, Message]] = []
+        self._executables: List[Tuple[float, int, Message, Optional[Service], Optional[Node]]] = []
         self._executed: Set[asyncio.Task] = set()
         self._pause = False
         self._terminate = False
@@ -102,24 +91,16 @@ class _Environment(Environment, EnvironmentConfiguration, PlatformInterface):
         self._behavioral_models: Dict[str, BehavioralModel] = {}
         # TODO currently, there can be only on metadata provider for one namespace
         self._metadata_providers: Dict[str, MetadataProvider] = {}
-        self._platforms: Dict[PlatformSpecification, Platform] = {}
+        self._platforms: Dict[PlatformSpecification, PlatformDescription] = {}
+
+        self._general_configuration = GeneralConfigurationImpl(self)
+        self._action_configuration = ActionConfigurationImpl()
+        self._exploit_configuration = ExploitConfigurationImpl(self)
+        self._runtime_configuration = RuntimeConfiguration()
 
         self._platform = None
         self._platform_spec = None
         self._platform_notifier = Condition()
-
-        self._policy = Policy(self)
-
-        self._sessions_to_add: List[Tuple[ str, List[Union[str, Node]],Optional[str] ,Optional[str], Optional[Session], bool]] = []
-
-        self._access_configuration = AccessConfigurationImpl(self)
-        self._action_configuration = ActionConfigurationImpl(self)
-        self._exploit_configuration = ExploitConfigurationImpl(self)
-        self._general_configuration = GeneralConfigurationImpl(self)
-        self._network_configuration = NetworkConfigurationImpl(self)
-        self._node_configuration = NodeConfigurationImpl(self)
-        self._service_configuration = ServiceConfigurationImpl(self)
-        self._runtime_configuration = RuntimeConfiguration()
 
         self._configure_runtime()
         self._register_metadata_providers()
@@ -154,16 +135,29 @@ class _Environment(Environment, EnvironmentConfiguration, PlatformInterface):
             if platform_underspecified:
                 raise RuntimeError(f"Platform {platform} exists both as a simulation and emulation environment. Please, provide a full PlatformSpecification.")
 
-            self._platform = self._platforms[platform]
             self._platform_spec = platform
         else:
             # When no specific platform is used, CYST simulation is set
             self._platform_spec = PlatformSpecification(PlatformType.SIMULATION, "CYST")
-            self._platform = CYSTSimulationPlatform(self)
+
+        # When platform specification is finalized, create components dependent on the platform specification and
+        # components the platform depends on
+        self._environment_resources = EnvironmentResourcesImpl(self, self._platform_spec)
+        self._service_store = ServiceStoreImpl(self._environment_messaging, self._environment_resources)
+        self._statistics = StatisticsImpl()
+        self._infrastructure = EnvironmentInfrastructureImpl(self._runtime_configuration, self._service_store, self._statistics)
+
+        self._platform = self._create_platform(self._platform_spec)
+
+        # If only there was a way to make it more sane, without needing to create a completely new interface
+        self._environment_resources.set_clock(self._platform.clock)
+
+        # When platform is initialized, create a combined configuration for behavioral models
+        self._environment_configuration = EnvironmentConfigurationImpl(self._general_configuration, self._platform.configuration,
+                                                                       self._action_configuration, self._exploit_configuration)
 
         # Initialize stores in a platform-dependent manner
-        self._environment_resources = EnvironmentResourcesImpl(self, platform)
-        self._service_store = ServiceStoreImpl(self._platform.messaging, self._platform.resources)
+
         signal.signal(signal.SIGINT, self._signal_handler)
 
         self._cam = CompositeActionManagerImpl(self._behavioral_models, self._environment_messaging, self._environment_resources)
@@ -172,7 +166,6 @@ class _Environment(Environment, EnvironmentConfiguration, PlatformInterface):
         self._register_services()
         self._register_actions()
         self._register_metadata_providers()
-        self._network = Network(self._general_configuration)
 
         self._data_store = DataStore(self._runtime_configuration.data_backend,
                                      self._runtime_configuration.data_backend_params)
@@ -240,18 +233,8 @@ class _Environment(Environment, EnvironmentConfiguration, PlatformInterface):
         self._network = state["_network"]
         self._general_configuration = state["_general_configuration"]
 
-        # Members reconstructed on the fly
-        self._policy = Policy(self)
-
         self._environment_control = EnvironmentControlImpl(self)
         self._environment_messaging = EnvironmentMessagingImpl(self)
-
-        self._access_configuration = AccessConfigurationImpl(self)
-        self._action_configuration = ActionConfigurationImpl(self)
-        self._exploit_configuration = ExploitConfigurationImpl(self)
-        self._network_configuration = NetworkConfigurationImpl(self)
-        self._node_configuration = NodeConfigurationImpl(self)
-        self._service_configuration = ServiceConfigurationImpl(self)
 
     # Replace the environment with the state of another environment. This is used for deserialization. It is explicit to
     # avoid replacing of ephemeral stuff, such as data store connections or whatnot
@@ -274,8 +257,6 @@ class _Environment(Environment, EnvironmentConfiguration, PlatformInterface):
         self._metadata_providers = env._metadata_providers
         self._network = env._network
         self._general_configuration = env._general_configuration
-
-        self._policy = env._policy
 
     # Runtime parameters can be passed via command-line, configuration file, or through environment variables
     # In case of multiple definitions of one parameter, the order is, from the most important to least:
@@ -343,11 +324,26 @@ class _Environment(Environment, EnvironmentConfiguration, PlatformInterface):
         if config_id:
             self._runtime_configuration.config_id = config_id
 
+    def configure(self, *config_item: ConfigItem) -> Environment:
+        # Preprocess all configuration items for easier platform management
+        self._general_configuration.preprocess(*config_item)
+        # Configure general stuff
+        self._general_configuration.configure()
+        # Process the rest in platform
+        self._platform.configure(*self._general_configuration.get_configuration())
+
+        return self
+
     # ------------------------------------------------------------------------------------------------------------------
-    # Environment.
+    # Environment interfaces
+    # ------------------------------------------------------------------------------------------------------------------
+    @property
+    def general(self) -> GeneralConfiguration:
+        return self._general_configuration
+
     @property
     def configuration(self) -> EnvironmentConfiguration:
-        return self
+        return self._platform.configuration
 
     @property
     def control(self) -> EnvironmentControl:
@@ -358,62 +354,25 @@ class _Environment(Environment, EnvironmentConfiguration, PlatformInterface):
         return self._environment_messaging
 
     @property
+    def platform_interface(self) -> PlatformInterface:
+        return self
+
+    @property
+    def platform(self) -> Platform:
+        return self._platform
+
+    @property
     def resources(self) -> EnvironmentResources:
         return self._environment_resources
 
     @property
-    def policy(self) -> EnvironmentPolicy:
-        return self._policy
-
-    @property
-    def platform_interface(self) -> PlatformInterface:
-        return self
-
-    def configure(self, *config_item: ConfigItem) -> Environment:
-        # In-built configuration process is always ran to resolve all special issues
-        self._general_configuration.configure(*[copy.deepcopy(x) for x in config_item])
-        # Platform configuration is then ran on the preprocessed data
-        if self._platform_spec != PlatformSpecification(PlatformType.SIMULATION, "CYST"):
-            self._platform.configure(*self._general_configuration.get_configuration())
-        return self
-
-    # ------------------------------------------------------------------------------------------------------------------
-    # EnvironmentConfiguration
-    # ------------------------------------------------------------------------------------------------------------------
-    # Just point on itself
-    @property
-    def general(self) -> GeneralConfiguration:
-        return self._general_configuration
-
-    @property
-    def node(self) -> NodeConfiguration:
-        return self._node_configuration
-
-    @property
-    def service(self) -> ServiceConfiguration:
-        return self._service_configuration
-
-    @property
-    def network(self) -> NetworkConfiguration:
-        return self._network_configuration
-
-    @property
-    def exploit(self) -> ExploitConfiguration:
-        return self._exploit_configuration
-
-    @property
-    def action(self) -> ActionConfiguration:
-        return self._action_configuration
-
-    @property
-    def access(self) -> AccessConfiguration:
-        return self._access_configuration
+    def infrastructure(self) -> EnvironmentInfrastructure:
+        return self._infrastructure
 
     # ------------------------------------------------------------------------------------------------------------------
     # An interface between the environment and a platform
-    def execute_request(self, request: Request, delay: float = 0, node: Optional[Node] = None) -> Tuple[bool, int]:
-        exec_time = self._platform.resources.clock.current_time() + delay
-        heappush(self._executables, (exec_time, Counter().get("msg"), MessageImpl.cast_from(request), node))
+    def execute_task(self, task: Message, service: Optional[Service] = None, node: Optional[Node] = None, delay: int = 0) -> Tuple[bool, int]:
+        heappush(self._executables, (self._platform.clock.current_time() + delay, Counter().get("msg"), task, service, node))
 
         return True, 0
 
@@ -421,368 +380,12 @@ class _Environment(Environment, EnvironmentConfiguration, PlatformInterface):
         self.messaging.send_message(response, int(delay))
         return True, 0
 
-    def get_message_internals(self, message: Message) -> MessageImpl:
-        return MessageImpl.cast_from(message)
-
     # ------------------------------------------------------------------------------------------------------------------
     # Internal functions
     def _process_finalized_task(self, task: asyncio.Task) -> None:
         delay, response = task.result()
         self.process_response(response, delay)
         self._executed.remove(task)
-
-    @property
-    def _get_network(self) -> Network:
-        return self._network
-
-    # When creating sessions from nodes, there are two options - either nodes are connected directly, or they
-    # go through a router. So correct hops are evaluated either in N-R*-N form or N-N
-    # TODO: If one direction fails, session should try constructing itself in reverse order and then restructure hops
-    #       so that the origin is always at the first waypoint.
-    def _create_session(self, owner: str, waypoints: List[Union[str, Node]], src_service: Optional[str],
-                        dst_service: Optional[str], parent: Optional[Session], reverse: bool) -> Session:
-        path: List[Hop] = []
-        source: NodeImpl
-        session_reversed = False
-
-        if len(waypoints) < 2:
-            raise ValueError("The session path needs at least two ids")
-
-        session_constructed = True
-        for direction in ("forward", "reverse"):
-
-            if direction == "reverse":
-                if not session_constructed:
-                    path.clear()
-                    waypoints.reverse()
-                    session_reversed = True
-                    session_constructed = True
-                else:
-                    break
-
-            i = 0
-            while i < len(waypoints) - 1:
-                # There was an error in partial session construction
-                if not session_constructed:
-                    break
-
-                node0 = None
-                node1 = None
-                node2 = None
-
-                def get_node_from_waypoint(self, i: int) -> Node:
-                    if isinstance(waypoints[i], str):
-                        node = self._network.get_node_by_id(waypoints[i])
-                    else:
-                        node = waypoints[i]
-                    return node
-
-                # Get the nodes
-                node0 = get_node_from_waypoint(self, i)
-                node1 = get_node_from_waypoint(self, i + 1)
-
-                routers = []
-                # N-R*-N
-                if node1.type == "Router":
-                    router = Router.cast_from(node1)
-
-                    routers.append(router)
-                    node2 = get_node_from_waypoint(self, i + len(routers) + 1)
-
-                    while node2.type == "Router":
-                        routers.append(Router.cast_from(node2))
-                        node2 = get_node_from_waypoint(self, i + len(routers) + 1)
-
-
-                    path_candidate: List[Hop] = []
-                    for elements in product(node0.interfaces, node2.interfaces):
-                        node0_iface = InterfaceImpl.cast_from(elements[0])
-                        node2_iface = InterfaceImpl.cast_from(elements[1])
-
-                        path_candidate.clear()
-
-                        # Check if the next router is connected to the first node
-                        if node0_iface.endpoint.id != routers[0].id:
-                            continue
-
-                        # It is, so it's a first hop
-                        path_candidate.append(
-                            Hop(Endpoint(NodeImpl.cast_from(node0).id, node0_iface.index, node0_iface.ip),
-                                node0_iface.endpoint))
-
-                        # Check for every router if it routes the source and destination
-                        for j, r in enumerate(routers):
-                            # Find if there is a forward port
-                            # Ports are returned in order of priority: local IPs, remote IPs sorted by specificity (CIDR)
-                            port = r.routes(node0_iface.ip, node2_iface.ip, "*")
-
-                            # No suitable port found, try again
-                            if not port:
-                                break
-
-                            path_candidate.append(Hop(Endpoint(r.id, port.index, port.ip), port.endpoint))
-
-                        if len(path_candidate) == len(routers) + 1:
-                            path.extend(path_candidate)
-                            break
-
-                    i += len(routers) + 1
-
-                    if len(path) < i:
-                        session_constructed = False
-                        break
-                        # raise RuntimeError("Could not find connection between {} and {} to establish a session".format(NodeImpl.cast_from(node0).id, NodeImpl.cast_from(node2).id))
-                else:
-                    # N-N
-                    for iface in node0.interfaces:
-                        node0_iface = InterfaceImpl.cast_from(iface)
-
-                        if node0_iface.endpoint.id == NodeImpl.cast_from(node1).id:
-                            path.append(Hop(Endpoint(NodeImpl.cast_from(node0).id, node0_iface.index, node0_iface.ip),
-                                            node0_iface.endpoint))
-                            break
-
-                    i += 1
-                    if len(path) < i:
-                        session_constructed = False
-                        break
-                        # raise RuntimeError("Could not find connection between {} and {} to establish a session".format(NodeImpl.cast_from(node0).id, NodeImpl.cast_from(node1).id))
-
-        if not session_constructed:
-            # Sessions are always tried to be constructed in both directions, so we need to reverse the waypoints again
-            waypoints.reverse()
-            raise RuntimeError(
-                "Could not find connection between the following waypoints to establish a session".format(waypoints)) #MYPY: Missing the parameter in string
-
-        # If the session was constructed from the end to front, we need to reverse the path
-        if session_reversed:
-            path.reverse()
-            for i in range(0, len(path)):
-                path[i] = path[i].swap()
-
-        return SessionImpl(owner, parent, path, src_service, dst_service, self._network) #MYPY: Services can be None, they are optional
-
-    def _execute_simulated(self, message: Request, node: Node):
-        time = 0
-        response = None
-
-        message = RequestImpl.cast_from(message)
-
-        # TODO: auto-authentication here, maybe??
-        # cyst namespace is currently disabled from auto authentication
-        if message.auth and isinstance(message.auth, AuthenticationToken):
-            if not AuthenticationTokenImpl.is_local_instance(message.auth):
-                return time, self.messaging.create_response(message, Status(StatusOrigin.SERVICE,
-                                                                            StatusValue.FAILURE,
-                                                                            StatusDetail.AUTHENTICATION_NOT_APPLICABLE),
-                                                            "Auto-authentication does not work with non-local tokens",
-                                                            session=message.session, auth=message.auth) #MYPY: AuthenticationToken is not valid type here. Depends, if they were just forgotten in annotation or not
-            # TODO: assess if locality check makes sense
-            original_action = message.action
-            auth_action = self._environment_resources.action_store.get("meta:authenticate")
-            auth_action.parameters["auth_token"].value = message.auth
-            message.action = auth_action  # swap to authentication
-            auth_time, auth_response = asyncio.run(self._behavioral_models["meta"].action_effect(message, node))
-
-            if auth_response.status.value == StatusValue.FAILURE:  # not authorized
-                return auth_time, auth_response
-
-            message.auth = auth_response.auth  # if authentication successful, swap auth token for authorization
-            message.action = original_action  # swap back original action
-        #  and continue to action
-
-        if message.action.namespace in self._behavioral_models:
-            # action_effect is a coroutine to make it work with emulated systems. However, for simulation, we prefer
-            # to work in a fully sync fashion, so we just execute it.
-            # TODO: Do we?
-            time, response = asyncio.run(self._behavioral_models[message.action.namespace].action_effect(message, node))
-        else:
-            raise RuntimeError(f"Could not find behavioral model for action namespace {message.action.namespace}")
-
-        return time, response
-
-    def _send_message(self, message: MessageImpl) -> None:
-        message_type = "request" if isinstance(message, Request) else "response"
-
-        # shortcut for wakeup messages
-        if message.type == MessageType.TIMEOUT:
-            self._network.get_node_by_id(message.origin.id).process_message(message)  #MYPY: Node returned by get_node can be None
-            return
-
-        # Traffic processor are affecting request before they are even sent out (not on routers, as that would double
-        # the processing)
-        if message_type == "request":
-            current_node: NodeImpl = self._network.get_node_by_id(message.current.id)
-            if current_node.type != "Router":
-                for processor in current_node.traffic_processors:
-                    result, delay = processor.process_message(message)
-                    if not result:
-                        return
-
-        # Store it into the history
-        self._data_store.set(self._run_id, message, Message)
-
-        # Move message to a next hop
-        message.hop()
-        current_node: NodeImpl = self._network.get_node_by_id(message.current.id) #MYPY: Get node can return None
-
-        connection = self.configuration.network.get_connections(current_node, message.current.port)[0]
-        delay, result = connection.evaluate(message)
-        if delay < 0:
-            # TODO: message dropped, what to do? Maybe send early without processing
-            pass
-
-        message = MessageImpl.cast_from(result)
-        # Traversing of connections must take at least 1 time unit
-        processing_time = max(1, delay)
-
-        # HACK: Because we want to enable actions to be able to target routers, we need to bypass the router processing
-        #       if the message is at the end of its journey
-        last_hop = message.dst_ip == message.current.ip #MYPY: current can return None
-
-        if not last_hop and current_node.type == "Router":
-            result, delay = current_node.process_message(message) #MYPY: This only returns one int, will crash
-            processing_time += delay
-            if result:
-                heappush(self._message_queue, (self._time + processing_time, Counter().get("msg"), message))
-
-            return
-
-        # Message has a session
-        if message.session:
-            local_processing = False
-            # Message still in session, pass it along
-            if message.in_session:
-                message.set_next_hop()
-                heappush(self._message_queue, (self._time + processing_time, Counter().get("msg"), message))
-                return
-            # The session ends in the current node
-            elif message.session.endpoint.id == current_node.id or message.session.startpoint.id == current_node.id:  #MYPY: here on multiple line, session only has an end and start, not endpoint and startpoint
-                # TODO bi-directional session complicate the situation soooo much
-                end_port = None
-                if message.session.endpoint.id == current_node.id:
-                    end_port = message.session.endpoint.port
-                elif message.session.startpoint.id == current_node.id:
-                    end_port = message.session.startpoint.port
-
-                # Check if the node is the final destination
-                for iface in current_node.interfaces:
-                    if iface.index == end_port and iface.ip == message.dst_ip: #MYPY: Interface does not have index
-                        local_processing = True
-                        break
-                # It is not, this means the node was only a proxy to some other target
-                if not local_processing:
-                    # Find a way to nearest switch
-                    gateway, port = current_node.gateway(message.dst_ip) #MYPY: If this returns None, there is only one value and it will crash on unpacking it
-                    # ##################
-                    dest_node_endpoint = current_node.interfaces[port].endpoint #MYPY: end vs endpoint
-                    dest_node = self._network.get_node_by_id(dest_node_endpoint.id)
-                    dest_node_ip = dest_node.interfaces[dest_node_endpoint.port].ip #MYPY: dest_node can be None
-                    message.set_next_hop(Endpoint(current_node.id, port, current_node.interfaces[port].ip),
-                                         Endpoint(dest_node_endpoint.id, dest_node_endpoint.port, dest_node_ip))
-                    # ##################
-                    self._message_log.debug(
-                        f"Proxying {message_type} to {message.dst_ip} via {message.next_hop.id} on a node {current_node.id}")
-                    heappush(self._message_queue, (self._time + processing_time, Counter().get("msg"), message))
-                    return
-
-        # Message has to be processed locally
-        self._message_log.debug(f"[time: {self._time}] Processing {message_type} on a node {current_node.id}. {message}")
-
-        # Before a message reaches to services within, it is evaluated by all traffic processors
-        # While they are returning true, everything is ok. Once they return false, the message processing stops
-        # Traffic processors are free to send any reply as they see fit
-        # TODO: Firewall does not return a response and currently we want it in some instances to return it and in
-        #       some instances we don't. This is not a good situation.
-        for processor in current_node.traffic_processors:
-            result, delay = processor.process_message(message)
-            if not result:
-                # This feels like a hack, but we are making sure that the firewall properly sends a termination response
-                if isinstance(processor, Firewall):
-                    response = ResponseImpl(message, Status(StatusOrigin.NETWORK, StatusValue.FAILURE),
-                                            "Host not reachable", session=message.session, auth=message.auth)
-                    self._environment_messaging.send_message(response, delay)
-                return
-
-        # Service is requested
-        response = None
-        if message.dst_service:
-            # Check if the requested service exists on the current node
-            if message.dst_service not in current_node.services:
-                # There is a theoretical chance for response not finding dst service for responses, if e.g. attacker
-                # shut down the service after firing request and before receiving the response. In such case the
-                # error is silently dropped
-                if message_type == "response":
-                    return
-
-                processing_time += 1
-                response = ResponseImpl(message, Status(StatusOrigin.NODE, StatusValue.ERROR),
-                                        "Nonexistent service {} at node {}".format(message.dst_service, message.dst_ip),
-                                        session=message.session, auth=message.auth)
-                self._environment_messaging.send_message(response, processing_time)
-
-            # Service exists and it is passive
-            elif current_node.services[message.dst_service].passive:  #MYPY: passive vs .passive_service
-                # Passive services just discard the responses and only process the requests
-                if message_type == "response":
-                    return
-
-                if current_node.services[message.dst_service].passive_service.state != ServiceState.RUNNING:
-                    response = ResponseImpl(message, Status(StatusOrigin.NODE, StatusValue.ERROR),
-                                            "Service {} at node {} is not running".format(message.dst_service, message.dst_ip),
-                                            session=message.session, auth=message.auth)
-                    self._environment_messaging.send_message(response, processing_time)
-                else:
-                    # Delay it by the time it took to process the last hop
-                    self.execute_request(message.cast_to(Request), processing_time, current_node)
-                    #delay, response = self._process_passive(message, current_node)
-                    #processing_time += delay
-                    #if response.status.origin == StatusOrigin.SYSTEM and response.status.value == StatusValue.ERROR:
-                    #    print("Could not process the request, unknown semantics.")
-                    #else:
-                    #    self._environment_messaging.send_message(response, processing_time)
-            # Service exists and it is active
-            else:
-                # An active service does not necessarily produce Responses, so we should just move time
-                # somehow and be done with it.
-                # TODO How to move time?
-
-                # The response is reaching its destination. If it is a part of a composite action, we defer the
-                # processing to the composite action manager.
-                # Logic:
-                # - if message.is_composite_action_chain:
-                #     # CompositeActionManager swallows messages belonging to the chain and only returns a processable
-                #     # message after the final action is done or irrecoverable error is encountered
-                #     message = CompositeActionManager.process(message)
-                #
-                #   if message:
-                #        active_service.process_message()
-
-                if self._cam.is_composite(message.id):
-                    self._cam.incoming_message(message)
-                else:
-                    result, delay = current_node.services[message.dst_service].active_service.process_message(message)
-
-                    if message_type == "response" and current_node.id + "." + message.dst_service in self._pause_on_response:
-                        self._pause = True
-
-        # If no service is specified, it is a message to a node, but still, it is processed as a request for
-        # passive service and processed with the interpreter
-        # No service is specified
-        else:
-            # If there is response arriving without destination service, just drop it
-            if message_type == "response":
-                return
-
-            # If it is a request, then it is processed as a request for passive service and processed with the interpreter
-            # Delay it by the time it took to process the last hop
-            self.execute_request(message.cast_to(Request), processing_time, current_node)
-            #delay, response = self._process_passive(message, current_node) #MYPY: messageimpl vs request
-            #processing_time += delay
-            #if response.status.origin == StatusOrigin.SYSTEM and response.status.value == StatusValue.ERROR: #MYPY: same as above, response None?
-            #    print("Could not process the request, unknown semantics.")
-            #else:
-            #    self._environment_messaging.send_message(response, processing_time)
 
     # Resource tasks are always collected as a first thing in the timeslot to supply services with data on time.
     def add_resource_task_collection(self, virtual_time: int):
@@ -866,109 +469,80 @@ class _Environment(Environment, EnvironmentConfiguration, PlatformInterface):
 
         return True, self._state
 
-    def _process_emulated(self) -> Tuple[bool, EnvironmentState]:
-        ri = ExternalResourcesImpl.cast_from(self._environment_resources.external)
-
-        while not self._pause and not self._terminate:
-
-            resources_collected = False
-
-            # TODO manage delays
-            while self._message_queue:
-                task = heappop(self._message_queue)[2]
-                if task.type == MessageType.TIMEOUT:
-                    # Yay!
-                    timeout = TimeoutImpl.cast_from(task.cast_to(Timeout)) #type:ignore #MYPY: Probably an issue with mypy, requires creation of helper class
-                    timeout.service.process_message(task)
-                elif task.type == MessageType.RESOURCE:
-                    # Resources are collected only once per timeslot
-                    if not resources_collected:
-                        ri.collect_tasks(self._time)
-                        resources_collected = True
-                # TODO responses
-                if isinstance(task, Request):
-                    action = ActionImpl.cast_from(task.action)
-                    if action.type == ActionType.DIRECT:
-                        print("Invoking behavioral model")
-                        self._behavioral_models[task.action.namespace].action_effect(task, None)
-
-            self._platform_notifier.acquire()
-            self._platform_notifier.wait(1)
-
-            print("*")
-
     async def _process_async(self) -> None:
-        # The async processing works thus:
-        #   - get the current time from the platform
-        #   - gather all tasks which should be processed in the current or previous time windows
-        #   - execute all the tasks
-        #   - ask platform to advance time
+        # Message sending tasks are delegated to platforms
+        # Execution of behavioral models, composite actions and external resources are handled by the environment
+        current_time = self._platform.clock.current_time()
+        time_jump = 0
 
-        current_time = self._platform.resources.clock.current_time()
-        time_jump = 1000
+        have_something_to_do = bool(self._executables)
+
+        # --------------------------------------------------------------------------------------------------------------
+        # Right now, if anything is being executed, we just let the loop run, until it finishes
+        if self._executed:
+            return
+
+        # --------------------------------------------------------------------------------------------------------------
+        # Get the required time delta
+        if self._executables:
+            next_time = self._executables[0][0]
+            delta = next_time - current_time
+            if time_jump == 0 or delta < time_jump:
+                time_jump = delta
+
+        # --------------------------------------------------------------------------------------------------------------
+        # If there is a time to jump, instruct the platform to do so
+        platform_has_something_to_do = False
+        if not have_something_to_do or time_jump > 0:
+            platform_has_something_to_do = await self._platform.process(time_jump)
+            # Return to have the process started anew
+            if platform_has_something_to_do:
+                return
+
+        # Nothing pending in queues
+        if not (have_something_to_do or platform_has_something_to_do):
+            self._finish = True
+            return
 
         # --------------------------------------------------------------------------------------------------------------
         # Task gathering
-        messages_to_process = []
         tasks_to_execute = []
-
-        # Message-passing tasks
-        if self._message_queue:
-            next_time = self._message_queue[0][0]
-            while next_time <= current_time:
-                messages_to_process.append(heappop(self._message_queue)[2])
-                if self._message_queue:
-                    next_time = self._message_queue[0][0]
-                else:
-                    break
-
-            delta = next_time - current_time
-            if delta < time_jump:
-                time_jump = delta
 
         # Tasks scheduled for execution
         if self._executables:
             next_time = self._executables[0][0]
             while next_time <= current_time:
                 task = heappop(self._executables)
-                tasks_to_execute.append((task[2], task[3]))
+                tasks_to_execute.append((task[2], task[3], task[4]))
                 if self._executables:
                     next_time = self._executables[0][0]
                 else:
                     break
 
-            delta = next_time - current_time
-            if delta < time_jump:
-                time_jump = delta
-
-        # --------------------------------------------------------------------------------------------------------------
-        # Task processing
-        for message in messages_to_process:
-            if message.type == MessageType.TIMEOUT:
-                # Yay!
-                timeout = TimeoutImpl.cast_from(message.cast_to(Timeout)) #type:ignore #MYPY: Probably an issue with mypy, requires creation of helper class
-                timeout.service.process_message(message)
-            else:
-                # TODO: This relies on emulated platforms never adding stuff to message queues. There will probably
-                #       have to be an extension to platform API to support message hopping.
-                #       Maybe rename _send_message to (_hop|_push)_message
-                self._send_message(message)
-
         for task in tasks_to_execute:
-            request = task[0].cast_to(RequestImpl)
-            node = task[1]
-            namespace = request.action.namespace
-            t = self._loop.create_task(self._behavioral_models[namespace].action_effect(request, node))
-            self._executed.add(t)
-            t.add_done_callback(self._process_finalized_task)
+            message = task[0]
+            service = task[1]
+            node = task[2]
 
-        # Advance the time if nothing is executed, and we are just waiting for something to happen
-        if not self._executed:
-            # However, if there is no message in any queue. Finish the run.
-            if not self._message_queue and not self._executables:
-                self._finish = True
+            # If an active service is provided, we are calling its process_message method. Otherwise, behavioral model
+            # is invoked.
+            if service and service.active_service:
+                # Extract and clear platform-specific information
+                caller_id = ""
+                if message.type == MessageType.RESPONSE:
+                    caller_id = message.platform_specific["caller_id"] if "caller_id" in message.platform_specific else ""
+                    message.platform_specific.clear()
+
+                service.active_service.process_message(message)
+
+                if message.type == MessageType.RESPONSE and caller_id in self._pause_on_response:
+                    self._pause = True
             else:
-                self._platform.resources.clock.advance_time(time_jump)
+                request = message.cast_to(Request)
+                namespace = request.action.namespace
+                t = self._loop.create_task(self._behavioral_models[namespace].action_effect(request, node))
+                self._executed.add(t)
+                t.add_done_callback(self._process_finalized_task)
 
     def _register_services(self) -> None:
 
@@ -983,7 +557,7 @@ class _Environment(Environment, EnvironmentConfiguration, PlatformInterface):
                 self._service_store.add_service(service_description)
 
         # Explicit addition of built-in active services
-        self._service_store.add_service(firewall_service_description)
+        # self._service_store.add_service(firewall_service_description)
 
     def _register_actions(self) -> None:
 
@@ -1010,7 +584,9 @@ class _Environment(Environment, EnvironmentConfiguration, PlatformInterface):
                 print("Behavioral model with namespace {} already registered, skipping it ...".format(
                     model_description.namespace))
             else:
-                model = model_description.creation_fn(self, self._environment_resources, self._policy,
+                #model = model_description.creation_fn(self, self._environment_resources, self._policy,
+                #                                      self._environment_messaging, self._cam)
+                model = model_description.creation_fn(self._environment_configuration, self._environment_resources, None,
                                                       self._environment_messaging, self._cam)
                 self._behavioral_models[model_description.namespace] = model
 
@@ -1037,8 +613,15 @@ class _Environment(Environment, EnvironmentConfiguration, PlatformInterface):
                 print("Platform with specification {} already registered, skipping ...".format(
                     platform_description.namespace))
             else:
-                platform = platform_description.creation_fn(self.platform_interface, self.configuration, self.messaging, self.resources)
-                self._platforms[platform_description.specification] = platform
+                self._platforms[platform_description.specification] = platform_description
+
+    def _create_platform(self, specification: PlatformSpecification) -> Platform:
+        if specification not in self._platforms:
+            raise RuntimeError(f"Attempting to create a platform that is not registered: {specification}")
+
+        return self._platforms[specification].creation_fn(self.platform_interface, self._general_configuration,
+                                                          self.resources, self._action_configuration,
+                                                          self._exploit_configuration, self._infrastructure)
 
 def create_environment(platform: Optional[Union[str, PlatformSpecification]]) -> Environment:
     e = _Environment(platform)

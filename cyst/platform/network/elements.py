@@ -1,4 +1,3 @@
-import uuid
 from abc import ABC, abstractmethod
 from netaddr import IPAddress, IPNetwork
 from typing import NamedTuple, Optional, Tuple, Union

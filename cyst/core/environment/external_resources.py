@@ -13,7 +13,7 @@ from cyst.api.environment.external import ExternalResources, Resource, ResourceP
 from cyst.api.environment.message import Status, StatusOrigin, StatusValue
 from cyst.api.host.service import Service
 
-from cyst.core.environment.message import ResourceMessageImpl
+# from cyst.core.environment.message import ResourceMessageImpl
 
 
 class ResourcesState(Enum):

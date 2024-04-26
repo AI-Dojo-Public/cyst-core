@@ -5,10 +5,11 @@ from typing import Optional, Union
 from cyst.api.configuration.configuration import ConfigItem
 from cyst.api.environment.configuration import EnvironmentConfiguration
 from cyst.api.environment.control import EnvironmentControl
+from cyst.api.environment.infrastructure import EnvironmentInfrastructure
 from cyst.api.environment.messaging import EnvironmentMessaging
 from cyst.api.environment.resources import EnvironmentResources
 from cyst.api.environment.policy import EnvironmentPolicy
-from cyst.api.environment.platform import PlatformSpecification
+from cyst.api.environment.platform import PlatformSpecification, Platform
 from cyst.api.environment.platform_interface import PlatformInterface
 
 
@@ -45,9 +46,9 @@ class Environment(ABC):
         :rtype: EnvironmentMessaging
         """
 
-    @property
-    @abstractmethod
-    def policy(self) -> EnvironmentPolicy:
+    #@property
+    #@abstractmethod
+    #def policy(self) -> EnvironmentPolicy:
         """
         This environment enables handling of authentication and authorization.
 
@@ -73,6 +74,22 @@ class Environment(ABC):
         This interface provides means for execution platforms to execute actions and to notify the results of actions.
 
         :rtype: PlatformInterface
+        """
+
+    @property
+    @abstractmethod
+    def infrastructure(self) -> EnvironmentInfrastructure:
+        """
+        TODO: EnvInfra description
+        :return:
+        """
+
+    @property
+    @abstractmethod
+    def platform(self) -> Platform:
+        """
+        I hope it works
+        :return:
         """
 
     @abstractmethod

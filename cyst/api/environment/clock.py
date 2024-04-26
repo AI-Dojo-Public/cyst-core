@@ -29,20 +29,6 @@ class Clock(ABC):
         :return: Current time as a datetime structure.
         """
 
-    @versionadded(version="0.6.0")
-    @abstractmethod
-    def advance_time(self, delta: float) -> float:
-        """
-        Orders the platform to advance time by the specified delta. The platform, especially the one operating in the
-        emulated mode, is free to ignore this request.
-
-        :param delta: The amount of time units the time should advance. If set to zero or less, the call is ignored
-            because the clock are assumed to be monotonic.
-        :type delta: float
-
-        :return: A time after advancing in clock's own units.
-        """
-
     @abstractmethod
     def timeout(self, service: ActiveService, delay: int, content: Any) -> None:
         """ Schedule a timeout message for a given service. This acts like a time callback and enables inclusion of

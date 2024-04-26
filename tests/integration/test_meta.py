@@ -16,7 +16,8 @@ from cyst.api.environment.message import StatusOrigin, StatusValue, Status
 from cyst.api.network.firewall import FirewallPolicy, FirewallChainType
 from cyst.api.network.node import Node
 from cyst.api.network.session import Session
-from cyst.core.logic.access import AuthenticationTokenImpl
+
+from cyst.platform.logic.access import AuthenticationTokenImpl
 
 from cyst_services.scripted_actor.main import ScriptedActorControl
 
@@ -118,7 +119,7 @@ class TestMETAIntegration(unittest.TestCase):
         cls._env.control.add_pause_on_response("attacker_node.scripted_attacker")
 
         cls._target = cls._env.configuration.general.get_object_by_id("target1", Node)
-        attacker_service = cls._env.configuration.general.get_object_by_id("attacker_service", Service)
+        attacker_service = cls._env.configuration.general.get_object_by_id("attacker_node.scripted_attacker", Service)
         cls._attacker: ScriptedActorControl = cls._env.configuration.service.get_service_interface(
             attacker_service.active_service, ScriptedActorControl)
 

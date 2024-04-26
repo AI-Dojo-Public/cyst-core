@@ -20,7 +20,7 @@ from cyst.api.network.elements import Route
 from cyst.api.network.firewall import FirewallRule, FirewallPolicy
 from cyst.api.network.node import Node
 
-from cyst.core.logic.access import AuthenticationTokenImpl
+# from cyst.core.logic.access import AuthenticationTokenImpl
 
 from cyst_services.scripted_actor.main import ScriptedActor, ScriptedActorControl
 
@@ -510,15 +510,16 @@ class TestSessions(unittest.TestCase):
         env = Environment.create().configure(target1, target2, target3, attacker_node, router1, router2, *connections)
         env.control.add_pause_on_response("attacker_node.scripted_attacker")
 
-        ssh_token_t1 = AuthenticationTokenImpl(AuthenticationTokenType.PASSWORD, AuthenticationTokenSecurity.OPEN, "root", True)._set_content(uuid.uuid4())
-        ssh_token_t2 = AuthenticationTokenImpl(AuthenticationTokenType.PASSWORD, AuthenticationTokenSecurity.OPEN, "root", True)._set_content(uuid.uuid4())
-        ssh_token_t3 = AuthenticationTokenImpl(AuthenticationTokenType.PASSWORD, AuthenticationTokenSecurity.OPEN, "root", True)._set_content(uuid.uuid4())
+        # This is ugly but serves its purpose, until the authentication/authorization framework is more fleshed out
+        ssh_token_t1 = env.configuration.access.create_authentication_token(AuthenticationTokenType.PASSWORD, AuthenticationTokenSecurity.OPEN, "root", True)._set_content(uuid.uuid4())
+        ssh_token_t2 = env.configuration.access.create_authentication_token(AuthenticationTokenType.PASSWORD, AuthenticationTokenSecurity.OPEN, "root", True)._set_content(uuid.uuid4())
+        ssh_token_t3 = env.configuration.access.create_authentication_token(AuthenticationTokenType.PASSWORD, AuthenticationTokenSecurity.OPEN, "root", True)._set_content(uuid.uuid4())
 
         create_session = env.configuration.network.create_session
 
         # Create a simple scripted attacker
         attacker = env.configuration.service.get_service_interface(
-            env.configuration.general.get_object_by_id("attacker_service", Service).active_service,
+            env.configuration.general.get_object_by_id("attacker_node.scripted_actor", Service).active_service,
             ScriptedActorControl)
 
         router1 = env.configuration.general.get_object_by_id("router1", Node)
@@ -681,14 +682,14 @@ class TestSessions(unittest.TestCase):
         env = Environment.create().configure(active_node_1, active_node_2, passive_node, router, *connections)
         env.control.init()
 
-        env.control.add_pause_on_response("active_node_1.active_service_1")
+        env.control.add_pause_on_response("active_node_1.scripted_actor")
 
         actor1 = env.configuration.service.get_service_interface(
-            env.configuration.general.get_object_by_id("actor_service_1", Service).active_service,
+            env.configuration.general.get_object_by_id("active_node_1.scripted_actor", Service).active_service,
             ScriptedActorControl)
 
         actor2 = env.configuration.service.get_service_interface(
-            env.configuration.general.get_object_by_id("actor_service_2", Service).active_service,
+            env.configuration.general.get_object_by_id("active_node_2.scripted_actor", Service).active_service,
             ScriptedActorControl)
 
         # A function to open a session as a reaction to an incoming request
@@ -978,11 +979,10 @@ class TestConnection(unittest.TestCase):
     def setUp(self) -> None:
         self.env = Environment.create().configure(*self.configs)
         self.env.control.init()
-        self.source_node = self.env.configuration.general.get_object_by_id("source_node", Node)
+        self.source_node = self.env.platform.configuration.general.get_object_by_id("source_node", Node)
         self.destination_node = self.env.configuration.general.get_object_by_id("destination_node", Node)
         self.attacker = self.env.configuration.service.get_service_interface(
-            self.env.configuration.general.get_object_by_id("attacker_service",
-                                                           Service).active_service,
+            self.env.infrastructure.service_store.get_active_service("source_node.attacker"),
             ScriptedActorControl)
 
     def test_0000_init(self) -> None:

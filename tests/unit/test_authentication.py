@@ -6,8 +6,8 @@ from cyst.api.logic.access import AuthenticationProvider, AuthenticationToken, A
 from cyst.api.logic.access import AuthenticationProviderType, AuthenticationTokenType, AuthenticationTokenSecurity
 from cyst.api.network.node import Node
 
-from cyst.core.logic.access import AuthenticationProviderImpl
-from cyst.core.logic.access import AuthenticationTokenImpl
+from cyst.platform.logic.access import AuthenticationProviderImpl
+from cyst.platform.logic.access import AuthenticationTokenImpl
 
 """ Environment configuration """
 local_password_auth = AuthenticationProviderConfig \
@@ -272,7 +272,7 @@ class AuthenticationAccessManipulationTest(unittest.TestCase):
         cls.service_local_1fa = service_local_1fa
         cls.service_2fa = service_2fa
 
-        # improve readibility
+        # improve readability
         cls.create_service_access = cls.env.configuration.access.create_service_access
         cls.modify_existing_access = cls.env.configuration.access.modify_existing_access
 

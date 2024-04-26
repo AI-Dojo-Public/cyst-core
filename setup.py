@@ -80,9 +80,14 @@ setup(
         'cyst.services': [
             'scripted_actor=cyst_services.scripted_actor.main:service_description',
             'forward_shell=cyst_services.forward_shell.main:service_description',
-            'reverse_shell=cyst_services.reverse_shell.main:service_description'
+            'reverse_shell=cyst_services.reverse_shell.main:service_description',
+            # This does not seem very pretty
+            'firewall=cyst.platform.network.firewall:service_description'
         ],
         'cyst.metadata_providers': [
+        ],
+        'cyst.platforms': [
+            'cyst=cyst.platform.main:platform_description'
         ]
     },
 

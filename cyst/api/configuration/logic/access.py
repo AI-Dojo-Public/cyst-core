@@ -195,8 +195,8 @@ class AccessSchemeConfig(ConfigItem):
             ...
         )
 
-    :param authentication_providers: A list of authentication provider ids.
-    :type authentication_providers: str
+    :param authentication_providers: A list of authentication providers or their ids.
+    :type authentication_providers: List[Union[AuthenticationProviderConfig, str]]
 
     :param authorization_domain: A domain from which authorization tokens are created after successful authentication.
     :type authorization_domain: Union[AuthorizationDomainConfig, str]
@@ -204,6 +204,6 @@ class AccessSchemeConfig(ConfigItem):
     :param id: A unique identifier of the access scheme configuration.
     :type id: str
     """
-    authentication_providers: List[str]
+    authentication_providers: List[Union[AuthenticationProviderConfig, str]]
     authorization_domain: Union[AuthorizationDomainConfig, str]
     id: str = field(default_factory=lambda: str(uuid4()))

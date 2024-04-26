@@ -8,7 +8,7 @@ from cyst.api.configuration.network.elements import ConnectionConfig
 from cyst.api.configuration.network.node import NodeConfig
 from cyst.api.configuration.network.router import RouterConfig
 
-
+# TODO: Useless - remove
 @serialize
 @dataclass
 class NetworkConfig(ConfigItem):

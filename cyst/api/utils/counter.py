@@ -1,6 +1,6 @@
 from typing import Dict
 
-from cyst.core.utils.singleton import Singleton
+from cyst.api.utils.singleton import Singleton
 
 
 class Counter(metaclass=Singleton):
