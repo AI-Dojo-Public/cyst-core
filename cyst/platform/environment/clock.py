@@ -1,10 +1,12 @@
 from datetime import datetime
-from typing import Any
+from typing import Any, Union, Callable
 
+from cyst.api.environment.message import Timeout
 from cyst.api.environment.messaging import EnvironmentMessaging
 from cyst.api.environment.resources import Clock
 from cyst.api.host.service import ActiveService
 
+from cyst.platform.environment.message import TimeoutImpl
 
 class SimulationClock(Clock):
     def __init__(self, messaging: EnvironmentMessaging):
@@ -15,13 +17,8 @@ class SimulationClock(Clock):
         return self._time
 
     def real_time(self) -> datetime:
-        pass
+        raise NotImplementedError()
 
-    def advance_time(self, delta: float) -> float:
-        if delta >= 0:
-            self._time += delta
-        return self._time
-
-    def timeout(self, service: ActiveService, delay: int, content: Any) -> None:
-        # TODO: Create a timeout message
-        pass
+    def timeout(self, callback: Union[ActiveService, Callable[[Timeout], None]], delay: float, parameter: Any = None) -> None:
+        timeout = TimeoutImpl(callback, self._time, delay, parameter)
+        self._messaging.send_message(timeout, int(delay))

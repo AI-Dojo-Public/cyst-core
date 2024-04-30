@@ -82,6 +82,10 @@ def extract_metadata_action(action: Action, action_list: List[Action]):
 
 
 def _send_message(self: CYSTPlatform, message: MessageImpl, delay: int = 0) -> None:
+    # Shortcut for timeout
+    if message.type == MessageType.TIMEOUT:
+        heappush(self._message_queue, (self._time + delay, Counter().get("msg"), message))
+        return
 
     if message.type == MessageType.REQUEST:
         # Set origin ID from platform-specific info

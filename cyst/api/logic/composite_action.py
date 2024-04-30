@@ -4,14 +4,11 @@ from cyst.api.environment.message import Request
 
 
 class CompositeActionManager:
+
     @abstractmethod
-    def execute_request(self, request: Request, delay: int) -> None:
+    async def call_action(self, request: Request, delay: float = 0.0) -> None:
         pass
 
     @abstractmethod
-    async def call_action(self, request: Request, delay: int) -> None:
-        pass
-
-    @abstractmethod
-    def delay(self, delay: int) -> None:
+    async def delay(self, delay: float = 0.0) -> None:
         pass

@@ -375,7 +375,7 @@ class Timeout(Message, ABC):
     """
     @property
     @abstractmethod
-    def start_time(self) -> int:
+    def start_time(self) -> float:
         """
         A simulation time when the timeout was requested.
 
@@ -384,7 +384,7 @@ class Timeout(Message, ABC):
 
     @property
     @abstractmethod
-    def duration(self) -> int:
+    def duration(self) -> float:
         """
         A duration of the timeout in simulated time units.
 

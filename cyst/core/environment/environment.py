@@ -77,6 +77,7 @@ class _Environment(Environment, PlatformInterface):
         self._state = EnvironmentState.INIT
 
         self._loop = asyncio.new_event_loop()
+        self._loop.set_exception_handler(self.loop_exception_handler)
 
         self._run_id = ""
 
@@ -160,7 +161,7 @@ class _Environment(Environment, PlatformInterface):
 
         signal.signal(signal.SIGINT, self._signal_handler)
 
-        self._cam = CompositeActionManagerImpl(self._behavioral_models, self._environment_messaging, self._environment_resources)
+        self._cam = CompositeActionManagerImpl(self._loop, self._behavioral_models, self._environment_messaging, self._environment_resources, self._general_configuration)
 
         # Services and actions depend on platform being initialized
         self._register_services()
@@ -179,6 +180,10 @@ class _Environment(Environment, PlatformInterface):
         self._loop.close()
 
     def _signal_handler(self, *args):
+        self._terminate = True
+
+    def loop_exception_handler(self, loop: asyncio.AbstractEventLoop, context: Dict[str, Any]) -> None:
+        print(f"Unhandled exception in event loop. Exception: {context['exception']}. Task {context['future']}.")
         self._terminate = True
 
     def __getstate__(self) -> dict:
@@ -483,6 +488,14 @@ class _Environment(Environment, PlatformInterface):
             return
 
         # --------------------------------------------------------------------------------------------------------------
+        # Otherwise, we let the composite action manager start all the tasks
+        # This is almost no-op if no requests are in a queue for it. And if there are, they will just be processed and
+        # converted to normal messages down the line.
+        # Note on that |= ... process returns bool if there is some processing being done
+        cam_queues_left, composite_processing_left = await self._cam.process()
+        have_something_to_do |= cam_queues_left
+
+        # --------------------------------------------------------------------------------------------------------------
         # Get the required time delta
         if self._executables:
             next_time = self._executables[0][0]
@@ -500,7 +513,7 @@ class _Environment(Environment, PlatformInterface):
                 return
 
         # Nothing pending in queues
-        if not (have_something_to_do or platform_has_something_to_do):
+        if not (have_something_to_do or platform_has_something_to_do or composite_processing_left):
             self._finish = True
             return
 
@@ -524,9 +537,13 @@ class _Environment(Environment, PlatformInterface):
             service = task[1]
             node = task[2]
 
+            # If the task is a part of composite processing, then pass it to cam
+            if self._cam.is_composite(message.id) and message.type == MessageType.RESPONSE:
+                self._cam.incoming_message(message)
+
             # If an active service is provided, we are calling its process_message method. Otherwise, behavioral model
             # is invoked.
-            if service and service.active_service:
+            elif service and service.active_service:
                 # Extract and clear platform-specific information
                 caller_id = ""
                 if message.type == MessageType.RESPONSE:

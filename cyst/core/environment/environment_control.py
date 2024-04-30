@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import asyncio
 import uuid
 import time
 
@@ -120,7 +121,6 @@ def _reset(self: _Environment, run_id: str = str(uuid.uuid4())) -> Tuple[bool, E
 
     return True, self._state
 
-
 def _run(self: _Environment) -> Tuple[bool, EnvironmentState]:
 
     if not self._initialized:
@@ -140,7 +140,7 @@ def _run(self: _Environment) -> Tuple[bool, EnvironmentState]:
     self._finish = False
 
     while not (self._pause or self._finish or self._terminate):
-        self._loop.create_task(self._process_async())
+        t = self._loop.create_task(self._process_async())
         self._loop.call_soon(self._loop.stop)
         self._loop.run_forever()
 

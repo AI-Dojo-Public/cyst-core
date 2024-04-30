@@ -3,14 +3,14 @@ import logging
 from asyncio import Task
 from datetime import datetime
 from heapq import heappop
-from typing import List, Tuple, Union, Optional, Any
+from typing import List, Tuple, Union, Optional, Any, Callable
 
 from cyst.api.configuration.configuration import ConfigItem
 from cyst.api.environment.clock import Clock
 from cyst.api.environment.configuration import EnvironmentConfiguration, GeneralConfiguration, NodeConfiguration, \
     ServiceConfiguration, NetworkConfiguration, ExploitConfiguration, AccessConfiguration, ActionConfiguration
 from cyst.api.environment.infrastructure import EnvironmentInfrastructure
-from cyst.api.environment.message import Message, MessageType
+from cyst.api.environment.message import Message, MessageType, Timeout
 from cyst.api.environment.messaging import EnvironmentMessaging
 from cyst.api.environment.platform import Platform, PlatformDescription
 from cyst.api.environment.platform_interface import PlatformInterface
@@ -27,6 +27,7 @@ from cyst.platform.environment.configuration_network import NetworkConfiguration
 from cyst.platform.environment.configuration_node import NodeConfigurationImpl
 from cyst.platform.environment.configuration_service import ServiceConfigurationImpl
 from cyst.platform.environment.configurator import Configurator
+from cyst.platform.environment.message import TimeoutImpl
 from cyst.platform.environment.environment_messaging import EnvironmentMessagingImpl
 from cyst.platform.network.network import Network
 
@@ -114,7 +115,6 @@ class CYSTPlatform(Platform, EnvironmentConfiguration, Clock):
         return self._access_configuration
 
     # ------------------------------------------------------------------------------------------------------------------
-
     @property
     def messaging(self) -> EnvironmentMessaging:
         return self._environment_messaging
@@ -132,15 +132,15 @@ class CYSTPlatform(Platform, EnvironmentConfiguration, Clock):
 
     # ------------------------------------------------------------------------------------------------------------------
     # Clock interface
-    # ------------------------------------------------------------------------------------------------------------------
     def current_time(self) -> float:
-        return float(self._time)
+        return self._time
 
     def real_time(self) -> datetime:
         raise NotImplementedError()
 
-    def timeout(self, service: ActiveService, delay: int, content: Any) -> None:
-        raise NotImplementedError()
+    def timeout(self, callback: Union[ActiveService, Callable[[Timeout], None]], delay: float, parameter: Any = None) -> None:
+        timeout = TimeoutImpl(callback, self._time, delay, parameter)
+        self._environment_messaging.send_message(timeout, int(delay))
 
     # ------------------------------------------------------------------------------------------------------------------
     async def process(self, time_advance: int) -> bool:
@@ -189,7 +189,7 @@ class CYSTPlatform(Platform, EnvironmentConfiguration, Clock):
             if message.type == MessageType.TIMEOUT:
                 # Yay!
                 timeout = TimeoutImpl.cast_from(message.cast_to(Timeout))  # type:ignore #MYPY: Probably an issue with mypy, requires creation of helper class
-                timeout.service.process_message(message)
+                timeout.callback(message)
             else:
                 self._environment_messaging.message_hop(message)
 

@@ -1,4 +1,4 @@
-from typing import Any, List, Optional, Union, Type, Dict
+from typing import Any, List, Optional, Union, Type, Dict, Callable, Tuple
 from netaddr import *
 
 from cyst.api.environment.message import MessageType, Message, Request, Response, Status, Timeout, T, Resource
@@ -267,6 +267,7 @@ class RequestImpl(MessageImpl, Request):
 
         if original_request:
             self.src_service = original_request.src_service
+            self.platform_specific["caller_id"] = original_request.platform_specific["caller_id"]
 
         self._action = action
 
@@ -280,7 +281,7 @@ class RequestImpl(MessageImpl, Request):
 
     def __str__(self) -> str:
         result = "Request: [ID: {}, Type: {}, Origin: {}, Source: {}, Target: {}, Destination service: {}, Source service: {}, Action: {}, Session: {}, Authorization: {}]"\
-                   .format(self.id, self.type.name, self._origin.ip, self.src_ip, self.dst_ip, self.dst_service, self.src_service, self.action.id,
+                   .format(self.id, self.type.name, self._origin.ip if self.origin else None, self.src_ip, self.dst_ip, self.dst_service, self.src_service, self.action.id,
                            self.session, self.auth)
         return result
 
@@ -339,7 +340,7 @@ class ResponseImpl(MessageImpl, Response):
 
     def __str__(self) -> str:
         result = "Response: [ID: {}, Type: {}, Origin: {}, Source: {}, Target: {}, Status: {}, Content: {}, Session: {}, Authorization: {}]"\
-                   .format(self.id, self.type.name, self._origin.ip, self.src_ip, self.dst_ip, self._status, self._content, self.session, self.auth)
+                   .format(self.id, self.type.name, self._origin.ip if self._origin else None, self.src_ip, self.dst_ip, self._status, self._content, self.session, self.auth)
         return result
 
     @property
@@ -367,20 +368,20 @@ class ResponseImpl(MessageImpl, Response):
 
 class TimeoutImpl(MessageImpl, Timeout):
 
-    def __init__(self, service: ActiveService, start_time: int, duration: int, parameter: Optional[Any]):
+    def __init__(self, callback: Union[ActiveService, Callable[[Message], Tuple[bool, int]]], start_time: float, duration: float, parameter: Optional[Any]):
         super(TimeoutImpl, self).__init__(MessageType.TIMEOUT)
 
         self._start_time = start_time
         self._duration = duration
         self._parameter = parameter
-        self._service = service
+        self._callback = callback
 
     @property
-    def start_time(self) -> int:
+    def start_time(self) -> float:
         return self._start_time
 
     @property
-    def duration(self) -> int:
+    def duration(self) -> float:
         return self._duration
 
     @property
@@ -388,8 +389,12 @@ class TimeoutImpl(MessageImpl, Timeout):
         return self._parameter
 
     @property
-    def service(self) -> ActiveService:
-        return self._service
+    def callback(self) -> Callable[[Message], Tuple[bool, int]]:
+        if isinstance(self._callback, ActiveService):
+            return self._callback.process_message
+        else:
+            return self._callback
+
 
     def __str__(self) -> str:
         return "Timeout: [Start: {}, Duration: {}, Parameter: {}]".format(self._start_time, self._duration, self._parameter)
