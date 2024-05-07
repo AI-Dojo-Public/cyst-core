@@ -610,7 +610,7 @@ class TestSessions(unittest.TestCase):
             traffic_processors=[],
             shell="",
             interfaces=[
-                InterfaceConfig(IPAddress("192.168.0.2"), IPNetwork("192.168.0/24"))
+                InterfaceConfig(IPAddress("192.168.0.2"), IPNetwork("192.168.0.2/24"))
             ],
             id="active_node_1"
         )
@@ -629,8 +629,8 @@ class TestSessions(unittest.TestCase):
             traffic_processors=[],
             shell="",
             interfaces=[
-                InterfaceConfig(IPAddress("192.168.0.3"), IPNetwork("192.168.0/24")),
-                InterfaceConfig(IPAddress("192.168.1.2"), IPNetwork("192.168.1/24"))
+                InterfaceConfig(IPAddress("192.168.0.3"), IPNetwork("192.168.0.3/24")),
+                InterfaceConfig(IPAddress("192.168.1.2"), IPNetwork("192.168.1.2/24"))
             ],
             id="active_node_2"
         )
@@ -641,7 +641,7 @@ class TestSessions(unittest.TestCase):
             traffic_processors=[],
             shell="",
             interfaces=[
-                InterfaceConfig(IPAddress("192.168.1.3"), IPNetwork("192.168.1/24"))
+                InterfaceConfig(IPAddress("192.168.1.3"), IPNetwork("192.168.1.3/24"))
             ],
             id="passive_node"
         )
