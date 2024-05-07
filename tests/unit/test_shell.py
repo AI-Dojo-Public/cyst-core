@@ -43,7 +43,7 @@ target = NodeConfig(
     passive_services=[],
     traffic_processors=[],
     shell="",
-    interfaces=[InterfaceConfig(IPAddress(TARGET), IPNetwork("192.168.0/24"))],
+    interfaces=[InterfaceConfig(IPAddress(TARGET), IPNetwork("192.168.0.1/24"))],
     id="target_node")
 
 attacker = NodeConfig(active_services=[
