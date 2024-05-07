@@ -931,7 +931,7 @@ class TestConnection(unittest.TestCase):
             passive_services=[],
             traffic_processors=[],
             shell="",
-            interfaces=[InterfaceConfig(IPAddress(cls.SOURCE), IPNetwork("192.168.0/24"))],
+            interfaces=[InterfaceConfig(IPAddress(cls.SOURCE), IPNetwork("192.168.0.2/24"))],
             id="source_node"
         )
 
@@ -941,7 +941,7 @@ class TestConnection(unittest.TestCase):
             passive_services=[],
             traffic_processors=[],
             shell="",
-            interfaces=[InterfaceConfig(IPAddress(cls.DESTINATION), IPNetwork("192.168.0/24"))],
+            interfaces=[InterfaceConfig(IPAddress(cls.DESTINATION), IPNetwork("192.168.0.3/24"))],
             id="destination_node"
         )
 
