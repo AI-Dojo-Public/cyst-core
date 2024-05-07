@@ -1,4 +1,5 @@
 import asyncio
+import logging
 
 from typing import Dict, Tuple
 from uuid import uuid4
@@ -30,6 +31,7 @@ class CompositeActionManagerImpl(CompositeActionManager):
         self._set_futures = 0
         self._composites_processing = 0
         self._terminate = False
+        self._log = logging.getLogger("system")
 
     def processing(self) -> bool:
         # If we are waiting for something to finish, we are processing
@@ -77,13 +79,13 @@ class CompositeActionManagerImpl(CompositeActionManager):
         self._incoming_queue.add(message)
 
     async def send_request(self, request: Request):
-        print(f"[start: {self._res.clock.current_time()}] Sending message with id {request.id}")
+        self._log.debug(f"[start] Composite action: sending message with id {request.id}")
         self._messages.add(request.id)
         self._msg.send_message(request)
-        print(f"[ end : {self._res.clock.current_time()}] Sending message with id {request.id}")
+        self._log.debug(f"[ end ] Composite action: sending message with id {request.id}")
 
     async def process_composite(self, request) -> None:
-        print(f"[start: {self._res.clock.current_time()}] Processing request from composite queue: {request}")
+        self._log.debug(f"[start] Composite action: processing request from composite queue: {request}")
         delay, response = await self._coroutines[request.id]
         del self._coroutines[request.id]
 
@@ -94,7 +96,7 @@ class CompositeActionManagerImpl(CompositeActionManager):
             caller_id = request.platform_specific["caller_id"]
             service = self._general.get_object_by_id(caller_id, Service)
             service.active_service.process_message(response)
-        print(f"[ end : {self._res.clock.current_time()}] Processing request from composite queue, got this response: {response}")
+        self._log.debug(f"[ end ] Composite action: processing request from composite queue. Got this response: {response}")
         self._composites_processing -= 1
 
     async def process(self) -> [bool, bool]:
@@ -105,15 +107,15 @@ class CompositeActionManagerImpl(CompositeActionManager):
 
         while self._outgoing_queue:
             request = self._outgoing_queue.pop()
-            print(f"[start: {self._res.clock.current_time()}] Processing request from outgoing queue: {request}")
+            self._log.debug(f"[start] Composite action: processing request from outgoing queue: {request}")
             await self._loop.create_task(self.send_request(request))
-            print(f"[ end : {self._res.clock.current_time()}] Processing request from outgoing queue: {request}")
+            self._log.debug(f"[ end ] Composite action: processing request from outgoing queue: {request}")
 
         while self._incoming_queue:
             response = self._incoming_queue.pop()
-            print(f"[start: {self._res.clock.current_time()}] Processing response from incoming queue: {response}")
+            self._log.debug(f"[start] Composite queue: processing response from incoming queue: {response}")
             self._futures[response.id].set_result(response)
-            print(f"[ end : {self._res.clock.current_time()}] Processing response from incoming queue: {response}")
+            self._log.debug(f"[ end ] Composite queue: processing response from incoming queue: {response}")
 
         if self._composites_processing > 0:
             # Yield control to composite tasks processing, just to be sure it does not get starved.

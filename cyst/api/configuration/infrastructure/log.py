@@ -72,7 +72,8 @@ log_defaults = [
         source=LogSource.SYSTEM,
         log_level=logging.INFO,
         log_console=True,
-        log_file=False
+        log_file=True,
+        file_path="cyst_system.log"
     ),
     LogConfig(
         source=LogSource.MESSAGING,
