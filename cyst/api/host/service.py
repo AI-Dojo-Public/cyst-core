@@ -1,5 +1,6 @@
 from abc import ABC, abstractmethod
 from dataclasses import dataclass
+from deprecated.sphinx import versionchanged
 from enum import IntEnum
 from semver import VersionInfo
 from typing import Set, Tuple, Callable, Dict, Any, Optional
@@ -45,25 +46,23 @@ class Service(ABC):
         """
 
     @property
+    @versionchanged(version="0.6.0", reason="Changed to return Optional ")
     @abstractmethod
-    def passive_service(self) -> 'PassiveService':
+    def passive_service(self) -> Optional['PassiveService']:
         """
-        If the service is a passive one, this function gives an access to its :class:`PassiveService` interface. If not,
-        then a call to this function results in an exception thrown. TODO: This is stupid, it should be Optional[] and
-        return null.
+        If the service is a passive one, this function gives access to its :class:`PassiveService` interface.
 
-        :rtype: PassiveService
+        :rtype: Optional[PassiveService]
         """
 
     @property
+    @versionchanged(version="0.6.0", reason="Changed to return Optional ")
     @abstractmethod
-    def active_service(self) -> 'ActiveService':
+    def active_service(self) -> Optional['ActiveService']:
         """
-        If the service is an active one, this function gives an access to its :class:`ActiveService` interface. If not,
-        then a call to this function results in an exception thrown. TODO: This is stupid, it should be Optional[] and
-        return null.
+        If the service is an active one, this function gives access to its :class:`ActiveService` interface.
 
-        :rtype: ActiveService
+        :rtype: Optional[ActiveService]
         """
 
 

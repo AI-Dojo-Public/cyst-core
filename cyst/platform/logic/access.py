@@ -1,4 +1,3 @@
-
 import uuid
 from abc import ABC
 
@@ -9,7 +8,8 @@ from cyst.api.configuration.logic.access import AccessLevel
 from cyst.api.logic.access import Authorization, AuthenticationToken, AuthenticationTokenSecurity, \
     AuthenticationTokenType, AuthenticationProvider, AuthenticationTarget, AuthenticationProviderType, AccessScheme
 from cyst.api.logic.data import Data
-from cyst.core.logic.data import DataImpl
+
+from cyst.platform.logic.data import DataImpl
 
 
 class AuthorizationImpl(Authorization):
@@ -415,6 +415,10 @@ class AuthenticationProviderImpl(AuthenticationProvider):
 
         if self._target.service is None:
             self._target.service = srv_id
+        # Due to the way a configuration works from version 0.6.0, the same service can be set multiple times. So we
+        # just ignore it.
+        elif self._target.service == srv_id:
+            pass
         else:
             raise RuntimeError  # TODO check what should be done here, exception might be too harsh
 

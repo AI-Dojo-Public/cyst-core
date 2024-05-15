@@ -11,21 +11,22 @@ from cyst.api.logic.data import Data
 from cyst.api.network.node import Node
 from cyst.api.network.session import Session
 
-from cyst.core.host.service import PassiveServiceImpl
-from cyst.core.logic.data import DataImpl
+from cyst.platform.host.service import PassiveServiceImpl, ServiceImpl
+from cyst.platform.logic.data import DataImpl
+from cyst.platform.network.node import NodeImpl
 
 if TYPE_CHECKING:
-    from cyst.core.environment.environment import _Environment
+    from cyst.platform.main import CYSTPlatform
 
 
 class ServiceConfigurationImpl(ServiceConfiguration):
-    def __init__(self, env: _Environment):
-        self._env = env
+    def __init__(self, platform: CYSTPlatform):
+        self._platform = platform
 
     def create_active_service(self, type: str, owner: str, name: str, node: Node,
                               service_access_level: AccessLevel = AccessLevel.LIMITED,
                               configuration: Optional[Dict[str, Any]] = None, id: str = "") -> Optional[Service]:
-        return _create_active_service(self._env, type, owner, name, node, service_access_level, configuration, id)
+        return _create_active_service(self._platform, type, owner, name, node, service_access_level, configuration, id)
 
     def get_service_interface(self, service: ActiveService,
                               interface_type: Type[ActiveServiceInterfaceType]) -> ActiveServiceInterfaceType:
@@ -36,7 +37,7 @@ class ServiceConfigurationImpl(ServiceConfiguration):
 
     def create_passive_service(self, type: str, owner: str, version: str = "0.0.0", local: bool = False,
                                service_access_level: AccessLevel = AccessLevel.LIMITED, id: str = "") -> Service:
-        return _create_passive_service(self._env, type, owner, version, local, service_access_level, id)
+        return _create_passive_service(self._platform, type, owner, version, local, service_access_level, id)
 
     def update_service_version(self, service: PassiveService, version: str = "0.0.0") -> None:
         service = PassiveServiceImpl.cast_from(service)
@@ -50,7 +51,7 @@ class ServiceConfigurationImpl(ServiceConfiguration):
             service.set_session_access_level(value)
 
     def create_data(self, id: Optional[str], owner: str, description: str) -> Data:
-        return _create_data(self._env, id, owner, description)
+        return _create_data(self._platform, id, owner, description)
 
     def public_data(self, service: PassiveService) -> List[Data]:
         return PassiveServiceImpl.cast_from(service).public_data
@@ -67,10 +68,8 @@ class ServiceConfigurationImpl(ServiceConfiguration):
     def sessions(self, service: PassiveService) -> List[Session]:
         return PassiveServiceImpl.cast_from(service).sessions
 
-    def provides_auth(self, service: Service, auth_provider: AuthenticationProvider) -> None:
-        # TODO: This can't work. A passive service is in service.passive_service
-        if isinstance(service, PassiveService):
-            return PassiveServiceImpl.cast_from(service).add_provider(auth_provider)
+    def provides_auth(self, service: PassiveService, auth_provider: AuthenticationProvider) -> None:
+        return PassiveServiceImpl.cast_from(service).add_provider(auth_provider)
 
     def set_scheme(self, service: PassiveService, scheme: AccessScheme) -> None:
         return PassiveServiceImpl.cast_from(service).add_access_scheme(scheme)
@@ -78,20 +77,21 @@ class ServiceConfigurationImpl(ServiceConfiguration):
 
 # ------------------------------------------------------------------------------------------------------------------
 # ServiceConfiguration (with trampoline)
-def _create_active_service(self: _Environment, type: str, owner: str, name: str, node: Node,
+def _create_active_service(self: CYSTPlatform, type: str, owner: str, name: str, node: Node,
                           service_access_level: AccessLevel = AccessLevel.LIMITED,
                           configuration: Optional[Dict[str, Any]] = None, id: str = "") -> Optional[Service]:
     if not id:
-        id = str(uuid.uuid4())
+        id = NodeImpl.cast_from(node).id + "." + name
 
-    s = self._service_store.create_active_service(type, owner, name, node, service_access_level, configuration, id)
+    srv = self._infrastructure.service_store.create_active_service(type, owner, name, node, service_access_level, configuration, id)
+    s = ServiceImpl(type, srv, name, owner, service_access_level, id)
     if s:
         self._general_configuration.add_object(id, s)
 
     return s
 
 
-def _create_passive_service(self: _Environment, type: str, owner: str, version: str = "0.0.0", local: bool = False,
+def _create_passive_service(self: CYSTPlatform, type: str, owner: str, version: str = "0.0.0", local: bool = False,
                            service_access_level: AccessLevel = AccessLevel.LIMITED, id: str = "") -> Service:
     if not id:
         id = str(uuid.uuid4())
@@ -101,7 +101,7 @@ def _create_passive_service(self: _Environment, type: str, owner: str, version: 
     return p
 
 
-def _create_data(self: _Environment, id: Optional[str], owner: str, description: str) -> Data:
+def _create_data(self: CYSTPlatform, id: Optional[str], owner: str, description: str) -> Data:
     if not id:
         id = str(uuid.uuid4())
     d = DataImpl(id, owner, description)

@@ -6,39 +6,7 @@ from enum import Enum
 from typing import List, Tuple, Optional, Any, Dict, Union
 
 from cyst.api.logic.exploit import Exploit
-
-
-@versionadded(version="0.6.0")
-class ExecutionEnvironmentType(Enum):
-    """
-    The type of environment that the actions are executed in.
-
-    Possible values:
-        :SIMULATION: A type of environment that has its infrastructure and action effects fully simulated.
-        :EMULATION: An environment, where eiter the infrastructure or action effects are offloaded.
-    """
-    SIMULATION = 0
-    EMULATION = 1
-
-
-@versionadded(version="0.6.0")
-@dataclass(frozen=True)
-class ExecutionEnvironment:
-    """
-    A full description of the execution environment governs which action effects are executed.
-
-    :param type: A type of execution environment.
-    :type type: ExecutionEnvironmentType
-
-    :param specification: Additional specification of the environment that is used to differentiate between the
-        available ones.
-    :type specification: str
-
-    The default value for built-in simulation of cyst is ExecutionEnvironment(type=ExecutionEnvironmentType.SIMULATION,
-    specification="CYST")
-    """
-    type: ExecutionEnvironmentType
-    specification: str
+from cyst.api.environment.platform_specification import PlatformSpecification
 
 
 class ActionParameterDomainType(Enum):
@@ -214,7 +182,7 @@ class ActionType(Enum):
     COMPOSITE = 2
 
 
-@versionchanged(version="0.6.0", reason="Removed action tokens until a new action meta-model is polished. Added type and execution environment specification.")
+@versionchanged(version="0.6.0", reason="Removed action tokens until a new action meta-model is polished. Added type and platform specification.")
 @dataclass
 class ActionDescription:
     """
@@ -233,15 +201,15 @@ class ActionDescription:
     :param parameters: A list of action parameters.
     :type parameters: List[ActionParameter]
 
-    :param environment: The execution environment, where the action is valid. One or more environments can be specified.
+    :param platform: The platform, where the action is valid. One or more platforms can be specified.
         If none is provided, the default CYST simulation is assumed.
-    :type environment: Union[None, ExecutionEnvironment, List[ExecutionEnvironment]]
+    :type platform: Union[None, PlatformSpecification, List[PlatformSpecification]]
     """
     id: str
     type: ActionType
     description: str
     parameters: List[ActionParameter]
-    environment: Union[None, ExecutionEnvironment, List[ExecutionEnvironment]] = None
+    platform: Union[None, PlatformSpecification, List[PlatformSpecification]] = None
 
 
 class Action(ABC):

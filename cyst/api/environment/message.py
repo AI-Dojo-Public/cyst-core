@@ -3,7 +3,7 @@ from dataclasses import dataclass
 from deprecated.sphinx import versionadded
 from enum import Enum, auto
 from netaddr import IPAddress
-from typing import Any, Optional, Union, TypeVar, Type
+from typing import Any, Optional, Union, TypeVar, Type, Dict
 
 from cyst.api.network.session import Session
 from cyst.api.logic.access import Authorization, AuthenticationToken, AuthenticationTarget
@@ -19,11 +19,13 @@ class MessageType(Enum):
         :TIMEOUT: The message is an information about expiration of a timeout.
         :REQUEST: The message is a request.
         :RESPONSE: The message is a response.
+        :RESOURCE: The message carries a resource.
 
     """
     TIMEOUT = 0
     REQUEST = 1
     RESPONSE = 2
+    RESOURCE = 3
 
 
 class StatusOrigin(Enum):
@@ -34,12 +36,14 @@ class StatusOrigin(Enum):
         :NETWORK: The original request was processed and evaluated at the network or router level.
         :NODE: The original request was processed and evaluated at the node level, without reaching a specific service.
         :SERVICE: The original request was processed and evaluated at the service level.
+        :RESOURCE: The original request was for the resources.
         :SYSTEM: The original request couldn't be evaluated in the environment context. This indicates a system error.
 
     """
     NETWORK = 0
     NODE = 1
     SERVICE = 2
+    RESOURCE = 3
     SYSTEM = 99
 
 
@@ -170,7 +174,7 @@ class Status:
         return result
 
 
-T = TypeVar('T', bound=Union['Request', 'Response', 'Timeout'])
+T = TypeVar('T', bound=Union['Request', 'Response', 'Resource', 'Timeout'])
 
 
 class Message(ABC):
@@ -236,7 +240,7 @@ class Message(ABC):
 
     @property
     @abstractmethod
-    def session(self) -> Session:
+    def session(self) -> Optional[Session]:
         """
         A session associated with the message.
 
@@ -289,15 +293,26 @@ class Message(ABC):
         :type metdata: Metadata
         """
 
+    @versionadded(version="0.6.0")
+    @property
+    @abstractmethod
+    def platform_specific(self) -> Dict[str, Any]:
+        """
+        Provides access to platform-specific parameters of a message. Their contents can be arbitrary and are intended
+        for assisting with message handling in a non CYST-simulated environments.
+
+        :rtype: Dict[str, Any]
+        """
+
     @abstractmethod
     def cast_to(self, type: Type[T]) -> T:
         """
-        This function enables typecasting of Message into one of the three derived types: Request, Response, and
-        Timeout. While technically not necessary due to Python's type system, it conveys intention and also makes
+        This function enables typecasting of Message into one of the four derived types: Request, Response, Resource,
+        and Timeout. While technically not necessary due to Python's type system, it conveys intention and also makes
         a check whether the conversion can actually be done.
 
         :param type: A type to cast the mesasge to.
-        :type type: Type[TypeVar('T', bound=Union['Request', 'Response', 'Timeout'])]
+        :type type: Type[TypeVar('T', bound=Union['Request', 'Response', 'Resource', 'Timeout'])]
 
         :rtype: T
         """
@@ -360,7 +375,7 @@ class Timeout(Message, ABC):
     """
     @property
     @abstractmethod
-    def start_time(self) -> int:
+    def start_time(self) -> float:
         """
         A simulation time when the timeout was requested.
 
@@ -369,7 +384,7 @@ class Timeout(Message, ABC):
 
     @property
     @abstractmethod
-    def duration(self) -> int:
+    def duration(self) -> float:
         """
         A duration of the timeout in simulated time units.
 
@@ -383,4 +398,38 @@ class Timeout(Message, ABC):
         Any parameter that was included during the invocation of the timeout function.
 
         :rtype: Any
+        """
+
+
+class Resource(Message, ABC):
+    """
+    Resource is a message specialization that is delivered when an asynchronous external resource was requested.
+    """
+    @property
+    @abstractmethod
+    def path(self) -> str:
+        """
+        A URL of the resource.
+
+        :rtype str:
+        """
+
+    @property
+    @abstractmethod
+    def status(self) -> Status:
+        """
+        A result of processing the associated request.
+
+        :rtype: Status
+        """
+
+
+    @property
+    @abstractmethod
+    def data(self) -> Optional[str]:
+        """
+        Data retrieved from the external resource. In case the system failed to extract the data (due to timeout or
+        error), the return is set to None.
+
+        :rtype: Optional[str]
         """

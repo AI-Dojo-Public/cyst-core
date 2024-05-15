@@ -13,35 +13,35 @@ from cyst.api.network.elements import Route, Interface, Port
 from cyst.api.network.firewall import FirewallPolicy, FirewallRule
 from cyst.api.network.node import Node
 
-from cyst.core.host.service import ServiceImpl
-from cyst.core.network.elements import InterfaceImpl, PortImpl
-from cyst.core.network.node import NodeImpl
-from cyst.core.network.router import Router
+from cyst.platform.host.service import ServiceImpl
+from cyst.platform.network.elements import InterfaceImpl, PortImpl
+from cyst.platform.network.node import NodeImpl
+from cyst.platform.network.router import Router
 
 if TYPE_CHECKING:
-    from cyst.core.environment.environment import _Environment
+    from cyst.platform.main import CYSTPlatform
 
 
 class NodeConfigurationImpl(NodeConfiguration):
-    def __init__(self, env: _Environment):
-        self._env = env
+    def __init__(self, platform: CYSTPlatform):
+        self._platform = platform
 
     def create_node(self, id: str, ip: Union[str, IPAddress] = "", mask: str = "", shell: Service = None) -> Node:
-        return _create_node(self._env, id, ip, mask, shell)
+        return _create_node(self._platform, id, ip, mask, shell)
 
     def create_router(self, id: str, messaging: EnvironmentMessaging) -> Node:
-        return _create_router(self._env, id, messaging)
+        return _create_router(self._platform, id, messaging)
 
     def create_port(self, ip: Union[str, IPAddress] = "", mask: str = "", index: int = 0,
                     id: str = "") -> Port:
-        return _create_port(self._env, ip, mask, index, id)
+        return _create_port(self._platform, ip, mask, index, id)
 
     def create_interface(self, ip: Union[str, IPAddress] = "", mask: str = "", index: int = 0,
                          id: str = "") -> Interface:
-        return _create_interface(self._env, ip, mask, index, id)
+        return _create_interface(self._platform, ip, mask, index, id)
 
     def create_route(self, net: IPNetwork, port: int, metric: int, id: str = "") -> Route:
-        return _create_route(self._env, net, port, metric, id)
+        return _create_route(self._platform, net, port, metric, id)
 
     def add_interface(self, node: Node, interface: Interface, index: int = -1) -> int:
         if node.type == "Router":
@@ -106,19 +106,19 @@ class NodeConfigurationImpl(NodeConfiguration):
 
 # ------------------------------------------------------------------------------------------------------------------
 # NodeConfiguration
-def _create_node(self: _Environment, id: str, ip: Union[str, IPAddress] = "", mask: str = "", shell: Service = None) -> Node:
+def _create_node(self: CYSTPlatform, id: str, ip: Union[str, IPAddress] = "", mask: str = "", shell: Service = None) -> Node:
     n = NodeImpl(id, "Node", ip, mask, shell)
     self._general_configuration.add_object(id, n)
     return n
 
 
-def _create_router(self: _Environment, id: str, messaging: EnvironmentMessaging) -> Node:
+def _create_router(self: CYSTPlatform, id: str, messaging: EnvironmentMessaging) -> Node:
     r = Router(id, messaging)
     self._general_configuration.add_object(id, r)
     return r
 
 
-def _create_port(self: _Environment, ip: Union[str, IPAddress] = "", mask: str = "", index: int = 0, id: str = "") -> Port:
+def _create_port(self: CYSTPlatform, ip: Union[str, IPAddress] = "", mask: str = "", index: int = 0, id: str = "") -> Port:
     if not id:
         id = str(uuid.uuid4())
     i = PortImpl(ip, mask, index, id)
@@ -126,7 +126,7 @@ def _create_port(self: _Environment, ip: Union[str, IPAddress] = "", mask: str =
     return i
 
 
-def _create_interface(self: _Environment, ip: Union[str, IPAddress] = "", mask: str = "", index: int = 0, id: str = "") -> Interface:
+def _create_interface(self: CYSTPlatform, ip: Union[str, IPAddress] = "", mask: str = "", index: int = 0, id: str = "") -> Interface:
     if not id:
         id = str(uuid.uuid4())
     i = InterfaceImpl(ip, mask, index, id)
@@ -134,7 +134,7 @@ def _create_interface(self: _Environment, ip: Union[str, IPAddress] = "", mask: 
     return i
 
 
-def _create_route(self: _Environment, net: IPNetwork, port: int, metric: int, id: str = "") -> Route:
+def _create_route(self: CYSTPlatform, net: IPNetwork, port: int, metric: int, id: str = "") -> Route:
     if not id:
         id = str(uuid.uuid4())
     r = Route(net, port, metric, id)

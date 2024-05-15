@@ -13,23 +13,23 @@ from cyst.api.logic.access import AuthenticationToken, Authorization, Authentica
     AuthenticationProviderType
 from cyst.api.network.node import Node
 
-from cyst.core.host.service import PassiveServiceImpl
-from cyst.core.logic.access import AuthenticationTokenImpl, AuthenticationProviderImpl, AccessSchemeImpl, \
+from cyst.platform.host.service import PassiveServiceImpl
+from cyst.platform.logic.access import AuthenticationTokenImpl, AuthenticationProviderImpl, AccessSchemeImpl, \
     AuthorizationImpl, AuthenticationTargetImpl
-from cyst.core.network.node import NodeImpl
+from cyst.platform.network.node import NodeImpl
 
 if TYPE_CHECKING:
-    from cyst.core.environment.environment import _Environment
+    from cyst.platform.main import CYSTPlatform
 
 
 class AccessConfigurationImpl(AccessConfiguration):
-    def __init__(self, env: _Environment):
-        self._env = env
+    def __init__(self, platform: CYSTPlatform):
+        self._platform = platform
 
     def create_authentication_provider(self, provider_type: AuthenticationProviderType,
                                        token_type: AuthenticationTokenType, security: AuthenticationTokenSecurity,
                                        ip: Optional[IPAddress], timeout: int, id: str = "") -> AuthenticationProvider:
-        return _create_authentication_provider(self._env, provider_type, token_type, security, ip, timeout, id)
+        return _create_authentication_provider(self._platform, provider_type, token_type, security, ip, timeout, id)
 
     def create_authentication_token(self, type: AuthenticationTokenType, security: AuthenticationTokenSecurity,
                                     identity: str, is_local: bool) -> AuthenticationToken:
@@ -55,10 +55,10 @@ class AccessConfigurationImpl(AccessConfiguration):
 
     def create_authorization(self, identity: str, access_level: AccessLevel, id: str, nodes: Optional[List[str]] = None,
                              services: Optional[List[str]] = None) -> Authorization:
-        return _create_authorization(self._env, identity, access_level, id, nodes, services)
+        return _create_authorization(self._platform, identity, access_level, id, nodes, services)
 
     def create_access_scheme(self, id: str = "") -> AccessScheme:
-        return _create_access_scheme(self._env, id)
+        return _create_access_scheme(self._platform, id)
 
     def add_provider_to_scheme(self, provider: AuthenticationProvider, scheme: AccessScheme) -> None:
         if isinstance(scheme, AccessSchemeImpl):
@@ -79,9 +79,9 @@ class AccessConfigurationImpl(AccessConfiguration):
         # check if node has the service is in interpreter
         if isinstance(service, PassiveServiceImpl):
             for scheme in service.access_schemes:
-                result = _assess_token(self._env, scheme, token)
+                result = _assess_token(self._platform, scheme, token)
                 if isinstance(result, Authorization):
-                    return _user_auth_create(self._env, result, service, node)
+                    return _user_auth_create(self._platform, result, service, node)
                 if isinstance(result, AuthenticationTargetImpl):
                     if result.address is None:
                         result.address = fallback_ip
@@ -138,7 +138,7 @@ class AccessConfigurationImpl(AccessConfiguration):
 
 # ------------------------------------------------------------------------------------------------------------------
 # Access configuration
-def _create_authentication_provider(self: _Environment, provider_type: AuthenticationProviderType,
+def _create_authentication_provider(self: CYSTPlatform, provider_type: AuthenticationProviderType,
                                    token_type: AuthenticationTokenType, security: AuthenticationTokenSecurity,
                                    ip: Optional[IPAddress], timeout: int, id: str = "") -> AuthenticationProvider:
     if not id:
@@ -148,7 +148,7 @@ def _create_authentication_provider(self: _Environment, provider_type: Authentic
     return a
 
 
-def _create_authorization(self: _Environment, identity: str, access_level: AccessLevel, id: str, nodes: Optional[List[str]] = None,
+def _create_authorization(self: CYSTPlatform, identity: str, access_level: AccessLevel, id: str, nodes: Optional[List[str]] = None,
                          services: Optional[List[str]] = None) -> Authorization:
     if not id:
         id = str(uuid.uuid4())
@@ -165,7 +165,7 @@ def _create_authorization(self: _Environment, identity: str, access_level: Acces
     return a
 
 
-def _create_access_scheme(self: _Environment, id: str = "") -> AccessScheme:
+def _create_access_scheme(self: CYSTPlatform, id: str = "") -> AccessScheme:
     if not id:
         id = str(uuid.uuid4())
     scheme = AccessSchemeImpl(id)
@@ -173,7 +173,7 @@ def _create_access_scheme(self: _Environment, id: str = "") -> AccessScheme:
     return scheme
 
 
-def _assess_token(self: _Environment, scheme: AccessScheme, token: AuthenticationToken) \
+def _assess_token(self: CYSTPlatform, scheme: AccessScheme, token: AuthenticationToken) \
         -> Optional[Union[Authorization, AuthenticationTarget]]:
 
     for i in range(0, len(scheme.factors)):
@@ -185,7 +185,7 @@ def _assess_token(self: _Environment, scheme: AccessScheme, token: Authenticatio
     return None
 
 
-def _user_auth_create(self: _Environment, authorization: Authorization, service: Service, node: Node):
+def _user_auth_create(self: CYSTPlatform, authorization: Authorization, service: Service, node: Node):
     if isinstance(authorization, AuthorizationImpl):
         if (authorization.nodes == ['*'] or NodeImpl.cast_from(node).id in authorization.nodes) and \
                 (authorization.services == ['*'] or service.name in authorization.services):

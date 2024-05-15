@@ -7,7 +7,7 @@ from netaddr import IPAddress
 from cyst.api.network.node import Node
 from cyst.api.network.session import Session
 
-from cyst.core.network.elements import Hop, Endpoint, Resolver
+from cyst.platform.network.elements import Hop, Endpoint, Resolver
 
 
 # The session represents an existing chain of connections, which can be traversed without authorization by its owner

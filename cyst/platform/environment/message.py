@@ -1,16 +1,16 @@
-from typing import Any, List, Optional, Union, Type
+from typing import Any, List, Optional, Union, Type, Dict, Callable, Tuple
 from netaddr import *
 
-from cyst.api.environment.message import MessageType, Message, Request, Response, Status, Timeout, T
+from cyst.api.environment.message import MessageType, Message, Request, Response, Status, Timeout, T, Resource
 from cyst.api.host.service import ActiveService
 from cyst.api.logic.access import Authorization, AuthenticationToken, AuthenticationTarget
 from cyst.api.logic.action import Action
 from cyst.api.logic.metadata import Metadata
 from cyst.api.network.session import Session
-
 from cyst.api.utils.counter import Counter
-from cyst.core.network.elements import Endpoint, Hop
-from cyst.core.network.session import SessionImpl
+
+from cyst.platform.network.elements import Endpoint, Hop
+from cyst.platform.network.session import SessionImpl
 
 
 # TODO No repeated encapsulation of content yet
@@ -56,6 +56,7 @@ class MessageImpl(Message):
         self._ttl = ttl
 
         self._metadata = None
+        self._platform_specific: Dict[str, Any] = {}
 
     @property
     def id(self) -> int:
@@ -219,6 +220,10 @@ class MessageImpl(Message):
     def set_metadata(self, metadata: Metadata) -> None:
         self._metadata = metadata
 
+    @property
+    def platform_specific(self) -> Dict[str, Any]:
+        return self._platform_specific
+
     @staticmethod
     def cast_from(o: Message) -> 'MessageImpl':
         if isinstance(o, MessageImpl):
@@ -262,6 +267,7 @@ class RequestImpl(MessageImpl, Request):
 
         if original_request:
             self.src_service = original_request.src_service
+            self.platform_specific["caller_id"] = original_request.platform_specific["caller_id"]
 
         self._action = action
 
@@ -275,7 +281,7 @@ class RequestImpl(MessageImpl, Request):
 
     def __str__(self) -> str:
         result = "Request: [ID: {}, Type: {}, Origin: {}, Source: {}, Target: {}, Destination service: {}, Source service: {}, Action: {}, Session: {}, Authorization: {}]"\
-                   .format(self.id, self.type.name, self._origin.ip, self.src_ip, self.dst_ip, self.dst_service, self.src_service, self.action.id,
+                   .format(self.id, self.type.name, self._origin.ip if self.origin else None, self.src_ip, self.dst_ip, self.dst_service, self.src_service, self.action.id,
                            self.session, self.auth)
         return result
 
@@ -320,6 +326,9 @@ class ResponseImpl(MessageImpl, Response):
         self._path_index = len(self._non_session_path)
         self.set_origin(request.current)
 
+        # Copy platform-specific information
+        self._platform_specific = request.platform_specific
+
     def set_next_hop(self, origin_endpoint: Endpoint = None, destination_endpoint: Endpoint = None) -> None:
         # Traversing the pre-session connections is done by traversing back the non-session path
         # The rest is up to session management of message
@@ -331,7 +340,7 @@ class ResponseImpl(MessageImpl, Response):
 
     def __str__(self) -> str:
         result = "Response: [ID: {}, Type: {}, Origin: {}, Source: {}, Target: {}, Status: {}, Content: {}, Session: {}, Authorization: {}]"\
-                   .format(self.id, self.type.name, self._origin.ip, self.src_ip, self.dst_ip, self._status, self._content, self.session, self.auth)
+                   .format(self.id, self.type.name, self._origin.ip if self._origin else None, self.src_ip, self.dst_ip, self._status, self._content, self.session, self.auth)
         return result
 
     @property
@@ -359,20 +368,20 @@ class ResponseImpl(MessageImpl, Response):
 
 class TimeoutImpl(MessageImpl, Timeout):
 
-    def __init__(self, service: ActiveService, start_time: int, duration: int, parameter: Optional[Any]):
+    def __init__(self, callback: Union[ActiveService, Callable[[Message], Tuple[bool, int]]], start_time: float, duration: float, parameter: Optional[Any]):
         super(TimeoutImpl, self).__init__(MessageType.TIMEOUT)
 
         self._start_time = start_time
         self._duration = duration
         self._parameter = parameter
-        self._service = service
+        self._callback = callback
 
     @property
-    def start_time(self) -> int:
+    def start_time(self) -> float:
         return self._start_time
 
     @property
-    def duration(self) -> int:
+    def duration(self) -> float:
         return self._duration
 
     @property
@@ -380,8 +389,12 @@ class TimeoutImpl(MessageImpl, Timeout):
         return self._parameter
 
     @property
-    def service(self) -> ActiveService:
-        return self._service
+    def callback(self) -> Callable[[Message], Tuple[bool, int]]:
+        if isinstance(self._callback, ActiveService):
+            return self._callback.process_message
+        else:
+            return self._callback
+
 
     def __str__(self) -> str:
         return "Timeout: [Start: {}, Duration: {}, Parameter: {}]".format(self._start_time, self._duration, self._parameter)
@@ -392,3 +405,25 @@ class TimeoutImpl(MessageImpl, Timeout):
             return o
         else:
             raise ValueError("Malformed underlying object passed with the Request interface")
+
+
+class ResourceMessageImpl(MessageImpl, Resource):
+
+    def __init__(self, path: str, status: Status, service: str, data: Optional[str]):
+        super(ResourceMessageImpl, self).__init__(type=MessageType.RESOURCE, dst_service=service)
+
+        self._path = path
+        self._status = status
+        self._data = data
+
+    @property
+    def path(self) -> str:
+        return self._path
+
+    @property
+    def status(self) -> Status:
+        return self._status
+
+    @property
+    def data(self) -> Optional[str]:
+        return self._data

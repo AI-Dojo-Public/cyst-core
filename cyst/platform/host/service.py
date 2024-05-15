@@ -1,5 +1,5 @@
 from semver import VersionInfo
-from typing import List, Set, Union, Tuple
+from typing import List, Set, Union, Tuple, Optional
 
 import cyst
 from cyst.api.host.service import Service, ActiveService, PassiveService, ServiceState
@@ -7,9 +7,9 @@ from cyst.api.logic.access import AccessLevel, AuthenticationToken, Authorizatio
 from cyst.api.logic.data import Data
 from cyst.api.network.node import Node
 from cyst.api.network.session import Session
-from cyst.core.logic.access import AuthorizationImpl
 
-from cyst.core.logic.data import DataImpl
+from cyst.platform.logic.access import AuthorizationImpl
+from cyst.platform.logic.data import DataImpl
 
 
 class ServiceImpl(Service):
@@ -61,16 +61,16 @@ class ServiceImpl(Service):
             self._sessions.append(session)
 
     @property
-    def passive_service(self) -> PassiveService:
-        if isinstance(self._service, ActiveService):
-            raise RuntimeError("Attempting to cast service wrapper from active to passive service")
-        return self._service
+    def passive_service(self) -> Optional[PassiveService]:
+        if isinstance(self._service, PassiveService):
+            return self._service
+        return None
 
     @property
-    def active_service(self) -> ActiveService:
-        if isinstance(self._service, PassiveService):
-            raise RuntimeError("Attempting to cast service wrapper from passive to active service")
-        return self._service
+    def active_service(self) -> Optional[ActiveService]:
+        if isinstance(self._service, ActiveService):
+            return self._service
+        return None
 
     @staticmethod
     def cast_from(o: Service) -> 'ServiceImpl':
@@ -147,7 +147,7 @@ class PassiveServiceImpl(ServiceImpl, PassiveService):
 
     def add_provider(self, provider: AuthenticationProvider):
         self._provided_auths.append(provider)
-        if isinstance(provider, cyst.core.logic.access.AuthenticationProviderImpl):
+        if isinstance(provider, cyst.platform.logic.access.AuthenticationProviderImpl):
             provider.set_service(self._id)
 
     def add_access_scheme(self, scheme: AccessScheme):

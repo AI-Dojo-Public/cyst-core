@@ -1,13 +1,13 @@
 from netaddr import IPAddress
 from typing import List, Union, Optional, Tuple, Dict
 
-from cyst.core.network.elements import InterfaceImpl
-from cyst.core.host.service import ServiceImpl
-
 from cyst.api.host.service import Service, ActiveService
 from cyst.api.environment.message import MessageType
 from cyst.api.network.node import Node
 from cyst.api.network.elements import Interface
+
+from cyst.platform.network.elements import InterfaceImpl
+from cyst.platform.host.service import ServiceImpl
 
 
 class NodeImpl(Node):
@@ -74,7 +74,7 @@ class NodeImpl(Node):
         i.set_index(index)
         return index
 
-    def process_message(self, message) -> int:
+    def process_message(self, message, delay: int) -> int:
         if message.type == MessageType.ACK:
             return 0
 

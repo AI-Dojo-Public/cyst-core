@@ -1,10 +1,11 @@
 import uuid
 from abc import ABC, abstractmethod
+from dataclasses import dataclass, field
 from typing import Any, List, Optional, Union, Dict, TypeVar, Type
 from netaddr import IPAddress, IPNetwork
-from flags import Flags
 
 from cyst.api.configuration.configuration import ConfigItem
+from cyst.api.configuration import ServiceParameter
 from cyst.api.environment.messaging import EnvironmentMessaging
 from cyst.api.environment.message import Message
 from cyst.api.host.service import Service, PassiveService, ActiveService
@@ -158,16 +159,10 @@ class GeneralConfiguration(ABC):
     @abstractmethod
     def get_object_by_id(self, id: str, object_type: Type[ObjectType]) -> ObjectType:
         """
-        Get any object instantiated within a simulation.
-
-        :param id: The ID of the object.
-        :type id: str
-
-        :param object_type: A type of object to get. While not technically necessary, given the state of Python's type
-            system, it is there to satisfy static typing inspection.
-        :type object_type: Type[TypeVar('ObjectType')]
-
-        :return: An object with give ID.
+        Get this back...
+        :param id:
+        :param object_type:
+        :return:
         """
 
 
@@ -455,21 +450,6 @@ class NodeConfiguration(ABC):
 
         :return: A list of routes.
         """
-
-
-class ServiceParameter(Flags):
-    """
-    Service parameter represents a domain of parametrization for passive services.
-
-    Values
-        :ENABLE_SESSION: A service can be a destination of a session, e.g., SSH or VPN tunnel, or HTTP server.
-            Possible values: True|False
-        :SESSION_ACCESS_LEVEL: An access level of a session when it is established. This can be different from the
-            service access level, e.g., SSH daemon has an elevated service access level, but its sessions are always
-            limited. Possible values: the domain of cyst.api.logic.access.AccessLevel.
-    """
-    ENABLE_SESSION = ()
-    SESSION_ACCESS_LEVEL = ()
 
 
 class ServiceConfiguration(ABC):
@@ -1314,3 +1294,14 @@ class AccessConfiguration(ABC):
 
         :return: True if successful, False otherwise.
         """
+
+
+# ----------------------------------------------------------------------------------------------------------------------
+# Runtime configuration of the environment. Can be filled from different sources
+@dataclass
+class RuntimeConfiguration:
+    data_backend: str = "MEMORY"
+    data_backend_params: Dict[str, str] = field(default_factory=lambda: {})
+    run_id: str = field(default_factory=lambda: str(uuid.uuid4()))
+    config_id: str = ""
+    config_filename: str = ""

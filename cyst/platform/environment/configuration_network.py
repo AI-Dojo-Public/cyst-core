@@ -8,26 +8,26 @@ from cyst.api.network.elements import Connection
 from cyst.api.network.node import Node
 from cyst.api.network.session import Session
 
-from cyst.core.environment.message import MessageImpl
-from cyst.core.host.service import ServiceImpl
-from cyst.core.network.elements import PortImpl
-from cyst.core.network.session import SessionImpl
-from cyst.core.network.node import NodeImpl
+from cyst.platform.environment.message import MessageImpl
+from cyst.platform.host.service import ServiceImpl
+from cyst.platform.network.elements import PortImpl
+from cyst.platform.network.session import SessionImpl
+from cyst.platform.network.node import NodeImpl
 
 if TYPE_CHECKING:
-    from cyst.core.environment.environment import _Environment
+    from cyst.platform.main import CYSTPlatform
 
 
 class NetworkConfigurationImpl(NetworkConfiguration):
-    def __init__(self, env: _Environment):
-        self._env = env
+    def __init__(self, platform: CYSTPlatform):
+        self._platform = platform
 
     def add_node(self, node: Node) -> None:
-        return _add_node(self._env, node)
+        return _add_node(self._platform, node)
 
     def add_connection(self, source: Node, target: Node, source_port_index: int = -1, target_port_index: int = -1,
                        net: str = "", connection: Optional[Connection] = None) -> Connection:
-        return _add_connection(self._env, source, target, source_port_index, target_port_index, net, connection)
+        return _add_connection(self._platform, source, target, source_port_index, target_port_index, net, connection)
 
     def get_connections(self, node: Node, port_index: Optional[int] = None) -> List[Connection]:
         return [ifc.connection for ifc in node.interfaces if ifc.connection and
@@ -36,22 +36,22 @@ class NetworkConfigurationImpl(NetworkConfiguration):
     def create_session(self, owner: str, waypoints: List[Union[str, Node]], src_service: Optional[str] = None,
                        dst_service: Optional[str] = None, parent: Optional[Session] = None,
                        defer: bool = False, reverse: bool = False) -> Optional[Session]:
-        return _create_session(self._env, owner, waypoints, src_service, dst_service, parent, defer, reverse)
+        return _create_session(self._platform, owner, waypoints, src_service, dst_service, parent, defer, reverse)
 
     def create_session_from_message(self, message: Message) -> Session:
-        return _create_session_from_message(self._env, message)
+        return _create_session_from_message(self._platform, message)
 
     def append_session(self, original_session: Session, appended_session: Session) -> Session:
-        return _append_session(self._env, original_session, appended_session)
+        return _append_session(self._platform, original_session, appended_session)
 
 
 # ------------------------------------------------------------------------------------------------------------------
 # NetworkConfiguration
-def _add_node(self: _Environment, node: Node) -> None:
+def _add_node(self: CYSTPlatform, node: Node) -> None:
     self._network.add_node(NodeImpl.cast_from(node))
 
 
-def _add_connection(self: _Environment, source: Node, target: Node, source_port_index: int = -1, target_port_index: int = -1,
+def _add_connection(self: CYSTPlatform, source: Node, target: Node, source_port_index: int = -1, target_port_index: int = -1,
                    net: str = "", connection: Connection = None) -> Connection:
     return self._network.add_connection(NodeImpl.cast_from(source), source_port_index, NodeImpl.cast_from(target),
                                         target_port_index, net, connection)
@@ -59,7 +59,7 @@ def _add_connection(self: _Environment, source: Node, target: Node, source_port_
 
 # TODO: Decide if we want to have service association a part of the session creation, or if we rather leave it
 #       to service interface
-def _create_session(self: _Environment, owner: str, waypoints: List[Union[str, Node]], src_service: Optional[str] = None,
+def _create_session(self: CYSTPlatform, owner: str, waypoints: List[Union[str, Node]], src_service: Optional[str] = None,
                     dst_service: Optional[str] = None, parent: Optional[Session] = None, defer: bool = False,
                     reverse: bool = False) -> Optional[Session]:
 
@@ -67,7 +67,7 @@ def _create_session(self: _Environment, owner: str, waypoints: List[Union[str, N
         self._sessions_to_add.append((owner, waypoints, src_service, dst_service, parent, reverse))
         return None
     else:
-        session = self._create_session(owner, waypoints, src_service, dst_service, parent, reverse)
+        session = self._network.create_session(owner, waypoints, src_service, dst_service, parent, reverse)
         if src_service or dst_service:
             if not src_service and dst_service:
                 raise RuntimeError("Both or neither services must be specified during session creation.")
@@ -89,7 +89,7 @@ def _create_session(self: _Environment, owner: str, waypoints: List[Union[str, N
         return session
 
 
-def _append_session(self: _Environment, original_session: Session, appended_session: Session) -> Session:
+def _append_session(self: CYSTPlatform, original_session: Session, appended_session: Session) -> Session:
     original = SessionImpl.cast_from(original_session)
     appended = SessionImpl.cast_from(appended_session)
 
@@ -104,7 +104,7 @@ def _append_session(self: _Environment, original_session: Session, appended_sess
     return session
 
 
-def _create_session_from_message(self: _Environment, message: Message) -> Session:
+def _create_session_from_message(self: CYSTPlatform, message: Message) -> Session:
     message = MessageImpl.cast_from(message)
 
     if message.auth:

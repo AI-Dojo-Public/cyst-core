@@ -1,18 +1,16 @@
 from abc import ABC, abstractmethod
 from enum import Enum, auto
-from typing import List
+from typing import Optional, Union
 
 from cyst.api.configuration.configuration import ConfigItem
 from cyst.api.environment.configuration import EnvironmentConfiguration
 from cyst.api.environment.control import EnvironmentControl
+from cyst.api.environment.infrastructure import EnvironmentInfrastructure
 from cyst.api.environment.messaging import EnvironmentMessaging
 from cyst.api.environment.resources import EnvironmentResources
 from cyst.api.environment.policy import EnvironmentPolicy
-
-
-class EnvironmentMode(Enum):
-    SIMULATION = auto()
-    EMULATION_CRYTON = auto()
+from cyst.api.environment.platform import PlatformSpecification, Platform
+from cyst.api.environment.platform_interface import PlatformInterface
 
 
 class Environment(ABC):
@@ -48,9 +46,9 @@ class Environment(ABC):
         :rtype: EnvironmentMessaging
         """
 
-    @property
-    @abstractmethod
-    def policy(self) -> EnvironmentPolicy:
+    #@property
+    #@abstractmethod
+    #def policy(self) -> EnvironmentPolicy:
         """
         This environment enables handling of authentication and authorization.
 
@@ -67,6 +65,31 @@ class Environment(ABC):
         This interface gives access to resources, such as actions or exploits.
 
         :rtype: EnvironmentResources
+        """
+
+    @property
+    @abstractmethod
+    def platform_interface(self) -> PlatformInterface:
+        """
+        This interface provides means for execution platforms to execute actions and to notify the results of actions.
+
+        :rtype: PlatformInterface
+        """
+
+    @property
+    @abstractmethod
+    def infrastructure(self) -> EnvironmentInfrastructure:
+        """
+        TODO: EnvInfra description
+        :return:
+        """
+
+    @property
+    @abstractmethod
+    def platform(self) -> Platform:
+        """
+        I hope it works
+        :return:
         """
 
     @abstractmethod
@@ -90,7 +113,7 @@ class Environment(ABC):
         """
 
     @classmethod
-    def create(cls, mode: EnvironmentMode = EnvironmentMode.SIMULATION) -> 'Environment':
+    def create(cls, platform: Optional[Union[str, PlatformSpecification]] = None) -> 'Environment':
         """
         Creates a new instance of the environment. A program using CYST can use multiple environments, however, each
         simulation run happens only in the context of one environment.
@@ -98,4 +121,4 @@ class Environment(ABC):
         :return: An environment instance.
         """
         import cyst.core.environment.environment
-        return cyst.core.environment.environment.create_environment()
+        return cyst.core.environment.environment.create_environment(platform)
