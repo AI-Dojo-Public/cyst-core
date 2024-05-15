@@ -2,6 +2,7 @@ import asyncio
 import heapq
 import os
 import pathlib
+import urllib
 import urllib.request
 
 from enum import Enum, auto
@@ -130,7 +131,7 @@ class FileResource(ResourceImpl):
 
     def init(self, path: ParseResult, params: Optional[dict[str, str]] = None, persistence: ResourcePersistence = ResourcePersistence.TRANSIENT) -> bool:
         self._url = str(path)
-        self._path = os.path.abspath(path.path[1:])
+        self._path = urllib.request.url2pathname(path.path)
         self._persistent = persistence
 
         if params and "mode" in params:
