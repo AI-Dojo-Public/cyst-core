@@ -171,7 +171,7 @@ class CYSTPlatform(Platform, EnvironmentConfiguration, Clock):
         else:
             # If there is something to do, but it is further than the environment requested, we just move the clock and
             # do nothing
-            if time_jump > time_advance:
+            if time_advance > 0 and time_jump > time_advance:
                 self._time += time_advance
                 return True
             # It is sooner than the environment requested, let's do it and proceed with the rest of the code
