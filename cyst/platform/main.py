@@ -164,13 +164,19 @@ class CYSTPlatform(Platform, EnvironmentConfiguration, Clock):
             if time_jump == 0 or delta < time_jump:
                 time_jump = delta
 
-        # We should not advance further than the environment asked us to.
-        # In such case, jump that much and return.
-        if 0 < time_advance < time_jump:
+        # If there is nothing to do, just jump time as asked
+        if not have_something_to_do:
             self._time += time_advance
-            return have_something_to_do
+            return False
         else:
-            self._time += time_jump
+            # If there is something to do, but it is further than the environment requested, we just move the clock and
+            # do nothing
+            if time_jump > time_advance:
+                self._time += time_advance
+                return True
+            # It is sooner than the environment requested, let's do it and proceed with the rest of the code
+            else:
+                self._time += time_jump
 
         # --------------------------------------------------------------------------------------------------------------
         # Task processing
@@ -207,7 +213,7 @@ class CYSTPlatform(Platform, EnvironmentConfiguration, Clock):
         for task in tasks_to_execute:
             self._environment_messaging.message_process(task)
 
-        return have_something_to_do
+        return True
 
 
 def create_platform(platform_interface: PlatformInterface, general_configuration: GeneralConfiguration,

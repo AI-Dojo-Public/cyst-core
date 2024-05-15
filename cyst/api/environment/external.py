@@ -1,9 +1,10 @@
 from abc import ABC, abstractmethod
 from enum import Enum
-from typing import Union, Optional, Callable
+from typing import Union, Optional
+from urllib.parse import ParseResult
 
-from cyst.api.host.service import Service
 
+from cyst.api.host.service import ActiveService
 
 class ResourcePersistence(Enum):
     TRANSIENT = 0
@@ -11,30 +12,65 @@ class ResourcePersistence(Enum):
 
 
 class Resource(ABC):
+    @property
+    @abstractmethod
     def path(self) -> str:
         pass
 
+    @property
+    @abstractmethod
     def persistence(self) -> ResourcePersistence:
+        pass
+
+
+class ResourceImpl(Resource, ABC):
+    @abstractmethod
+    def init(self, path: ParseResult, params: Optional[dict[str, str]] = None, persistence: ResourcePersistence = ResourcePersistence.TRANSIENT) -> bool:
+        pass
+
+    @abstractmethod
+    def open(self) -> int:
+        pass
+
+    @abstractmethod
+    def close(self) -> int:
+        pass
+
+    @abstractmethod
+    async def send(self, data: str, params: Optional[dict[str, str]] = None) -> int:
+        pass
+
+    @abstractmethod
+    async def receive(self, params: Optional[dict[str, str]] = None) -> Optional[str]:
         pass
 
 
 class ExternalResources(ABC):
 
-    def custom_resource(self, init: Callable[[dict[str, str]], bool],
-                              open: Callable[[], int],
-                              close: Callable[[], int],
-                              send: Callable[[dict[str, str]], int],
-                              receive: Callable[[], str]):
+    @abstractmethod
+    def register_resource(self, scheme: str, resource: ResourceImpl) -> bool:
         pass
 
-    def persistent_resource(self, path: str, params: dict[str, str]) -> Resource:
+    @abstractmethod
+    def create_resource(self, path: str, params: Optional[dict[str, str]] = None, persistence: ResourcePersistence = ResourcePersistence.TRANSIENT) -> Resource:
         pass
 
+    @abstractmethod
     def release_resource(self, resource: Resource) -> None:
         pass
 
-    def send(self, resource: Union[str, Resource], params: Optional[dict[str, str]], virtual_duration: int = 0, timeout: int = 0) -> None:
+    @abstractmethod
+    async def send_async(self, resource: Union[str, Resource], data: str, params: Optional[dict[str, str]] = None, timeout: float = 0.0) -> None:
         pass
 
-    def fetch(self, resource: Union[str, Resource], params: Optional[dict[str, str]], virtual_duration: int = 0, timeout: int = 0, service: Optional[Service] = None) -> Optional[str]:
+    @abstractmethod
+    def send(self, resource: Union[str, Resource], data: str, params: Optional[dict[str, str]] = None, timeout: float = 0.0, callback_service: Optional[ActiveService] = None) -> None:
+        pass
+
+    @abstractmethod
+    async def fetch_async(self, resource: Union[str, Resource], params: Optional[dict[str, str]] = None, timeout: float = 0.0) -> Optional[str]:
+        pass
+
+    @abstractmethod
+    def fetch(self, resource: Union[str, Resource], params: Optional[dict[str, str]] = None, timeout: float = 0.0, callback_service: Optional[ActiveService] = None) -> None:
         pass

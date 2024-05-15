@@ -42,6 +42,10 @@ class ScriptedActorControl(ABC):
     def set_response_callback(self, fn: Callable[[EnvironmentMessaging, EnvironmentResources, Message], Tuple[bool, int]]):
         pass
 
+    @abstractmethod
+    def set_message_callback(self, message_type: MessageType, fn: Callable[[EnvironmentMessaging, EnvironmentResources, Message], Tuple[bool, int]]):
+        pass
+
 
 class ScriptedActor(ActiveService, ScriptedActorControl):
     def __init__(self, env: EnvironmentMessaging = None, res: EnvironmentResources = None, args: Optional[Dict[str, Any]] = None) -> None:
@@ -54,6 +58,7 @@ class ScriptedActor(ActiveService, ScriptedActorControl):
         self._request_callback = None
         self._last_message_type = None
         self._log = logging.getLogger("services.scripted_actor")
+        self._callbacks = {}
 
     # This Actor only runs given actions. No own initiative
     def run(self):
@@ -69,16 +74,23 @@ class ScriptedActor(ActiveService, ScriptedActorControl):
     def process_message(self, message: Message) -> Tuple[bool, int]:
         self._last_message_type = message.type
 
+        type_map = {
+            MessageType.REQUEST: "request",
+            MessageType.RESPONSE: "response",
+            MessageType.RESOURCE: "resource"
+        }
+
+        message_type = type_map[message.type]
+
+        self._log.debug(f"Got a new {message_type} {message.id} : {str(message)}")
+
         if message.type == MessageType.REQUEST:
-            self._log.debug(f"Got a new request {message.id} : {str(message)}")
             self._requests.append(message)
-            if self._request_callback:
-                return self._request_callback(self._messaging, self._resources, message)
-        else:
-            self._log.debug(f"Got a new response {message.id} : {str(message)}")
+        elif message.type == MessageType.RESPONSE:
             self._responses.append(message)
-            if self._response_callback:
-                return self._response_callback(self._messaging, self._resources, message)
+
+        if message.type in self._callbacks:
+            return self._callbacks[message.type](self._messaging, self._resources, message)
 
         return True, 1
 
@@ -100,10 +112,13 @@ class ScriptedActor(ActiveService, ScriptedActorControl):
         return self._responses[:-count-1:-1]
 
     def set_request_callback(self, fn: Callable[[EnvironmentMessaging, EnvironmentResources, Message], Tuple[bool, int]]):
-        self._request_callback = fn
+        self._callbacks[MessageType.REQUEST] = fn
 
     def set_response_callback(self, fn: Callable[[EnvironmentMessaging, EnvironmentResources, Message], Tuple[bool, int]]):
-        self._response_callback = fn
+        self._callbacks[MessageType.RESPONSE] = fn
+
+    def set_message_callback(self, message_type: MessageType, fn: Callable[[EnvironmentMessaging, EnvironmentResources, Message], Tuple[bool, int]]):
+        self._callbacks[message_type] = fn
 
     def set_run_callback(self, fn: Callable[[EnvironmentMessaging, EnvironmentResources], None]):
         self._run_callback = fn

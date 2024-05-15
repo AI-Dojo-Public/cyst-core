@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import asyncio
 from datetime import datetime
 from heapq import heappush
 from time import struct_time, localtime
@@ -32,9 +33,9 @@ class EnvironmentResourcesImpl(EnvironmentResources):
         self._statistics = StatisticsImpl()
         self._external_resources = None
 
-    def set_clock(self, clock: Clock):
+    def init_resources(self, loop: asyncio.AbstractEventLoop, clock: Clock):
         self._clock = clock
-        self._external_resources = ExternalResourcesImpl(self._clock, self._env.add_resource_task_collection)
+        self._external_resources = ExternalResourcesImpl(loop, clock)
 
     @property
     def action_store(self) -> ActionStore:

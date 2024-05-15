@@ -151,7 +151,7 @@ class _Environment(Environment, PlatformInterface):
         self._platform = self._create_platform(self._platform_spec)
 
         # If only there was a way to make it more sane, without needing to create a completely new interface
-        self._environment_resources.set_clock(self._platform.clock)
+        self._environment_resources.init_resources(self._loop, self._platform.clock)
 
         # When platform is initialized, create a combined configuration for behavioral models
         self._environment_configuration = EnvironmentConfigurationImpl(self._general_configuration, self._platform.configuration,
@@ -488,6 +488,18 @@ class _Environment(Environment, PlatformInterface):
             return
 
         # --------------------------------------------------------------------------------------------------------------
+        # Process the resources if there are any
+        ext = ExternalResourcesImpl.cast_from(self._environment_resources.external)
+        if self._platform_spec.type == PlatformType.SIMULATION:
+            ext.collect_at(current_time)
+            # Suggest a time jump if there are resources waiting to be processed. Otherwise, it would just be set to 0.
+            time_jump = ext.pending()[1]
+        else:
+            # No time jump is suggested, because time runs its own course
+            ext.collect_immediately()
+
+
+        # --------------------------------------------------------------------------------------------------------------
         # Otherwise, we let the composite action manager start all the tasks
         # This is almost no-op if no requests are in a queue for it. And if there are, they will just be processed and
         # converted to normal messages down the line.
@@ -513,7 +525,7 @@ class _Environment(Environment, PlatformInterface):
                 return
 
         # Nothing pending in queues
-        if not (have_something_to_do or platform_has_something_to_do or composite_processing_left):
+        if not (have_something_to_do or platform_has_something_to_do or composite_processing_left or ext.pending()[0]):
             self._finish = True
             return
 

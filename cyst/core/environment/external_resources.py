@@ -1,19 +1,25 @@
 import asyncio
-import concurrent.futures
-import functools
-from abc import ABC, abstractmethod
+import heapq
+import os
+import pathlib
+import urllib.request
+
 from enum import Enum, auto
-from time import mktime
-from typing import Union, Optional, Callable, Type, Any, Tuple
+from heapq import heappush, heappop
+from typing import Union, Optional, Type, Dict, Tuple, List, Any
 from urllib.parse import urlparse, ParseResult
-from dataclasses import dataclass
+
+from netaddr import IPAddress
 
 from cyst.api.environment.clock import Clock
-from cyst.api.environment.external import ExternalResources, Resource, ResourcePersistence
-from cyst.api.environment.message import Status, StatusOrigin, StatusValue
-from cyst.api.host.service import Service
-
-# from cyst.core.environment.message import ResourceMessageImpl
+from cyst.api.environment.message import Resource as ResourceMsg, T, MessageType, Status, StatusValue, StatusOrigin
+from cyst.api.environment.messaging import EnvironmentMessaging
+from cyst.api.environment.external import ExternalResources, Resource, ResourcePersistence, ResourceImpl
+from cyst.api.host.service import Service, ActiveService
+from cyst.api.logic.access import Authorization, AuthenticationToken, AuthenticationTarget
+from cyst.api.logic.metadata import Metadata
+from cyst.api.network.session import Session
+from cyst.api.utils.counter import Counter
 
 
 class ResourcesState(Enum):
@@ -22,62 +28,112 @@ class ResourcesState(Enum):
     OPENED = auto()
     CLOSED = auto()
 
+class ResourceOp(Enum):
+    SEND = auto()
+    FETCH = auto()
 
-class ResourceImpl(Resource, ABC):
 
+# ----------------------------------------------------------------------------------------------------------------------
+# Resource message is just a thin wrapper over resource contents to enable correct calling of process_message() of
+# active services.
+class ResourceMessage(ResourceMsg):
+    def __init__(self, path: str, status: Status, data: str):
+        self._path = path
+        self._status = status
+        self._data = data
+        self._id = Counter().get("message")
+
+    @property
+    def type(self) -> MessageType:
+        return MessageType.RESOURCE
+
+    @property
+    def id(self) -> int:
+        return self._id
+
+    @property
     def path(self) -> str:
-        pass
+        return self._path
 
-    def persistence(self) -> ResourcePersistence:
-        pass
+    @property
+    def status(self) -> Status:
+        return self._status
 
-    def persist(self) -> bool:
-        pass
+    @property
+    def data(self) -> Optional[str]:
+        return self._data
 
-    def state(self) -> ResourcesState:
-        pass
+    # ------------------------------------------------------------------------------------------------------------------
+    # Unfortunately, these have to be implemented
+    @property
+    def src_ip(self) -> Optional[IPAddress]:
+        raise NotImplementedError("Resources do not implement ordinary Message attributes.")
 
-    def init(self, params: dict[str, str]) -> bool:
-        pass
+    @property
+    def dst_ip(self) -> Optional[IPAddress]:
+        raise NotImplementedError("Resources do not implement ordinary Message attributes.")
 
-    def open(self) -> bool:
-        pass
+    @property
+    def src_service(self) -> Optional[str]:
+        raise NotImplementedError("Resources do not implement ordinary Message attributes.")
 
-    def close(self) -> bool:
-        pass
+    @property
+    def dst_service(self) -> str:
+        raise NotImplementedError("Resources do not implement ordinary Message attributes.")
 
-    def send(self, params: dict[str, str], timeout: int) -> int:
-        pass
+    @property
+    def session(self) -> Optional[Session]:
+        raise NotImplementedError("Resources do not implement ordinary Message attributes.")
 
-    def receive(self, params: dict[str, str], timeout: int) -> str:
-        pass
+    @property
+    def auth(self) -> Optional[Union[Authorization, AuthenticationToken, AuthenticationTarget]]:
+        raise NotImplementedError("Resources do not implement ordinary Message attributes.")
 
+    @property
+    def ttl(self) -> int:
+        raise NotImplementedError("Resources do not implement ordinary Message attributes.")
 
+    @property
+    def metadata(self) -> Metadata:
+        raise NotImplementedError("Resources do not implement ordinary Message attributes.")
+
+    def set_metadata(self, metadata: Metadata) -> None:
+        raise NotImplementedError("Resources do not implement ordinary Message attributes.")
+
+    @property
+    def platform_specific(self) -> Dict[str, Any]:
+        raise NotImplementedError("Resources do not implement ordinary Message attributes.")
+
+    def cast_to(self, type: Type[T]) -> T:
+        raise NotImplementedError("Resources do not implement ordinary Message attributes.")
+
+# ----------------------------------------------------------------------------------------------------------------------
+# TODO: FileResource is internally synchronous. Which is not such a problem for intended use cases, but it should
+#       probably be rewritten using aiofiles library.
 class FileResource(ResourceImpl):
 
-    def __init__(self, path: ParseResult):
-        self._path = path.netloc
-        self._url = str(path)
+    def __init__(self):
+        self._path: Optional[pathlib.Path] = None
+        self._url = ""
         self._persistent = ResourcePersistence.TRANSIENT
         self._mode = "r"
         self._handle = None
         self._state = ResourcesState.CREATED
 
+    @property
     def path(self) -> str:
         return self._url
 
+    @property
     def persistence(self) -> ResourcePersistence:
         return self._persistent
 
-    def persist(self) -> bool:
-        self._persistent = ResourcePersistence.PERSISTENT
-        return True
+    def init(self, path: ParseResult, params: Optional[dict[str, str]] = None, persistence: ResourcePersistence = ResourcePersistence.TRANSIENT) -> bool:
+        self._url = str(path)
+        self._path = os.path.abspath(path.path[1:])
+        self._persistent = persistence
 
-    def state(self) -> ResourcesState:
-        return self._state
-
-    def init(self, params: dict[str, str]) -> bool:
-        if "mode" in params:
+        if params and "mode" in params:
             self._mode = params["mode"]
 
         self._state = ResourcesState.INIT
@@ -88,7 +144,7 @@ class FileResource(ResourceImpl):
         try:
             self._handle = open(self._path, self._mode)
         except Exception as e:
-            raise("Failed to open a file. Reason: " + str(e))
+            raise RuntimeError("Failed to open a file. Reason: " + str(e))
 
         self._state = ResourcesState.OPENED
         return True
@@ -98,18 +154,14 @@ class FileResource(ResourceImpl):
         self._state = ResourcesState.CLOSED
         return True
 
-    def send(self, params: dict[str, str], timeout: int) -> int:
+    async def send(self, data: str, params: Optional[dict[str, str]] = None) -> int:
         if ("w" in self._mode) or ("a" in self._mode):
-            if "data" in params:
-                data = params["data"]
-                self._handle.write(data)
-            else:
-                raise RuntimeError("No data specified for writing")
+            self._handle.write(data)
         else:
             raise RuntimeError("File not opened for writing")
         return len(data)
 
-    def receive(self, params: dict[str, str], timeout: int) -> str:
+    async def receive(self, params: Optional[dict[str, str]] = None) -> str:
         if "r" in self._mode:
             data = self._handle.read()
             return data
@@ -117,81 +169,18 @@ class FileResource(ResourceImpl):
             raise RuntimeError("File not opened for reading")
 
 
-@dataclass
-class ResourceTask:
-    path: str
-    fn: Callable
-    params: dict[str, str]
-    virtual_timeout: int
-    real_timeout: int
-    service: Service = None
-    coroutine: Any = None
-
-
-class ResourceTaskGroup:
-    def __init__(self, event_loop, thread_pool, clock: Clock):
-        self._event_loop = event_loop
-        self._thread_pool = thread_pool
-        self._tasks: list[ResourceTask] = []
-        self._virtual_timeout = None
-        self._real_timeout = 0
-        self._clock = clock
-        self._run_start = None
-
-    def virtual_timeout(self) -> int:
-        return self._virtual_timeout
-
-    def real_timeout(self) -> int:
-        return self._real_timeout
-
-    def add_task(self, task: ResourceTask):
-        if not self._tasks:
-            self._virtual_timeout = task.virtual_timeout
-        else:
-            if self._virtual_timeout != task.virtual_timeout:
-                raise RuntimeError("Task group must have identical virtual time tasks")
-
-        # Store a starting time for a first task that is added
-        if not self._run_start:
-            self._run_start = mktime(self._clock.real_time())
-
-        # If there is no timeout yet, just take it from the task
-        if self._real_timeout == 0:
-            self._real_timeout = task.real_timeout + self._run_start
-        # If there is one (i.e., a task is already running), add to the timeout only if the task allocation would
-        # overflow remaining timeouts of other tasks
-        else:
-            corrected_timeout = self._real_timeout - self._run_start
-            if task.real_timeout > corrected_timeout:
-                self._real_timeout = task.real_timeout + self._run_start
-
-        # Finally, run the task and save it for later
-        task.coroutine = self._event_loop.run_in_executor(self._thread_pool, functools.partial(task.fn, task.params, task.real_timeout))
-        self._tasks.append(task)
-
-    def collect_tasks(self) -> list[ResourceTask]:
-        self._event_loop.run_until_complete(
-            asyncio.wait(
-                [t.coroutine for t in self._tasks],
-                timeout=self._real_timeout
-            )
-        )
-        return self._tasks
-
-
+# ----------------------------------------------------------------------------------------------------------------------
 class ExternalResourcesImpl(ExternalResources):
-    def __init__(self, clock: Clock, resource_task_callback: Callable[[int], None]):
-        self._resources: dict[str, Type] = {
-            "file": FileResource
-        }
-
-        self._event_loop = asyncio.new_event_loop()
-        self._thread_pool = concurrent.futures.ThreadPoolExecutor()
-
-        self._resource_task_callback = resource_task_callback
-
+    def __init__(self, loop: asyncio.AbstractEventLoop, clock: Clock):
+        self._loop = loop
         self._clock = clock
-        self._task_pool: dict[int, ResourceTaskGroup] = {}
+
+        self._tasks: Dict[str, Tuple[Union[asyncio.Future, ActiveService], asyncio.Task, Resource, float]] = {}
+        self._finished: List[Tuple[float, int, Union[asyncio.Future, ActiveService], asyncio.Task, Resource]] = []
+        self._pending: List[float] = []
+
+        self._resources: dict[str, Type] = {}
+        self.register_resource("file", FileResource)
 
     @staticmethod
     def cast_from(o: ExternalResources) -> 'ExternalResourcesImpl':
@@ -200,90 +189,190 @@ class ExternalResourcesImpl(ExternalResources):
         else:
             raise ValueError("Malformed underlying object passed with the ExternalResources interface")
 
-    def custom_resource(self, init: Callable[[dict[str, str]], bool], open: Callable[[], int], close: Callable[[], int], send: Callable[[dict[str, str]], int], receive: Callable[[], str]):
-        pass
+    def register_resource(self, scheme: str, resource: Type) -> bool:
+        if scheme in self._resources:
+            raise RuntimeError(f"Attempting to register already registered resource for scheme {scheme}")
+        else:
+            if not issubclass(resource, ResourceImpl):
+                raise RuntimeError(f"Resource of wrong type (not implementing ResourceImpl) passed for registration: {resource}")
+            self._resources[scheme] = resource
+            return True
 
-    def persistent_resource(self, path: str, params: dict[str, str]) -> Resource:
-        pass
+    def create_resource(self, path: str, params: Optional[dict[str, str]] = None, persistence: ResourcePersistence = ResourcePersistence.TRANSIENT) -> Resource:
+        parsed_path = urlparse(path)
+
+        if not parsed_path.scheme:
+            raise RuntimeError(f"Resource path does not contain a scheme: {parsed_path}")
+
+        if parsed_path.scheme not in self._resources:
+            raise RuntimeError(f"Could not create a resource of unknown scheme {parsed_path.scheme}")
+
+        r: ResourceImpl = self._resources[parsed_path.scheme]()
+        r.init(parsed_path, params, persistence)  # Init should throw exception which gets caught by the Task
+
+        if persistence == ResourcePersistence.PERSISTENT:
+            r.open()
+
+        return r
 
     def release_resource(self, resource: Resource) -> None:
-        pass
+        if resource.persistence == ResourcePersistence.PERSISTENT:
+            if isinstance(resource, ResourceImpl):
+                resource.close()
 
-    def send(self, resource: Union[str, Resource], params: Optional[dict[str, str]], virtual_duration: int = 0, timeout: int = 0) -> None:
+    async def send_async(self, resource: Union[str, Resource], data: str, params: Optional[dict[str, str]] = None, timeout: float = 0.0) -> None:
         r = resource
         if isinstance(resource, str):
-            r = self._create_resource(resource, params)
+            r = self.create_resource(resource, params)
 
-        if r.persistence() == ResourcePersistence.TRANSIENT:
+        if not isinstance(r, ResourceImpl):
+            raise RuntimeError("Malformed object passed with Resource interface.")
+
+        if r.persistence == ResourcePersistence.TRANSIENT:
             r.open()
 
-        self._schedule_task(ResourceTask(r.path(), r.send, params, virtual_duration, timeout))
+        await self._schedule_task(r, ResourceOp.SEND, data, params, timeout)
 
-        if r.persistence() == ResourcePersistence.TRANSIENT:
-            r.close()
-
-    def fetch(self, resource: Union[str, Resource], params: Optional[dict[str, str]], virtual_duration: int = 0, timeout: int = 0, service: Optional[Service] = None) -> Optional[str]:
-        if virtual_duration != 0 and not service:
-            raise RuntimeError("Cannot fetch a resource with non-zero duration without a service specification")
-
+    # Not really nice code duplication. But I still need to decide on whether jump into the rabbit hole and go full-on
+    # on asyncio processing in the engine.
+    def send(self, resource: Union[str, Resource], data: str, params: Optional[dict[str, str]] = None, timeout: float = 0.0, callback_service: Optional[ActiveService] = None) -> None:
         r = resource
         if isinstance(resource, str):
-            r = self._create_resource(resource, params)
+            r = self.create_resource(resource, params)
 
-        if r.persistence() == ResourcePersistence.TRANSIENT:
+        if not isinstance(r, ResourceImpl):
+            raise RuntimeError("Malformed object passed with Resource interface.")
+
+        if r.persistence == ResourcePersistence.TRANSIENT:
             r.open()
 
-        result = self._schedule_task(ResourceTask(r.path(), r.receive, params, virtual_duration, timeout, service))
+        task = self._loop.create_task(r.send(data, params))
+        self._tasks[task.get_name()] = (callback_service, task, r, self._clock.current_time() + timeout)
+        task.add_done_callback(self._process_finished_tasks)
+        heappush(self._pending, self._clock.current_time() + timeout)
 
-        if r.persistence() == ResourcePersistence.TRANSIENT:
+    async def fetch_async(self, resource: Union[str, Resource], params: Optional[dict[str, str]] = None, timeout: float = 0.0) -> Optional[str]:
+        r = resource
+        if isinstance(resource, str):
+            r = self.create_resource(resource, params)
+
+        if not isinstance(r, ResourceImpl):
+            raise RuntimeError("Malformed object passed with Resource interface.")
+
+        if r.persistence == ResourcePersistence.TRANSIENT:
+            r.open()
+
+        result = await self._schedule_task(r, ResourceOp.FETCH, "", params, timeout)
+
+        if r.persistence == ResourcePersistence.TRANSIENT:
             r.close()
 
         return result
 
-    def _create_resource(self, path: str, params: dict[str, str]) -> Optional[ResourceImpl]:
-        r = urlparse(path)
-        if not r.scheme:
-            raise RuntimeError("Attempted to access a resource without specifying a scheme. Please, use file://, http://, etc.")
+    def fetch(self, resource: Union[str, Resource], params: Optional[dict[str, str]] = None, timeout: float = 0.0, callback_service: Optional[ActiveService] = None) -> None:
+        r = resource
+        if isinstance(resource, str):
+            r = self.create_resource(resource, params)
 
-        if r.scheme not in self._resources:
-            raise RuntimeError(f"No implementation for resource of type: {r.scheme}.")
+        if not isinstance(r, ResourceImpl):
+            raise RuntimeError("Malformed object passed with Resource interface.")
 
-        res = self._resources[r.scheme](r)
-        res.init(params)
-        return res
+        if r.persistence == ResourcePersistence.TRANSIENT:
+            r.open()
 
-    def _schedule_task(self, task: ResourceTask) -> Optional[str]:
-        # Special-casing for 0 virtual time - run blocking
-        if task.virtual_timeout == 0:
-            return task.fn(task.params, task.real_timeout)
+        task = self._loop.create_task(r.receive(params))
+        self._tasks[task.get_name()] = (callback_service, task, r, self._clock.current_time() + timeout)
+        task.add_done_callback(self._process_finished_tasks)
+        heappush(self._pending, self._clock.current_time() + timeout)
 
-        # Anything else runs inside a task group in separate threads and gets sorted out at the beginning of a message
-        # processing loop
-        virtual_time = self._clock.simulation_time() + task.virtual_timeout
-        if virtual_time not in self._task_pool:
-            tg = ResourceTaskGroup(self._event_loop, self._thread_pool, self._clock)
-            self._task_pool[virtual_time] = tg
+    async def _schedule_task(self, resource: ResourceImpl, resource_op: ResourceOp, data: str, params: Optional[dict[str, str]], timeout: float = 0.0) -> Optional[str]:
+        future = self._loop.create_future()
+
+        if resource_op == ResourceOp.SEND:
+            task = self._loop.create_task(resource.send(data, params))
         else:
-            tg = self._task_pool[virtual_time]
+            task = self._loop.create_task(resource.receive(params))
 
-        tg.add_task(task)
-        self._resource_task_callback(virtual_time)
+        self._tasks[task.get_name()] = (future, task, resource, self._clock.current_time() + timeout)
+        task.add_done_callback(self._process_finished_tasks)
+        heappush(self._pending, self._clock.current_time() + timeout)
 
-        return None
+        # Tasks that fail timeout are cancelled and end here anyway
+        await future
+        # TODO: Exception not handled here!
+        return future.result()
 
-    def collect_tasks(self, virtual_time: int) -> None:
-        if virtual_time in self._task_pool:
-            tasks = self._task_pool[virtual_time].collect_tasks()
-            for t in tasks:
-                # TODO: More detailed info about resource retrieval
-                if t.coroutine.done():
-                    status = Status(StatusOrigin.RESOURCE, StatusValue.SUCCESS)
-                    data = t.coroutine.result()
-                else:
-                    status = Status(StatusOrigin.RESOURCE, StatusValue.FAILURE)
-                    data = None
+    def _process_finished_tasks(self, task: asyncio.Task):
+        # Move task to finished
+        future_or_service, _, resource, timeout = self._tasks[task.get_name()]
+        heappush(self._finished, (timeout, Counter().get("resource"), future_or_service, task, resource))
+        del self._tasks[task.get_name()]
 
-                # Create a message and call it on the service
-                t.service.active_service.process_message(ResourceMessageImpl(t.path, status, t.service.name, data))
+        if resource.persistence == ResourcePersistence.TRANSIENT:
+            if isinstance(resource, ResourceImpl):
+                resource.close()
 
-        return None
+    def pending(self) -> Tuple[bool, float]:
+        if not self._pending:
+            return False, 0.0
+        else:
+            return True, self._pending[0] - self._clock.current_time()
+
+    # Set futures on all finished tasks
+    def collect_immediately(self) -> int:
+        if not self._finished:
+            return 0
+
+        for timeout, _, future_or_service, task, resource in self._finished:
+            self._pending.remove(timeout)
+            if isinstance(future_or_service, asyncio.Future):
+                future_or_service.set_result(task.result())
+            else:
+                # This is handling the case when a service callback is not specified, because we don't care (SEND case)
+                if future_or_service:
+                    if not task.exception():
+                        status = Status(StatusOrigin.SYSTEM, StatusValue.SUCCESS)
+                        future_or_service.process_message(ResourceMessage(resource.path, status, task.result()))
+                    else:
+                        status = Status(StatusOrigin.SYSTEM, StatusValue.ERROR)
+                        future_or_service.process_message(ResourceMessage(resource.path, status, str(task.exception())))
+
+        # Reconstruct pending queue after reckless deletions
+        heapq.heapify(self._pending)
+
+        task_count = len(self._finished)
+        self._finished.clear()
+        return task_count
+
+    # Set futures on tasks that past timeout
+    def collect_at(self, current_time: float, ) -> int:
+        if not self._finished:
+            return 0
+
+        task_count = 0
+
+        timeout, _, _, _, _ = self._finished[0]
+        while current_time <= timeout:
+            self._pending.remove(timeout)
+            _, _, future_or_service, task, resource = heappop(self._finished)
+            task_count += 1
+            if isinstance(future_or_service, asyncio.Future):
+                future_or_service.set_result(task.result())
+            else:
+                if future_or_service:
+                    if not task.exception():
+                        status = Status(StatusOrigin.SYSTEM, StatusValue.SUCCESS)
+                        future_or_service.process_message(ResourceMessage(resource.path, status, task.result()))
+                    else:
+                        status = Status(StatusOrigin.SYSTEM, StatusValue.ERROR)
+                        future_or_service.process_message(ResourceMessage(resource.path, status, str(task.exception())))
+
+            if not self._finished:
+                break
+
+            timeout, _, _, _, _ = self._finished[0]
+
+        # Reconstruct pending queue after reckless deletions
+        heapq.heapify(self._pending)
+
+        return task_count
