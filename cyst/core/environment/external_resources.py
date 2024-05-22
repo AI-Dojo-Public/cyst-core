@@ -192,7 +192,7 @@ class ExternalResourcesImpl(ExternalResources):
         if scheme in self._resources:
             raise RuntimeError(f"Attempting to register already registered resource for scheme {scheme}")
         else:
-            if not issubclass(resource, ResourceImpl) and not isinstance(resource, ResourceImpl):
+            if (isinstance(resource, type) and not issubclass(resource, ResourceImpl)) and not isinstance(resource, ResourceImpl):
                 raise RuntimeError(f"Resource of wrong type (not implementing ResourceImpl) passed for registration: {resource}")
             self._resources[scheme] = resource
             return True
@@ -207,10 +207,10 @@ class ExternalResourcesImpl(ExternalResources):
             raise RuntimeError(f"Could not create a resource of unknown scheme {parsed_path.scheme}")
 
         resource_template = self._resources[parsed_path.scheme]
-        if isinstance(resource_template, ResourceImpl):
-            r = resource_template
-        else:
+        if isinstance(resource_template, type):
             r: ResourceImpl = resource_template()
+        else:
+            r = resource_template
         r.init(parsed_path, params, persistence)  # Init should throw exception which gets caught by the Task
 
         if persistence == ResourcePersistence.PERSISTENT:
