@@ -141,19 +141,17 @@ class FileResource(ResourceImpl):
 
         return True
 
-    def open(self) -> bool:
+    def open(self) -> None:
         try:
             self._handle = open(self._path, self._mode)
         except Exception as e:
             raise RuntimeError("Failed to open a file. Reason: " + str(e))
 
         self._state = ResourcesState.OPENED
-        return True
 
-    def close(self) -> bool:
+    def close(self) -> None:
         self._handle.close()
         self._state = ResourcesState.CLOSED
-        return True
 
     async def send(self, data: str, params: Optional[dict[str, str]] = None) -> int:
         if ("w" in self._mode) or ("a" in self._mode):
@@ -180,7 +178,7 @@ class ExternalResourcesImpl(ExternalResources):
         self._finished: List[Tuple[float, int, Union[asyncio.Future, ActiveService], asyncio.Task, Resource]] = []
         self._pending: List[float] = []
 
-        self._resources: dict[str, Type] = {}
+        self._resources: dict[str, Union[Type, ResourceImpl]] = {}
         self.register_resource("file", FileResource)
 
     @staticmethod
@@ -190,11 +188,11 @@ class ExternalResourcesImpl(ExternalResources):
         else:
             raise ValueError("Malformed underlying object passed with the ExternalResources interface")
 
-    def register_resource(self, scheme: str, resource: Type) -> bool:
+    def register_resource(self, scheme: str, resource: Union[Type, ResourceImpl]) -> bool:
         if scheme in self._resources:
             raise RuntimeError(f"Attempting to register already registered resource for scheme {scheme}")
         else:
-            if not issubclass(resource, ResourceImpl):
+            if not issubclass(resource, ResourceImpl) and not isinstance(resource, ResourceImpl):
                 raise RuntimeError(f"Resource of wrong type (not implementing ResourceImpl) passed for registration: {resource}")
             self._resources[scheme] = resource
             return True
@@ -208,7 +206,11 @@ class ExternalResourcesImpl(ExternalResources):
         if parsed_path.scheme not in self._resources:
             raise RuntimeError(f"Could not create a resource of unknown scheme {parsed_path.scheme}")
 
-        r: ResourceImpl = self._resources[parsed_path.scheme]()
+        resource_template = self._resources[parsed_path.scheme]
+        if isinstance(resource_template, ResourceImpl):
+            r = resource_template
+        else:
+            r: ResourceImpl = resource_template()
         r.init(parsed_path, params, persistence)  # Init should throw exception which gets caught by the Task
 
         if persistence == ResourcePersistence.PERSISTENT:
