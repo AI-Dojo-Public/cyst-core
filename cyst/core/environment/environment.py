@@ -1,13 +1,10 @@
 import argparse
 import asyncio
 import atexit
-import copy
-import functools
 import logging
 import os
 import signal
 import sys
-import time
 
 if sys.version_info < (3, 10):
     from importlib_metadata import entry_points
@@ -19,27 +16,21 @@ from time import localtime
 from typing import Tuple, List, Union, Optional, Any, Dict, Set
 from threading import Condition
 
-from cyst.api.configuration.configuration import ConfigItem
 from cyst.api.environment.environment import Environment
 from cyst.api.environment.control import EnvironmentState, EnvironmentControl
-from cyst.api.environment.configuration import EnvironmentConfiguration, GeneralConfiguration, NodeConfiguration, \
-    ServiceConfiguration, NetworkConfiguration, ExploitConfiguration, AccessConfiguration, ActionConfiguration, RuntimeConfiguration
+from cyst.api.environment.configuration import EnvironmentConfiguration, GeneralConfiguration, RuntimeConfiguration
 from cyst.api.environment.infrastructure import EnvironmentInfrastructure
 from cyst.api.environment.interpreter import ActionInterpreterDescription
 from cyst.api.environment.messaging import EnvironmentMessaging
 from cyst.api.environment.metadata_provider import MetadataProvider
-from cyst.api.environment.policy import EnvironmentPolicy
 from cyst.api.environment.platform import Platform, PlatformDescription
 from cyst.api.environment.platform_interface import PlatformInterface
 from cyst.api.environment.platform_specification import PlatformSpecification, PlatformType
 from cyst.api.environment.resources import EnvironmentResources
-from cyst.api.environment.message import Message, MessageType, Request, StatusValue, StatusOrigin, Status, StatusDetail, Timeout, Response
-from cyst.api.logic.access import AuthenticationToken
+from cyst.api.environment.message import Message, MessageType, Request, Response
 from cyst.api.logic.behavioral_model import BehavioralModelDescription, BehavioralModel
 from cyst.api.network.node import Node
-from cyst.api.network.session import Session
-from cyst.api.network.firewall import FirewallRule, FirewallPolicy
-from cyst.api.host.service import Service, PassiveService, ActiveService, ServiceState
+from cyst.api.host.service import Service
 from cyst.api.configuration.configuration import ConfigItem
 from cyst.api.utils.counter import Counter
 
@@ -56,7 +47,6 @@ from cyst.core.environment.stats import StatisticsImpl
 
 from cyst.core.environment.stores import ServiceStoreImpl
 from cyst.core.environment.external_resources import ExternalResourcesImpl
-from cyst.core.logic.action import ActionImpl, ActionType
 from cyst.core.logic.composite_action import CompositeActionManagerImpl
 
 
@@ -391,88 +381,6 @@ class _Environment(Environment, PlatformInterface):
         delay, response = task.result()
         self.process_response(response, delay)
         self._executed.remove(task)
-
-    # Resource tasks are always collected as a first thing in the timeslot to supply services with data on time.
-    def add_resource_task_collection(self, virtual_time: int):
-        heappush(self._message_queue, (virtual_time, -1, MessageImpl(MessageType.RESOURCE)))
-
-    def _process(self) -> Tuple[bool, EnvironmentState]:
-        ri = ExternalResourcesImpl.cast_from(self._environment_resources.external)
-
-        # The processing runs as long as there are tasks to do, composite events to process and no one ordered pause
-        # or termination.
-        while (self._message_queue or self._executables or self._cam.processing()) and not self._pause and not self._terminate:
-            # Get the time of nearest task. It can happen that there are no tasks in the queue, but composite
-            # events are being processed. In that case, the time must not jump to another time window, until all
-            # composite events are processed.
-            delta = -1
-            if self._message_queue:
-                next_time = self._message_queue[0][0]
-                delta = next_time - self._time
-
-            if self._executables:
-                next_time = self._executables[0][0]
-                e_delta = next_time - self._time
-                if e_delta < delta or delta == -1:
-                    delta = e_delta
-
-            if self._cam.processing():
-                self._cam.process(self._time)
-                # If we are processing composite events, we force time to stay at the current window
-                continue
-
-            # Moving to another time window
-            self._time += delta
-
-            resources_collected = False
-
-            current_tasks: List[MessageImpl] = []
-            while self._message_queue and self._message_queue[0][0] == self._time:
-                current_tasks.append(heappop(self._message_queue)[2])
-
-            for task in current_tasks:
-                if task.type == MessageType.TIMEOUT:
-                    # Yay!
-                    timeout = TimeoutImpl.cast_from(task.cast_to(Timeout)) #type:ignore #MYPY: Probably an issue with mypy, requires creation of helper class
-                    timeout.service.process_message(task)
-                # Resource messages are never traveling through the virtual network, so there can't be an issue with
-                # them not being sent
-                elif task.type == MessageType.RESOURCE:
-                    # Resources are collected only once per timeslot
-                    if not resources_collected:
-                        ri.collect_tasks(self._time)
-                        resources_collected = True
-                else:
-                    self._send_message(task)
-
-            # Executables are a simulation-only queue. This will always be a (mostly) noop for emulated platforms
-            current_executables: List[Tuple[MessageImpl, Node]] = []
-            while self._executables and self._executables[0][0] <= self._time:
-                e = heappop(self._executables)
-                current_executables.append((e[2], e[3]))
-
-            for e in current_executables:
-                delay, response = self._execute_simulated(e[0].cast_to(Request), e[1])
-
-                if response.status.origin == StatusOrigin.SYSTEM and response.status.value == StatusValue.ERROR: #MYPY: same as above, response None?
-                   print("Could not process the request, unknown semantics.")
-                else:
-                   self._environment_messaging.send_message(response, delay)
-
-        # Pause causes the system to stop processing and to keep task queue intact
-        if self._pause:
-            self._state = EnvironmentState.PAUSED
-
-        # Terminate clears the task queue and sets the clock back to zero
-        elif self._terminate:
-            self._state = EnvironmentState.TERMINATED
-            self._time = 0
-            self._message_queue.clear()
-
-        else:
-            self._state = EnvironmentState.FINISHED
-
-        return True, self._state
 
     async def _process_async(self) -> None:
         # Message sending tasks are delegated to platforms
