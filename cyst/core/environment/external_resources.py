@@ -296,9 +296,10 @@ class ExternalResourcesImpl(ExternalResources):
         else:
             task = self._loop.create_task(resource.receive(params))
 
-        self._tasks[task.get_name()] = (future, task, resource, self._clock.current_time() + timeout)
+        real_timeout = self._clock.current_time() + timeout
+        self._tasks[task.get_name()] = (future, task, resource, real_timeout)
         task.add_done_callback(self._process_finished_tasks)
-        heappush(self._pending, self._clock.current_time() + timeout)
+        heappush(self._pending, real_timeout)
 
         # Tasks that fail timeout are cancelled and end here anyway
         await future
