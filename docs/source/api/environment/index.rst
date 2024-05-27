@@ -27,6 +27,15 @@ cyst.api.environment.control
     :members:
     :show-inheritance:
 
+cyst.api.environment.external
+-----------------------------
+This module enables accessing of resources outside the CYST environment in a manner that is conformant to the
+requirements of the internal processing and simulated/real time.
+
+.. automodule:: cyst.api.environment.external
+    :members:
+    :show-inheritance:
+
 cyst.api.environment.messaging
 ------------------------------
 .. automodule:: cyst.api.environment.messaging
