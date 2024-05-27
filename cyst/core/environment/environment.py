@@ -58,6 +58,7 @@ from cyst.core.environment.stores import ServiceStoreImpl
 from cyst.core.environment.external_resources import ExternalResourcesImpl
 from cyst.core.logic.action import ActionImpl, ActionType
 from cyst.core.logic.composite_action import CompositeActionManagerImpl
+# from cyst.platform.environment.message import MessageImpl  # TODO: is this the correct import?
 
 
 # Environment is unlike other core implementation given an underscore-prefixed name to let python complain about
@@ -388,6 +389,7 @@ class _Environment(Environment, PlatformInterface):
     # ------------------------------------------------------------------------------------------------------------------
     # Internal functions
     def _process_finalized_task(self, task: asyncio.Task) -> None:
+        # TODO: in case the task contains exception (`task.exception()`), it is ignored and the exception is lost
         delay, response = task.result()
         self.process_response(response, delay)
         self._executed.remove(task)
@@ -483,11 +485,6 @@ class _Environment(Environment, PlatformInterface):
         have_something_to_do = bool(self._executables)
 
         # --------------------------------------------------------------------------------------------------------------
-        # Right now, if anything is being executed, we just let the loop run, until it finishes
-        if self._executed:
-            return
-
-        # --------------------------------------------------------------------------------------------------------------
         # Process the resources if there are any
         ext = ExternalResourcesImpl.cast_from(self._environment_resources.external)
         if self._platform_spec.type == PlatformType.SIMULATION:
@@ -498,6 +495,10 @@ class _Environment(Environment, PlatformInterface):
             # No time jump is suggested, because time runs its own course
             ext.collect_immediately()
 
+        # --------------------------------------------------------------------------------------------------------------
+        # Right now, if anything is being executed, we just let the loop run, until it finishes
+        if self._executed:
+            return
 
         # --------------------------------------------------------------------------------------------------------------
         # Otherwise, we let the composite action manager start all the tasks
