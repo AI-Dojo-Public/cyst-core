@@ -5,6 +5,8 @@ import uuid
 from dataclasses import dataclass, field
 from typing import Dict, List, Union, Any, Callable, Optional, Type
 
+import netaddr
+
 from cyst.api.environment.configuration import GeneralConfiguration, ObjectType, ConfigurationObjectType
 from cyst.api.environment.environment import Environment
 from cyst.api.configuration.configuration import ConfigItem
@@ -334,6 +336,87 @@ class Configurator:
         # Process all provided items and do a complete id->cfg mapping
         for cfg in configs:
             self._process_cfg_item(cfg)
+
+        # Create interface configurations for connections with one -1 port id
+        for connection_cfg in self._connections:
+            if connection_cfg.dst_port == -1 or connection_cfg.src_port == -1:
+                if connection_cfg.dst_port == -1:
+                    target_id = connection_cfg.dst_id
+                    source_id = connection_cfg.src_id
+                    source_port = connection_cfg.src_port
+                else:
+                    target_id = connection_cfg.src_id
+                    source_id = connection_cfg.dst_id
+                    source_port = connection_cfg.dst_port
+
+                target_config = self._refs[target_id]
+                source_config = self._refs[source_id]
+
+                new_interface_index = len(target_config.interfaces)
+                new_interface_id = str(uuid.uuid4())
+
+                source_net = self._refs[source_config.interfaces[source_port]].net
+
+                # The port is on the leaf, use the first free address from the router
+                if isinstance(target_config, NodeConfig):
+                    allocated_ips = []
+
+                    # The following is not pretty and not optimal, however...
+                    # Get all nodes connected to the same router we are trying to connect to now
+                    connected_ids = []
+                    for conn in self._connections:
+                        if source_config.id == conn.src_id:
+                            connected_ids.append(conn.dst_id)
+                        elif source_config.id == conn.dst_id:
+                            connected_ids.append(conn.src_id)
+
+                    for node_cfg in self._nodes:
+                        if node_cfg.id in connected_ids:
+                            for iface_id in node_cfg.interfaces:
+                                iface_cfg = self._refs[iface_id]
+                                allocated_ips.append(iface_cfg.ip)
+
+                    # Add router addresses
+                    for iface in source_config.interfaces:
+                        allocated_ips.append(self._refs[iface].ip)
+
+                    new_ip = None
+                    for ip in source_net.iter_hosts():
+                        if ip not in allocated_ips:
+                            new_ip = ip
+                            break
+
+                    if not new_ip:
+                        raise RuntimeError(f"Cannot find a free IP for target in a connection {connection_cfg}.")
+
+                    iface = InterfaceConfig(
+                        ip = new_ip,
+                        net = source_net,
+                        index = new_interface_index,
+                        id = new_interface_id
+                    )
+
+                # The port is on the router, just copy the configuration from the leaf node
+                elif isinstance(target_config, RouterConfig):
+                    # Set the IP to the first address in the net
+                    iface = InterfaceConfig(
+                        ip=netaddr.IPAddress(source_net.first + 1),
+                        net=source_net,
+                        index=new_interface_index,
+                        id=new_interface_id
+                    )
+
+                else:
+                    raise RuntimeError(f"Attempting to connect something else than a node or router: {target_config}.")
+
+                self._interfaces.append(iface)
+                self._refs[new_interface_id] = iface
+                target_config.interfaces.append(new_interface_id)
+
+                if connection_cfg.dst_port == -1:
+                    connection_cfg.dst_port = new_interface_index
+                else:
+                    connection_cfg.src_port = new_interface_index
 
         return self
 
