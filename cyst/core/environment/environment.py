@@ -64,7 +64,7 @@ class _Environment(Environment, PlatformInterface):
         self._terminate = False
         self._initialized = False
         self._finish = False
-        self._state = EnvironmentState.INIT
+        self._state = EnvironmentState.CREATED
 
         self._loop = asyncio.new_event_loop()
         self._loop.set_exception_handler(self.loop_exception_handler)
