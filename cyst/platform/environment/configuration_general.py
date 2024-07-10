@@ -35,7 +35,7 @@ class GeneralConfigurationImpl(GeneralConfiguration):
     def add_object(self, id: str, obj: Any) -> None:
         self._configurator.add_object(id, obj)
 
-    # Not fancying type removal, but it is unimportant here and only polutes the code
+    # Not fancying type removal, but it is unimportant here and only pollutes the code
     def configure(self, *configs) -> None:
         self._configurator.configure(*configs)
 

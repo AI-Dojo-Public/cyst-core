@@ -170,7 +170,7 @@ class Status:
         if self.detail != StatusDetail.UNKNOWN:
             result = "({}, {}, {})".format(self.origin.name, self.value.name, self.detail.name)
         else:
-            result = "({}, {})".format(self.origin.name, self.value.name, self.detail.name) #MYPY: Missing one {} or one too many items
+            result = "({}, {})".format(self.origin.name, self.value.name)
         return result
 
 

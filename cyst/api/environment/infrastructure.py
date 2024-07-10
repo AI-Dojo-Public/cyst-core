@@ -23,15 +23,16 @@ class EnvironmentInfrastructure(ABC):
     @abstractmethod
     def service_store(self) -> ServiceStore:
         """
-        Store for services. TODO
+        Provides access to creation and querying of active services.
 
-        :return:
+        :rtype: ServiceStore
         """
 
     @property
     @abstractmethod
     def runtime_configuration(self) -> RuntimeConfiguration:
         """
-        TODO
-        :return:
+        Provides access to parameters that were set either through a command line or through environmental variables.
+
+        :rtype: RuntimeConfiguration
         """

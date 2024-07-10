@@ -24,7 +24,7 @@ class Clock(ABC):
     @abstractmethod
     def real_time(self) -> datetime:
         """ Returns a current time of a platform converted to a real date-time information. In case of a discrete
-        simulation platform this entails a conversion of time offset to a real time. In case o a rel-time environment
+        simulation platform this entails a conversion of time offset to a real time. In case o a real-time environment
         this will likely be only a reading of a system clock.
 
         :return: Current time as a datetime structure.
