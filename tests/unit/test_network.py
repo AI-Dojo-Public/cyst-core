@@ -594,6 +594,8 @@ class TestSessions(unittest.TestCase):
         response = attacker.get_last_response()
         self.assertEqual([item[0] for item in response.content], ["ssh", "bash"])
 
+        env.control.commit()
+
     def test_0003_active_service_opened_sessions(self):
 
         active_node_1 = NodeConfig(

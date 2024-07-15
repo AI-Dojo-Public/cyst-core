@@ -63,7 +63,7 @@ class FirewallImpl(ActiveService, Firewall):
 
         self._local_ips: List[IPAddress] = []
 
-    def run(self):
+    async def run(self):
         pass
 
     def add_local_ip(self, ip: IPAddress) -> None:
@@ -108,7 +108,7 @@ class FirewallImpl(ActiveService, Firewall):
 
         return self._chains[chain].evaluate(src_ip, dst_ip, dst_service)
 
-    def process_message(self, message: Message) -> Tuple[bool, int]:
+    async def process_message(self, message: Message) -> Tuple[bool, int]:
         result, processing_time = self.evaluate(message.src_ip, message.dst_ip, message.dst_service)
 
         # Sending a response that the message did not arrive

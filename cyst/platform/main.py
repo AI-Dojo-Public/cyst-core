@@ -1,6 +1,6 @@
 import logging
+import asyncio
 
-from asyncio import Task
 from datetime import datetime
 from heapq import heappop
 from typing import List, Tuple, Union, Optional, Any, Callable
@@ -47,6 +47,8 @@ class CYSTPlatform(Platform, EnvironmentConfiguration, Clock):
         self._time = 0
         self._message_queue: List[Tuple[int, int, Message]] = []
         self._execute_queue: List[Tuple[int, int, Message]] = []
+
+        self._messages_processing = 0
 
         self._general_configuration = GeneralConfigurationImpl(self, general_configuration)
         self._access_configuration = AccessConfigurationImpl(self)
@@ -127,9 +129,6 @@ class CYSTPlatform(Platform, EnvironmentConfiguration, Clock):
     def clock(self) -> Clock:
         return self
 
-    def collect_messages(self) -> List[Message]:
-        pass
-
     # ------------------------------------------------------------------------------------------------------------------
     # Clock interface
     def current_time(self) -> float:
@@ -143,9 +142,13 @@ class CYSTPlatform(Platform, EnvironmentConfiguration, Clock):
         self._environment_messaging.send_message(timeout, int(delay))
 
     # ------------------------------------------------------------------------------------------------------------------
+    def _finish_message_processing(self, task: asyncio.Task):
+        self._messages_processing -= 1
+
+    # ------------------------------------------------------------------------------------------------------------------
     async def process(self, time_advance: int) -> bool:
 
-        have_something_to_do = bool(self._message_queue) or bool(self._execute_queue)
+        have_something_to_do = bool(self._message_queue) or bool(self._execute_queue) or self._messages_processing > 0
         time_jump = 0
 
         # Message-passing tasks
@@ -163,6 +166,12 @@ class CYSTPlatform(Platform, EnvironmentConfiguration, Clock):
             delta = next_time - self._time
             if time_jump == 0 or delta < time_jump:
                 time_jump = delta
+
+        # Messages hopping
+        # If hops are asynchronously processed, then we must not move the time forward, but we must enable processing
+        # of another messages and messages hops that may arise from them.
+        if self._messages_processing > 0:
+            time_jump = 0
 
         # If there is nothing to do, just jump time as asked
         if not have_something_to_do:
@@ -197,7 +206,9 @@ class CYSTPlatform(Platform, EnvironmentConfiguration, Clock):
                 timeout = TimeoutImpl.cast_from(message.cast_to(Timeout))  # type:ignore #MYPY: Probably an issue with mypy, requires creation of helper class
                 timeout.callback(message)
             else:
-                self._environment_messaging.message_hop(message)
+                t: asyncio.Task = asyncio.get_running_loop().create_task(self._environment_messaging.message_hop(message))
+                t.add_done_callback(self._finish_message_processing)
+                self._messages_processing += 1
 
         tasks_to_execute = []
 
@@ -211,7 +222,13 @@ class CYSTPlatform(Platform, EnvironmentConfiguration, Clock):
                     break
 
         for task in tasks_to_execute:
-            self._environment_messaging.message_process(task)
+            t: asyncio.Task = asyncio.get_running_loop().create_task(self._environment_messaging.message_process(task))
+            t.add_done_callback(self._finish_message_processing)
+            self._messages_processing += 1
+
+        # Yield processing to the event loop if there are messages being processed
+        if self._messages_processing > 0:
+            await asyncio.sleep(0)
 
         return True
 

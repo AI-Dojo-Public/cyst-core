@@ -1,6 +1,7 @@
 import argparse
 import asyncio
 import atexit
+import functools
 import logging
 import os
 import signal
@@ -377,10 +378,19 @@ class _Environment(Environment, PlatformInterface):
 
     # ------------------------------------------------------------------------------------------------------------------
     # Internal functions
+    # TODO: Bloody names!
     def _process_finalized_task(self, task: asyncio.Task) -> None:
         delay, response = task.result()
         self.process_response(response, delay)
         self._executed.remove(task)
+
+    def _finalize_process_message(self, message: Message, caller_id: str, task: asyncio.Task) -> None:
+        #  TODO: Do we need to process the result?
+        # success, delay = task.result()
+        self._executed.remove(task)
+
+        if message.type == MessageType.RESPONSE and caller_id in self._pause_on_response:
+            self._pause = True
 
     async def _process_async(self) -> None:
         # Message sending tasks are delegated to platforms
@@ -388,12 +398,7 @@ class _Environment(Environment, PlatformInterface):
         current_time = self._platform.clock.current_time()
         time_jump = 0
 
-        have_something_to_do = bool(self._executables)
-
-        # --------------------------------------------------------------------------------------------------------------
-        # Right now, if anything is being executed, we just let the loop run, until it finishes
-        if self._executed:
-            return
+        have_something_to_do = bool(self._executables) or bool(self._executed)
 
         # --------------------------------------------------------------------------------------------------------------
         # Process the resources if there are any
@@ -406,9 +411,8 @@ class _Environment(Environment, PlatformInterface):
             # No time jump is suggested, because time runs its own course
             ext.collect_immediately()
 
-
         # --------------------------------------------------------------------------------------------------------------
-        # Otherwise, we let the composite action manager start all the tasks
+        # We let the composite action manager start all the tasks
         # This is almost no-op if no requests are in a queue for it. And if there are, they will just be processed and
         # converted to normal messages down the line.
         # Note on that |= ... process returns bool if there is some processing being done
@@ -424,6 +428,12 @@ class _Environment(Environment, PlatformInterface):
                 time_jump = delta
 
         # --------------------------------------------------------------------------------------------------------------
+        # If there are still some resources that are being worked on (i.e., process after collection) than we forbid
+        # the time jump
+        if ext.collecting():
+            time_jump = 0
+
+        # --------------------------------------------------------------------------------------------------------------
         # If there is a time to jump, instruct the platform to do so
         platform_has_something_to_do = False
         if not have_something_to_do or time_jump > 0:
@@ -433,7 +443,7 @@ class _Environment(Environment, PlatformInterface):
                 return
 
         # Nothing pending in queues
-        if not (have_something_to_do or platform_has_something_to_do or composite_processing_left or ext.pending()[0]):
+        if not (have_something_to_do or platform_has_something_to_do or composite_processing_left or ext.collecting() or ext.pending()[0]):
             self._finish = True
             return
 
@@ -470,10 +480,10 @@ class _Environment(Environment, PlatformInterface):
                     caller_id = message.platform_specific["caller_id"] if "caller_id" in message.platform_specific else ""
                     message.platform_specific.clear()
 
-                service.active_service.process_message(message)
-
-                if message.type == MessageType.RESPONSE and caller_id in self._pause_on_response:
-                    self._pause = True
+                # service.active_service.process_message(message)
+                t = self._loop.create_task(service.active_service.process_message(message))
+                self._executed.add(t)
+                t.add_done_callback(functools.partial(self._finalize_process_message, message, caller_id))
             else:
                 request = message.cast_to(Request)
                 namespace = request.action.namespace

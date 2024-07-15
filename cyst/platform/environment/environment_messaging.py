@@ -59,12 +59,11 @@ class EnvironmentMessagingImpl(EnvironmentMessaging):
     def open_session(self, request: Request) -> Session:
         return _open_session(self._platform, request)
 
-    def message_hop(self, message: Message) -> None:
-        _message_hop(self._platform, message)
+    async def message_hop(self, message: Message) -> None:
+        await _message_hop(self._platform, message)
 
-    def message_process(self, message: Message) -> None:
-        _message_process(self._platform, message)
-
+    async def message_process(self, message: Message) -> None:
+        await _message_process(self._platform, message)
 
 # ----------------------------------------------------------------------------------------------------------------------
 # Free function implementations of the above class. It is being done this way to shut up the type checking and to
@@ -148,7 +147,7 @@ def _send_message(self: CYSTPlatform, message: MessageImpl, delay: int = 0) -> N
 
 # TODO: Time handling is still completely bonkers. If I send a message at time X and it should arrive at router at X+1
 #       then any router responses are sent as from time X (log-wise).
-def _message_hop(self: CYSTPlatform, message: Message) -> None:
+async def _message_hop(self: CYSTPlatform, message: Message) -> None:
     message = MessageImpl.cast_from(message)
 
     # This is just for log messages
@@ -171,7 +170,7 @@ def _message_hop(self: CYSTPlatform, message: Message) -> None:
         current_node: NodeImpl = self._network.get_node_by_id(message.current.id)
         if current_node.type != "Router":
             for processor in current_node.traffic_processors:
-                result, delay = processor.process_message(message)
+                result, delay = await processor.process_message(message)
                 if not result:
                     return
 
@@ -198,7 +197,7 @@ def _message_hop(self: CYSTPlatform, message: Message) -> None:
     last_hop = message.dst_ip == message.current.ip  # MYPY: current can return None
 
     if not last_hop and current_node.type == "Router":
-        result, delay = current_node.process_message(message, processing_time)  # MYPY: This only returns one int, will crash
+        result, delay = await current_node.process_message(message, processing_time)  # MYPY: This only returns one int, will crash
         processing_time += delay
         if result:
             heappush(self._message_queue, (self._time + processing_time, Counter().get("msg"), message))
@@ -247,7 +246,7 @@ def _message_hop(self: CYSTPlatform, message: Message) -> None:
     heappush(self._execute_queue, (self._time + processing_time, Counter().get("msg"), message))
 
 
-def _message_process(self: CYSTPlatform, message: Message) -> None:
+async def _message_process(self: CYSTPlatform, message: Message) -> None:
     message = MessageImpl.cast_from(message)
     processing_time = 0
 
@@ -264,7 +263,7 @@ def _message_process(self: CYSTPlatform, message: Message) -> None:
     #       some instances we don't. This is not a good situation.
     for processor in current_node.traffic_processors:
         # TODO Traffic processor responses are not correctly delayed
-        result, delay = processor.process_message(message)
+        result, delay = await processor.process_message(message)
         processing_time += delay
         if not result:
             # This feels like a hack, but we are making sure that the firewall properly sends a termination response

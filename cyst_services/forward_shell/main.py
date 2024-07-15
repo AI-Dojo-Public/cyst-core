@@ -23,10 +23,10 @@ class ForwardShell(ActiveService):
         self._origin_request = None
         self._session = None
 
-    def run(self) -> None:
+    async def run(self) -> None:
         self._log.info("Launched a forward shell service")
 
-    def process_message(self, message: Message) -> Tuple[bool, int]:
+    async def process_message(self, message: Message) -> Tuple[bool, int]:
         self._log.debug(f"Processing message {message.id} : {message}")
 
         if message.type is not MessageType.REQUEST:

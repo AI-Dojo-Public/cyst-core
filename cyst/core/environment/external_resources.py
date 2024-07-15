@@ -177,6 +177,7 @@ class ExternalResourcesImpl(ExternalResources):
         self._tasks: Dict[str, Tuple[Union[asyncio.Future, ActiveService], asyncio.Task, Resource, float]] = {}
         self._finished: List[Tuple[float, int, Union[asyncio.Future, ActiveService], asyncio.Task, Resource]] = []
         self._pending: List[float] = []
+        self._collecting = 0
 
         self._resources: dict[str, Union[Type, ResourceImpl]] = {}
         self.register_resource("file", FileResource)
@@ -321,6 +322,12 @@ class ExternalResourcesImpl(ExternalResources):
         else:
             return True, self._pending[0] - self._clock.current_time()
 
+    def collecting(self) -> bool:
+        return self._collecting != 0
+
+    def finish_collecting(self, task: asyncio.Task) -> None:
+        self._collecting -= 1
+
     # Set futures on all finished tasks
     def collect_immediately(self) -> int:
         if not self._finished:
@@ -335,10 +342,12 @@ class ExternalResourcesImpl(ExternalResources):
                 if future_or_service:
                     if not task.exception():
                         status = Status(StatusOrigin.SYSTEM, StatusValue.SUCCESS)
-                        future_or_service.process_message(ResourceMessage(resource.path, status, task.result()))
+                        t: asyncio.Task = self._loop.create_task(future_or_service.process_message(ResourceMessage(resource.path, status, task.result())))
                     else:
                         status = Status(StatusOrigin.SYSTEM, StatusValue.ERROR)
-                        future_or_service.process_message(ResourceMessage(resource.path, status, str(task.exception())))
+                        t: asyncio.Task = self._loop.create_task(future_or_service.process_message(ResourceMessage(resource.path, status, str(task.exception()))))
+                    t.add_done_callback(self.finish_collecting)
+                    self._collecting += 1
 
         # Reconstruct pending queue after reckless deletions
         heapq.heapify(self._pending)
@@ -365,10 +374,12 @@ class ExternalResourcesImpl(ExternalResources):
                 if future_or_service:
                     if not task.exception():
                         status = Status(StatusOrigin.SYSTEM, StatusValue.SUCCESS)
-                        future_or_service.process_message(ResourceMessage(resource.path, status, task.result()))
+                        t: asyncio.Task = self._loop.create_task(future_or_service.process_message(ResourceMessage(resource.path, status, task.result())))
                     else:
                         status = Status(StatusOrigin.SYSTEM, StatusValue.ERROR)
-                        future_or_service.process_message(ResourceMessage(resource.path, status, str(task.exception())))
+                        t: asyncio.Task = self._loop.create_task(future_or_service.process_message(ResourceMessage(resource.path, status, str(task.exception()))))
+                    t.add_done_callback(self.finish_collecting)
+                    self._collecting += 1
 
             if not self._finished:
                 break
