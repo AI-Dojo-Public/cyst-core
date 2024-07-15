@@ -1,5 +1,5 @@
 default:
-  image: python:3.9-slim-buster
+  image: python:3.12.4-slim-bookworm
   before_script:
     - apt update
     - pip install --upgrade pip

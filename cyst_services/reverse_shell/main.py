@@ -38,12 +38,12 @@ class ReverseShell(ActiveService):
             raise KeyError("Action 'open_session' is not present in action store")
         self._open_session = action
 
-    def run(self) -> None:
+    async def run(self) -> None:
         self._log.info("Launched a reverse shell service")
         self._log.debug(f"Sending intial request to {self._target}")
         self._request_open_session(delay=0)
 
-    def process_message(self, message: Message) -> Tuple[bool, int]:
+    async def process_message(self, message: Message) -> Tuple[bool, int]:
         self._log.debug(f"Processing message {message.id} : {message}")
 
         is_from_target = (message.src_ip, message.src_service) == self._target

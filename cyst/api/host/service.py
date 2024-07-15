@@ -73,13 +73,13 @@ class ActiveService(ABC):
     """
 
     @abstractmethod
-    def run(self) -> None:
+    async def run(self) -> None:
         """
         Starts the service. This function si automatically called by the environment at the initialization.
         """
 
     @abstractmethod
-    def process_message(self, message: Message) -> Tuple[bool, int]:
+    async def process_message(self, message: Message) -> Tuple[bool, int]:
         """
         This function is called by the environment whenever a message arrives at the service.
 

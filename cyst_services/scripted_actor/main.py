@@ -61,7 +61,7 @@ class ScriptedActor(ActiveService, ScriptedActorControl):
         self._callbacks = {}
 
     # This Actor only runs given actions. No own initiative
-    def run(self):
+    async def run(self):
         self._log.info("Launched a scripted Actor")
         if self._run_callback:
             self._run_callback(self._messaging, self._resources)
@@ -71,7 +71,7 @@ class ScriptedActor(ActiveService, ScriptedActorControl):
         request = self._messaging.create_request(target, service, action, session=session, auth=auth)
         self._messaging.send_message(request)
 
-    def process_message(self, message: Message) -> Tuple[bool, int]:
+    async def process_message(self, message: Message) -> Tuple[bool, int]:
         self._last_message_type = message.type
 
         type_map = {

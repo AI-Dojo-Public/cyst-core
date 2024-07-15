@@ -46,9 +46,9 @@ class Environment(ABC):
         :rtype: EnvironmentMessaging
         """
 
-    #@property
-    #@abstractmethod
-    #def policy(self) -> EnvironmentPolicy:
+    # @property
+    # @abstractmethod
+    # def policy(self) -> EnvironmentPolicy:
         """
         This environment enables handling of authentication and authorization.
 
@@ -80,16 +80,19 @@ class Environment(ABC):
     @abstractmethod
     def infrastructure(self) -> EnvironmentInfrastructure:
         """
-        TODO: EnvInfra description
-        :return:
+        This interface provides access to environment resources that are aimed at behavioral models and to applications
+        utilizing CYST.
+
+        :rtype: EnvironmentInfrastructure
         """
 
     @property
     @abstractmethod
     def platform(self) -> Platform:
         """
-        I hope it works
-        :return:
+        Returns the underlying execution platform, which is CYST running on.
+
+        :rtype: Platform
         """
 
     @abstractmethod

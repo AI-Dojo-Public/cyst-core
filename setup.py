@@ -44,7 +44,7 @@ setup(
         'Operating System :: OS Independent'
     ],
     packages=find_packages(exclude=['tests', 'docs']) + find_namespace_packages(include=['cyst_models.*', 'cyst_services.*']),
-    python_requires='>=3.9, <4',
+    python_requires='>=3.11, <4',
 
     # This field lists other packages that your project depends on to run.
     # Any package you put here will be installed by pip when your project is

@@ -74,7 +74,7 @@ class NodeImpl(Node):
         i.set_index(index)
         return index
 
-    def process_message(self, message, delay: int) -> int:
+    async def process_message(self, message, delay: int) -> int:
         if message.type == MessageType.ACK:
             return 0
 

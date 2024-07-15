@@ -64,7 +64,7 @@ class EnvironmentConfiguration(ABC):
     def network(self) -> 'NetworkConfiguration':
         """
         Network configuration enables placing nodes inside the topology and manipulation with connection and sessions.
-        Currently it is mostly additive, but it will include all manipulation options in the future.
+        Currently, it is mostly additive, but it will include all manipulation options in the future.
 
         :rtype: NetworkConfiguration
         """
@@ -721,7 +721,7 @@ class ServiceConfiguration(ABC):
 class NetworkConfiguration(ABC):
     """
     Network configuration enables placing nodes inside the topology and manipulation with connection and sessions.
-    Currently it is mostly additive, but it will include all manipulation options in the future.
+    Currently, it is mostly additive, but it will include all manipulation options in the future.
     """
     @abstractmethod
     def add_node(self, node: Node) -> None:

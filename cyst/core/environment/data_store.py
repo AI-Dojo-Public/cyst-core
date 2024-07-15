@@ -1,5 +1,5 @@
 from enum import Enum, auto
-from typing import Dict, Any, Union, Optional, List, Tuple, Type, Set
+from typing import Dict, Any, Union, Optional, List, Tuple, Type, Set, Callable
 
 from cyst.core.environment.data_store_backend import DataStoreBackend
 from cyst.core.environment.data_store_redis_backend import DataStoreRedisBackend
@@ -19,8 +19,8 @@ class DataStore:
             self._no_data_store = True
             return
 
-        fn = getattr(self, "configure_" + self._backend_type, self.configure_default)
-        self._backend: DataStoreBackend = fn(backend_params) #MYPY: Probably too complex to handle properly? Might be easier to just ignore
+        fn: Callable[[Dict[str, str]], DataStoreBackend] = getattr(self, "configure_" + self._backend_type, self.configure_default)
+        self._backend = fn(backend_params)
 
     def configure_default(self) -> None:
         raise RuntimeError("Could not find configuration function for backend " + self._backend_type)

@@ -122,31 +122,177 @@ class ResourceImpl(Resource, ABC):
 
 
 class ExternalResources(ABC):
+    """
+    External resources represent any resources that are not part of the simulation/emulation runs, such as files,
+    REST APIs, databases, etc. To maintain a sensible and consistent relation to underlying platforms and their time,
+    all such resources must be handled through this interface.
+
+    .. warning::
+        Due to technical reasons related to dependence on an underlying platform, ExternalResources can be used only
+        in the init/post-init state, including the attempts to register custom resources. That is, resources cannot be
+        managed from the __init__ methods of behavioral models, platforms, or services.
+
+    """
 
     @abstractmethod
     def register_resource(self, scheme: str, resource: Union[Type, ResourceImpl]) -> bool:
-        pass
+        """
+        Register a given resource for given scheme.
+
+        :param scheme: URL scheme, i.e., the part before ://.
+        :type scheme: str
+
+        :param resource: The resource can either be provided as a type that implements the Resource and ResourceImpl
+            interfaces, or it can be an object instance. If a type is provided then a new instance of the resource is
+            created for each call of :func:`create_resource`, including the implicit call in sending and fetching
+            function. If a resource instance is provided then this resource acts as a singleton and multiple interleaved
+            :func:`open` and :func:`close` calls can happen and the resource must be prepared to handle it gracefully.
+        :type resource: Union[Type, ResourceImpl]
+
+        :return: True if the resource was successfully registered. False otherwise.
+        """
 
     @abstractmethod
     def create_resource(self, path: str, params: Optional[dict[str, str]] = None, persistence: ResourcePersistence = ResourcePersistence.TRANSIENT) -> Resource:
-        pass
+        """
+        Creates an instance of a resource with a given path.
+
+        :param path: The URL of the resource. Full URL with scheme, e.g., file:// must be supplied to let system
+            choose the correct one.
+        :type path: str
+
+        :param params: Arbitrary set of parameters that will be passed to the resource's init function. If the resource
+            is a singleton (cf. :func:`register_resource`) then these parameters are ignored.
+        :type params: Optional[dict[str, str]]
+
+        :param persistence: The persistence of a resource. The :func:`create_resource` function is usually called
+            implicitly from the other functions, which set the persistence to transient. However, if you do not want
+            the resource to be created and destroyed after each call, set the persistence to
+            ResourcePersistence.PERSISTENT.
+        :type persistence: ResourcePersistence
+
+        :return: An instance of a resource. Otherwise, an exception is thrown.
+        """
 
     @abstractmethod
     def release_resource(self, resource: Resource) -> None:
-        pass
+        """
+        Releases a persistent resource. For a transient resource, this is a no-operation.
+
+        :param resource: An instance of a resource to close.
+        :type resource: Resource
+
+        :return: Nothing. This call always succeeds.
+        """
 
     @abstractmethod
     async def send_async(self, resource: Union[str, Resource], data: str, params: Optional[dict[str, str]] = None, timeout: float = 0.0) -> None:
-        pass
+        """
+        Asynchronously send data to a resource. This function is intended to be used by behavioral models and platforms.
+        The agents currently must use the synchronous option.
+
+        :param resource: Either an instance of a resource, or its URL. When the URL is used, the resource is
+            automatically created and destroyed within the call.
+        :type resource: Union[str, Resource]
+
+        :param data: Any data will be written to the resource. Technically, this can be empty and the contents can
+            depend on the params.
+        :type data: str
+
+        :param params: Parameters for the sending operation. Such as choosing the write or append mode for the file
+            resource.
+        :type params: Optional[dict[str, str]]
+
+        :param timeout: A maximum time given for the operation to finish. The semantic differs for simulated and
+            emulated environments. For simulated ones, the timeout represents the actual length in virtual time units,
+            whereas for emulated ones, the timeout is the maximum time to finish. That is, simulated send will always
+            take timeout number of time units, and emulated will take up-to timeout time units.
+        :type timeout: float
+
+        :return: None. The sending operation is always expected to write all of its contents. In case of some error
+            an exception is thrown.
+        """
 
     @abstractmethod
     def send(self, resource: Union[str, Resource], data: str, params: Optional[dict[str, str]] = None, timeout: float = 0.0, callback_service: Optional[ActiveService] = None) -> None:
-        pass
+        """
+        Synchronously send data to a resource. This function is expected to be used by agents, but it can be with a
+        bit of over-engineering used by behavioral models and platforms as well. The main difference is that the
+        results of the send operation are send inside a :class:`MessageType.RESOURCE` message.
+
+        :param resource: Either an instance of a resource, or its URL. When the URL is used, the resource is
+            automatically created and destroyed within the call.
+        :type resource: Union[str, Resource]
+
+        :param data: Any data will be written to the resource. Technically, this can be empty and the contents can
+            depend on the params.
+        :type data: str
+
+        :param params: Parameters for the sending operation. Such as choosing the write or append mode for the file
+            resource.
+        :type params: Optional[dict[str, str]]
+
+        :param timeout: A maximum time given for the operation to finish. The semantic differs for simulated and
+            emulated environments. For simulated ones, the timeout represents the actual length in virtual time units,
+            whereas for emulated ones, the timeout is the maximum time to finish. That is, simulated send will always
+            take timeout number of time units, and emulated will take up-to timeout time units.
+        :type timeout: float
+
+        :param callback_service: A reference to an active service that will receive the result of the call within
+            a resource message.
+        :type callback_service: Optional[ActiveService] = None
+
+        :return: None. The sending operation is always expected to write all of its contents. In case of some error
+            an exception is thrown.
+        """
 
     @abstractmethod
     async def fetch_async(self, resource: Union[str, Resource], params: Optional[dict[str, str]] = None, timeout: float = 0.0) -> Optional[str]:
-        pass
+        """
+        Asynchronously reads data from a resource. This function is intended to be used by behavioral models and
+        platforms. The agents currently must use the synchronous option.
+
+        :param resource: Either an instance of a resource, or its URL. When the URL is used, the resource is
+            automatically created and destroyed within the call.
+        :type resource: Union[str, Resource]
+
+        :param params: Parameters for the receiving operation.
+        :type params: Optional[dict[str, str]]
+
+        :param timeout: A maximum time given for the operation to finish. The semantic differs for simulated and
+            emulated environments. For simulated ones, the timeout represents the actual length in virtual time units,
+            whereas for emulated ones, the timeout is the maximum time to finish. That is, simulated send will always
+            take timeout number of time units, and emulated will take up-to timeout time units.
+        :type timeout: float
+
+        :return: The data read from the resource. It may return none and still be correct, such as the HEAD HTML
+            request.
+        """
 
     @abstractmethod
     def fetch(self, resource: Union[str, Resource], params: Optional[dict[str, str]] = None, timeout: float = 0.0, callback_service: Optional[ActiveService] = None) -> None:
-        pass
+        """
+        Synchronously reads data from a resource. This function is expected to be used by agents, but it can be with a
+        bit of over-engineering used by behavioral models and platforms as well. The main difference is that the
+        results of the fetch operation are send inside a :class:`MessageType.RESOURCE` message.
+
+        :param resource: Either an instance of a resource, or its URL. When the URL is used, the resource is
+            automatically created and destroyed within the call.
+        :type resource: Union[str, Resource]
+
+        :param params: Parameters for the receiving operation.
+        :type params: Optional[dict[str, str]]
+
+        :param timeout: A maximum time given for the operation to finish. The semantic differs for simulated and
+            emulated environments. For simulated ones, the timeout represents the actual length in virtual time units,
+            whereas for emulated ones, the timeout is the maximum time to finish. That is, simulated send will always
+            take timeout number of time units, and emulated will take up-to timeout time units.
+        :type timeout: float
+
+        :param callback_service: A reference to an active service that will receive the result of the call within
+            a resource message.
+        :type callback_service: Optional[ActiveService] = None
+
+        :return: The data read from the resource. It may return none and still be correct, such as the HEAD HTML
+            request.
+        """

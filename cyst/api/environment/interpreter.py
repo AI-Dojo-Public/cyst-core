@@ -1,6 +1,7 @@
 from abc import ABC, abstractmethod
 from typing import Callable, List, Tuple
 from dataclasses import dataclass
+from deprecated.sphinx import deprecated
 
 from cyst.api.environment.messaging import EnvironmentMessaging
 from cyst.api.environment.resources import EnvironmentResources
@@ -11,6 +12,7 @@ from cyst.api.environment.message import Request, Response
 from cyst.api.network.node import Node
 
 
+@deprecated(version="0.6.0", reason="Replaced by behavioral models.")
 class ActionInterpreter(ABC):
     """
     An action interpreter provides a semantic to the actions. It analyzes the incoming requests and then make
@@ -32,6 +34,7 @@ class ActionInterpreter(ABC):
         """
 
 
+@deprecated(version="0.6.0", reason="Replaced by behavioral models.")
 @dataclass
 class ActionInterpreterDescription:
     """ A definition of an action interpreter.

@@ -261,7 +261,7 @@ class Router(NodeImpl):
 
         return None
 
-    def process_message(self, message: MessageImpl, delay: int) -> Tuple[bool, int]:
+    async def process_message(self, message: MessageImpl, delay: int) -> Tuple[bool, int]:
         # Do not process messages that are going on for far too long
         if message.decrease_ttl() == 0:
             m = ResponseImpl(message, status=Status(StatusOrigin.NETWORK, StatusValue.FAILURE), content="TTL expired", session=message.session)
