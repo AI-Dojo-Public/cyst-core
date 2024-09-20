@@ -1,5 +1,6 @@
 import logging
 import asyncio
+import time
 
 from datetime import datetime
 from heapq import heappop
@@ -35,12 +36,15 @@ from cyst.platform.network.network import Network
 class CYSTPlatform(Platform, EnvironmentConfiguration, Clock):
     def __init__(self, platform_interface: PlatformInterface, general_configuration: GeneralConfiguration,
                  resources: EnvironmentResources, action_configuration: ActionConfiguration,
-                 exploit_configuration: ExploitConfiguration, infrastructure: EnvironmentInfrastructure):
+                 exploit_configuration: ExploitConfiguration, infrastructure: EnvironmentInfrastructure,
+                 platform_type: PlatformType):
         self._platform_interface = platform_interface
         self._resources = resources
         self._action_configuration = action_configuration
         self._exploit_configuration = exploit_configuration
         self._infrastructure = infrastructure
+        self._platform_type = platform_type
+        self._real_time_wait_factor = 0.1
 
         self._message_log = logging.getLogger("messaging")
 
@@ -132,13 +136,20 @@ class CYSTPlatform(Platform, EnvironmentConfiguration, Clock):
     # ------------------------------------------------------------------------------------------------------------------
     # Clock interface
     def current_time(self) -> float:
+        if self._platform_type == PlatformType.REAL_TIME:
+            self._time = time.time()
+
         return self._time
 
     def real_time(self) -> datetime:
-        raise NotImplementedError()
+        if self._platform_type == PlatformType.REAL_TIME:
+            self._time = time.time()
+            return datetime.fromtimestamp(self._time)
+        else:
+            raise NotImplementedError()
 
     def timeout(self, callback: Union[ActiveService, Callable[[Timeout], None]], delay: float, parameter: Any = None) -> None:
-        timeout = TimeoutImpl(callback, self._time, delay, parameter)
+        timeout = TimeoutImpl(callback, self.current_time(), delay, parameter)
         self._environment_messaging.send_message(timeout, int(delay))
 
     # ------------------------------------------------------------------------------------------------------------------
@@ -147,6 +158,9 @@ class CYSTPlatform(Platform, EnvironmentConfiguration, Clock):
 
     # ------------------------------------------------------------------------------------------------------------------
     async def process(self, time_advance: int) -> bool:
+
+        if self._platform_type == PlatformType.REAL_TIME:
+            self._time = time.time()
 
         have_something_to_do = bool(self._message_queue) or bool(self._execute_queue) or self._messages_processing > 0
         time_jump = 0
@@ -173,19 +187,38 @@ class CYSTPlatform(Platform, EnvironmentConfiguration, Clock):
         if self._messages_processing > 0:
             time_jump = 0
 
-        # If there is nothing to do, just jump time as asked
-        if not have_something_to_do:
-            self._time += time_advance
-            return False
-        else:
-            # If there is something to do, but it is further than the environment requested, we just move the clock and
-            # do nothing
-            if time_advance > 0 and time_jump > time_advance:
+        if self._platform_type == PlatformType.SIMULATED_TIME:
+            # If there is nothing to do, just jump simulated time as asked
+            if not have_something_to_do:
                 self._time += time_advance
-                return True
-            # It is sooner than the environment requested, let's do it and proceed with the rest of the code
+                return False
             else:
-                self._time += time_jump
+                # If there is something to do, but it is further than the environment requested, we just move the clock and
+                # do nothing
+                if time_advance > 0 and time_jump > time_advance:
+                    self._time += time_advance
+                    return True
+                # It is sooner than the environment requested, let's do it and proceed with the rest of the code
+                else:
+                    self._time += time_jump
+        else:
+            # We do not jump in time more than ordered
+            if time_advance > 0 and time_jump > time_advance:
+                time_jump = time_advance
+
+            # We do not jump in time more than the wait factor
+            if time_jump > self._real_time_wait_factor:
+               time_jump = self._real_time_wait_factor
+
+            # We jump the minimum needed
+            if time_jump > 0:
+                # Not async - we really want to let it wait, because we know that nothing can happen in the meantime
+                # await asyncio.sleep(time_jump)
+                time.sleep(time_jump)
+
+            # And signal that we do not have anything to do
+            if not have_something_to_do:
+                return False
 
         # --------------------------------------------------------------------------------------------------------------
         # Task processing
@@ -233,16 +266,31 @@ class CYSTPlatform(Platform, EnvironmentConfiguration, Clock):
         return True
 
 
-def create_platform(platform_interface: PlatformInterface, general_configuration: GeneralConfiguration,
-                    resources: EnvironmentResources, action_configuration: ActionConfiguration,
-                    exploit_configuration: ExploitConfiguration, infrastructure: EnvironmentInfrastructure) -> CYSTPlatform:
+def create_simulated_time_platform(platform_interface: PlatformInterface, general_configuration: GeneralConfiguration,
+                                   resources: EnvironmentResources, action_configuration: ActionConfiguration,
+                                   exploit_configuration: ExploitConfiguration,
+                                   infrastructure: EnvironmentInfrastructure) -> CYSTPlatform:
     p = CYSTPlatform(platform_interface, general_configuration, resources, action_configuration, exploit_configuration,
-                     infrastructure)
+                     infrastructure, PlatformType.SIMULATED_TIME)
+    return p
+
+def create_real_time_platform(platform_interface: PlatformInterface, general_configuration: GeneralConfiguration,
+                              resources: EnvironmentResources, action_configuration: ActionConfiguration,
+                              exploit_configuration: ExploitConfiguration,
+                              infrastructure: EnvironmentInfrastructure) -> CYSTPlatform:
+    p = CYSTPlatform(platform_interface, general_configuration, resources, action_configuration, exploit_configuration,
+                     infrastructure, PlatformType.REAL_TIME)
     return p
 
 
-platform_description = PlatformDescription(
-    specification=PlatformSpecification(PlatformType.SIMULATION, "CYST"),
-    description="A platform implementation for the CYST simulation engine.",
-    creation_fn=create_platform
+simulated_time_platform_description = PlatformDescription(
+    specification=PlatformSpecification(PlatformType.SIMULATED_TIME, "CYST"),
+    description="A platform implementation for the CYST simulation engine, which is using simulated discrete time.",
+    creation_fn=create_simulated_time_platform
+)
+
+real_time_platform_description = PlatformDescription(
+    specification=PlatformSpecification(PlatformType.REAL_TIME, "CYST"),
+    description="A platform implementation for the CYST simulation engine, which is using real time.",
+    creation_fn=create_real_time_platform
 )

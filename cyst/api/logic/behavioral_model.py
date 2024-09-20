@@ -55,4 +55,4 @@ class BehavioralModelDescription:
     namespace: str
     description: str
     creation_fn: Callable[[EnvironmentConfiguration, EnvironmentResources, EnvironmentPolicy, EnvironmentMessaging, CompositeActionManager], BehavioralModel]
-    platform: Union[PlatformSpecification, List[PlatformSpecification]] = PlatformSpecification(PlatformType.SIMULATION, "CYST")
+    platform: Union[PlatformSpecification, List[PlatformSpecification]] = PlatformSpecification(PlatformType.SIMULATED_TIME, "CYST")

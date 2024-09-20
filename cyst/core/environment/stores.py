@@ -71,7 +71,7 @@ class ActionStoreImpl(ActionStore):
         if platform:
             self._platform = platform
         else:
-            self._platform = PlatformSpecification(PlatformType.SIMULATION, "CYST")
+            self._platform = PlatformSpecification(PlatformType.SIMULATED_TIME, "CYST")
 
     def get(self, id: str = "") -> Optional[Action]:
         if id in self._actions:
@@ -94,7 +94,7 @@ class ActionStoreImpl(ActionStore):
         action_platform = action.platform
 
         if not action_platform:
-            action_platform = PlatformSpecification(PlatformType.SIMULATION, "CYST")
+            action_platform = PlatformSpecification(PlatformType.SIMULATED_TIME, "CYST")
 
         if type(action_platform) != list:
             action_platform = [action_platform]

@@ -42,7 +42,7 @@ class CAMModel(BehavioralModel):
         self._action_store.add(ActionDescription(
             id="cam:component:tcp_flow",
             type=ActionType.COMPONENT,
-            platform=PlatformSpecification(PlatformType.SIMULATION, "CYST"),
+            platform=[PlatformSpecification(PlatformType.SIMULATED_TIME, "CYST"), PlatformSpecification(PlatformType.REAL_TIME, "CYST")],
             description="A component message representing a single TCP flow",
             parameters=[
                 ActionParameter(type=ActionParameterType.NONE, name="direction",
@@ -55,7 +55,7 @@ class CAMModel(BehavioralModel):
         self._action_store.add(ActionDescription(
             id="cam:direct:scan_host",
             type=ActionType.DIRECT,
-            platform=PlatformSpecification(PlatformType.SIMULATION, "CYST"),
+            platform=[PlatformSpecification(PlatformType.SIMULATED_TIME, "CYST"), PlatformSpecification(PlatformType.REAL_TIME, "CYST")],
             description="Scan of a single host",
             parameters=[
                 ActionParameter(type=ActionParameterType.NONE, name="type",
@@ -66,7 +66,7 @@ class CAMModel(BehavioralModel):
         self._action_store.add(ActionDescription(
             id="cam:composite:scan_net",
             type=ActionType.COMPOSITE,
-            platform=PlatformSpecification(PlatformType.SIMULATION, "CYST"),
+            platform=[PlatformSpecification(PlatformType.SIMULATED_TIME, "CYST"), PlatformSpecification(PlatformType.REAL_TIME, "CYST")],
             description="Scan of a network subnet",
             parameters=[
                 ActionParameter(type=ActionParameterType.NONE, name="net", domain=configuration.action.create_action_parameter_domain_any())
@@ -76,7 +76,7 @@ class CAMModel(BehavioralModel):
         self._action_store.add(ActionDescription(
             id="cam:composite:noop_action",
             type=ActionType.COMPOSITE,
-            platform=PlatformSpecification(PlatformType.SIMULATION, "CYST"),
+            platform=[PlatformSpecification(PlatformType.SIMULATED_TIME, "CYST"), PlatformSpecification(PlatformType.REAL_TIME, "CYST")],
             description="Test of a high-level composite action handling",
             parameters=[]
         ))
@@ -84,7 +84,7 @@ class CAMModel(BehavioralModel):
         self._action_store.add(ActionDescription(
             id="cam:composite:noop_action_2",
             type=ActionType.COMPOSITE,
-            platform=PlatformSpecification(PlatformType.SIMULATION, "CYST"),
+            platform=[PlatformSpecification(PlatformType.SIMULATED_TIME, "CYST"), PlatformSpecification(PlatformType.REAL_TIME, "CYST")],
             description="Test of a high-level composite action handling",
             parameters=[]
         ))
@@ -92,7 +92,7 @@ class CAMModel(BehavioralModel):
         self._action_store.add(ActionDescription(
             id="cam:composite:delay_action",
             type=ActionType.COMPOSITE,
-            platform=PlatformSpecification(PlatformType.SIMULATION, "CYST"),
+            platform=[PlatformSpecification(PlatformType.SIMULATED_TIME, "CYST"), PlatformSpecification(PlatformType.REAL_TIME, "CYST")],
             description="Test of a high-level composite action handling",
             parameters=[]
         ))
@@ -100,7 +100,7 @@ class CAMModel(BehavioralModel):
         self._action_store.add(ActionDescription(
             id="cam:composite:simple_action",
             type=ActionType.COMPOSITE,
-            platform=PlatformSpecification(PlatformType.SIMULATION, "CYST"),
+            platform=[PlatformSpecification(PlatformType.SIMULATED_TIME, "CYST"), PlatformSpecification(PlatformType.REAL_TIME, "CYST")],
             description="Test of a high-level composite action handling",
             parameters=[]
         ))

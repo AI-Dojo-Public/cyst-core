@@ -43,13 +43,13 @@ class METAModel(BehavioralModel):
 
         self._action_store.add(ActionDescription(id="meta:inspect:node",
                                                  type=ActionType.DIRECT,
-                                                 platform=PlatformSpecification(PlatformType.SIMULATION, "CYST"),
+                                                 platform=[PlatformSpecification(PlatformType.SIMULATED_TIME, "CYST"), PlatformSpecification(PlatformType.REAL_TIME, "CYST")],
                                                  description="Discovery of hosts in a network. Equivalent to ping scanning.",
                                                  parameters=[]))
 
         self._action_store.add(ActionDescription(id="meta:authenticate",
                                                  type=ActionType.DIRECT,
-                                                 platform=PlatformSpecification(PlatformType.SIMULATION, "CYST"),
+                                                 platform=[PlatformSpecification(PlatformType.SIMULATED_TIME, "CYST"), PlatformSpecification(PlatformType.REAL_TIME, "CYST")],
                                                  description="Authentication against a service.",
                                                  parameters=[ActionParameter(ActionParameterType.TOKEN, "auth_token", configuration.action.create_action_parameter_domain_any())]))
 
@@ -152,5 +152,6 @@ def create_meta_model(configuration: EnvironmentConfiguration, resources: Enviro
 behavioral_model_description = BehavioralModelDescription(
     namespace="meta",
     description="Interpreter for auxiliary actions needed to supplement",
-    creation_fn=create_meta_model
+    creation_fn=create_meta_model,
+    platform=[PlatformSpecification(PlatformType.SIMULATED_TIME, "CYST"), PlatformSpecification(PlatformType.REAL_TIME, "CYST")]
 )

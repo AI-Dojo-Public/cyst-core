@@ -26,62 +26,62 @@ class CYSTModel(BehavioralModel):
 
         self._action_store.add(ActionDescription(id="cyst:test:echo_success",
                                                  type=ActionType.DIRECT,
-                                                 platform=PlatformSpecification(PlatformType.SIMULATION, "CYST"),
+                                                 platform=[PlatformSpecification(PlatformType.SIMULATED_TIME, "CYST"), PlatformSpecification(PlatformType.REAL_TIME, "CYST")],
                                                  description="A testing message that returns a SERVICE|SUCCESS",
                                                  parameters=[ActionParameter(ActionParameterType.NONE, "punch_strength",
                                                                              configuration.action.create_action_parameter_domain_options("weak", ["weak", "super strong"]))]))
 
         self._action_store.add(ActionDescription(id="cyst:test:echo_failure",
                                                  type=ActionType.DIRECT,
-                                                 platform=PlatformSpecification(PlatformType.SIMULATION, "CYST"),
+                                                 platform=[PlatformSpecification(PlatformType.SIMULATED_TIME, "CYST"), PlatformSpecification(PlatformType.REAL_TIME, "CYST")],
                                                  description="A testing message that returns a SERVICE|FAILURE",
                                                  parameters=[]))
 
         self._action_store.add(ActionDescription(id="cyst:test:echo_error",
                                                  type=ActionType.DIRECT,
-                                                 platform=PlatformSpecification(PlatformType.SIMULATION, "CYST"),
+                                                 platform=[PlatformSpecification(PlatformType.SIMULATED_TIME, "CYST"), PlatformSpecification(PlatformType.REAL_TIME, "CYST")],
                                                  description="A testing message that returns a SERVICE|ERROR",
                                                  parameters=[]))
 
         self._action_store.add(ActionDescription(id="cyst:network:create_session",
                                                  type=ActionType.DIRECT,
-                                                 platform=PlatformSpecification(PlatformType.SIMULATION, "CYST"),
+                                                 platform=[PlatformSpecification(PlatformType.SIMULATED_TIME, "CYST"), PlatformSpecification(PlatformType.REAL_TIME, "CYST")],
                                                  description="Create a session to a destination service",
                                                  parameters=[]))
 
         self._action_store.add(ActionDescription(id="cyst:host:get_services",
                                                  type=ActionType.DIRECT,
-                                                 platform=PlatformSpecification(PlatformType.SIMULATION, "CYST"),
+                                                 platform=[PlatformSpecification(PlatformType.SIMULATED_TIME, "CYST"), PlatformSpecification(PlatformType.REAL_TIME, "CYST")],
                                                  description="Get list of services on target node",
                                                  parameters=[]))
 
         self._action_store.add(ActionDescription(id="cyst:host:get_remote_services",
                                                  type=ActionType.DIRECT,
-                                                 platform=PlatformSpecification(PlatformType.SIMULATION, "CYST"),
+                                                 platform=[PlatformSpecification(PlatformType.SIMULATED_TIME, "CYST"), PlatformSpecification(PlatformType.REAL_TIME, "CYST")],
                                                  description="Get list of services on target node",
                                                  parameters=[]))
 
         self._action_store.add(ActionDescription(id="cyst:host:get_local_services",
                                                  type=ActionType.DIRECT,
-                                                 platform=PlatformSpecification(PlatformType.SIMULATION, "CYST"),
+                                                 platform=[PlatformSpecification(PlatformType.SIMULATED_TIME, "CYST"), PlatformSpecification(PlatformType.REAL_TIME, "CYST")],
                                                  description="Get list of services on target node",
                                                  parameters=[]))
 
         self._action_store.add(ActionDescription(id="cyst:compound:session_after_exploit",
                                                  type=ActionType.DIRECT,
-                                                 platform=PlatformSpecification(PlatformType.SIMULATION, "CYST"),
+                                                 platform=[PlatformSpecification(PlatformType.SIMULATED_TIME, "CYST"), PlatformSpecification(PlatformType.REAL_TIME, "CYST")],
                                                  description="Create a session after a successful application of an exploit",
                                                  parameters=[]))
 
         self._action_store.add(ActionDescription(id="cyst:active_service:open_session",
                                                  type=ActionType.DIRECT,
-                                                 platform=PlatformSpecification(PlatformType.SIMULATION, "CYST"),
+                                                 platform=[PlatformSpecification(PlatformType.SIMULATED_TIME, "CYST"), PlatformSpecification(PlatformType.REAL_TIME, "CYST")],
                                                  description="Open a session to an existing active service acting as forward/reverse shell.",
                                                  parameters=[]))
 
         self._action_store.add(ActionDescription(id="cyst:active_service:action_1",
                                                  type=ActionType.DIRECT,
-                                                 platform=PlatformSpecification(PlatformType.SIMULATION, "CYST"),
+                                                 platform=[PlatformSpecification(PlatformType.SIMULATED_TIME, "CYST"), PlatformSpecification(PlatformType.REAL_TIME, "CYST")],
                                                  description="A placeholder action for active services instead of dedicated behavioral model.",
                                                  parameters=[]))
 
@@ -212,5 +212,6 @@ def create_cyst_model(configuration: EnvironmentConfiguration, resources: Enviro
 behavioral_model_description = BehavioralModelDescription(
     namespace="cyst",
     description="Behavioral model that is equivalent to CYST actionable API",
-    creation_fn=create_cyst_model
+    creation_fn=create_cyst_model,
+    platform=[PlatformSpecification(PlatformType.SIMULATED_TIME, "CYST"), PlatformSpecification(PlatformType.REAL_TIME, "CYST")]
 )
