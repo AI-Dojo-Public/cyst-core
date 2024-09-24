@@ -1,9 +1,10 @@
 from abc import ABC, abstractmethod
 from netaddr import IPAddress, IPNetwork
 from typing import NamedTuple, Optional, Tuple, Union
-from cyst.api.environment.message import Message
 
+from cyst.api.environment.message import Message
 from cyst.api.network.elements import Port, Interface, Connection
+from cyst.api.utils.duration import msecs
 
 
 class Resolver(ABC):
@@ -57,8 +58,8 @@ class ConnectionImpl(Connection):
     def __init__(self, hop: Optional[Hop] = None) -> None:
         self._hop = hop
         self._blocked = False
-        self._delay = 0
-        self._processing_time = 1  # Setting a processing time to a non-zero value
+        self._delay = 0.0
+        self._processing_time = msecs(10).to_float()  # Setting a processing time to a non-zero value
 
     @property
     def hop(self) -> Hop:
@@ -76,13 +77,13 @@ class ConnectionImpl(Connection):
     def delay(self) -> int:
         return self._delay
 
-    def set_params(self, blocked: Optional[bool] = None, delay: Optional[int] = None) -> None:
+    def set_params(self, blocked: Optional[bool] = None, delay: Optional[float] = None) -> None:
         if blocked is not None:
             self._blocked = blocked
         if delay is not None:
             self._delay = delay
 
-    def evaluate(self, message: Message) -> Tuple[int, Message]:
+    def evaluate(self, message: Message) -> Tuple[float, Message]:
         if self.blocked:
             # TODO: return error message
             return -1, message

@@ -15,7 +15,7 @@ class EnvironmentMessaging(ABC):
     """
 
     @abstractmethod
-    def send_message(self, message: Message, delay: int = 0) -> None:
+    def send_message(self, message: Message, delay: float = 0.0) -> None:
         """
         Sends a message into the simulation for processing. The system will attempt to route the message to its
         destination. If there is a problem with delivery, an indication of it will be received in form of another
@@ -26,7 +26,7 @@ class EnvironmentMessaging(ABC):
 
         :param delay: Simulation time delay between calling of this function and the actual dispatching of the message
             into the simulated infrastructure.
-        :type delay: int
+        :type delay: float
 
         :return: None
         """

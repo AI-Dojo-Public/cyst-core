@@ -34,7 +34,7 @@ class DummyBehavioralModel(BehavioralModel):
             ActionDescription(
                 id="dummy:action_1",
                 type=ActionType.COMPOSITE,
-                platform=PlatformSpecification(PlatformType.SIMULATION, "CYST"),
+                platform=[PlatformSpecification(PlatformType.SIMULATED_TIME, "CYST"), PlatformSpecification(PlatformType.REAL_TIME, "CYST")],
                 description="A dummy action to test asynchronous resource handling",
                 parameters=[]
             )

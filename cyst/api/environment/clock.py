@@ -14,7 +14,7 @@ class Clock(ABC):
     @abstractmethod
     def current_time(self) -> float:
         """ Returns a current time of a platform as an offset from a specific time in the past. In case of a discrete
-        simulation platform, it will return a whole number. For real-time environments, this will be a fractional
+        simulation platform, it will likely return a whole number. For other environments, this will be a fractional
         number (aka. python's time() function).
 
         :return: Current time as an offset.

@@ -34,6 +34,7 @@ from cyst.api.network.node import Node
 from cyst.api.host.service import Service
 from cyst.api.configuration.configuration import ConfigItem
 from cyst.api.utils.counter import Counter
+from cyst.api.utils.duration import Duration
 
 from cyst.core.environment.configuration import GeneralConfigurationImpl
 from cyst.core.environment.configuration_action import ActionConfigurationImpl
@@ -106,8 +107,8 @@ class _Environment(Environment, PlatformInterface):
 
             # This is rather ugly but is a price to pay for users to not need full specification
             if isinstance(platform, str):
-                spec1 = PlatformSpecification(PlatformType.SIMULATION, platform)
-                spec2 = PlatformSpecification(PlatformType.EMULATION, platform)
+                spec1 = PlatformSpecification(PlatformType.SIMULATED_TIME, platform)
+                spec2 = PlatformSpecification(PlatformType.REAL_TIME, platform)
 
                 spec1_flag = spec1 in self._platforms
                 spec2_flag = spec2 in self._platforms
@@ -126,12 +127,12 @@ class _Environment(Environment, PlatformInterface):
                 raise RuntimeError(f"Platform {platform} is not registered into the system. Cannot continue.")
 
             if platform_underspecified:
-                raise RuntimeError(f"Platform {platform} exists both as a simulation and emulation environment. Please, provide a full PlatformSpecification.")
+                raise RuntimeError(f"Platform {platform} exists both as a simulation and realtime environment. Please, provide a full PlatformSpecification.")
 
             self._platform_spec = platform
         else:
             # When no specific platform is used, CYST simulation is set
-            self._platform_spec = PlatformSpecification(PlatformType.SIMULATION, "CYST")
+            self._platform_spec = PlatformSpecification(PlatformType.SIMULATED_TIME, "CYST")
 
         # When platform specification is finalized, create components dependent on the platform specification and
         # components the platform depends on
@@ -368,13 +369,13 @@ class _Environment(Environment, PlatformInterface):
 
     # ------------------------------------------------------------------------------------------------------------------
     # An interface between the environment and a platform
-    def execute_task(self, task: Message, service: Optional[Service] = None, node: Optional[Node] = None, delay: int = 0) -> Tuple[bool, int]:
+    def execute_task(self, task: Message, service: Optional[Service] = None, node: Optional[Node] = None, delay: float = 0.0) -> Tuple[bool, int]:
         heappush(self._executables, (self._platform.clock.current_time() + delay, Counter().get("msg"), task, service, node))
 
         return True, 0
 
-    def process_response(self, response: Response, delay: float = 0) -> Tuple[bool, int]:
-        self.messaging.send_message(response, int(delay))
+    def process_response(self, response: Response, delay: float = 0.0) -> Tuple[bool, int]:
+        self.messaging.send_message(response, delay)
         return True, 0
 
     # ------------------------------------------------------------------------------------------------------------------
@@ -383,6 +384,9 @@ class _Environment(Environment, PlatformInterface):
     def _process_finalized_task(self, task: asyncio.Task) -> None:
         # TODO: in case the task contains exception (`task.exception()`), it is ignored and the exception is lost
         delay, response = task.result()
+        # TODO: Leaving this here, until Duration is everywhere
+        if isinstance(delay, Duration):
+            delay = delay.to_float()
         self.process_response(response, delay)
         self._executed.remove(task)
 
@@ -405,7 +409,7 @@ class _Environment(Environment, PlatformInterface):
         # --------------------------------------------------------------------------------------------------------------
         # Process the resources if there are any
         ext = ExternalResourcesImpl.cast_from(self._environment_resources.external)
-        if self._platform_spec.type == PlatformType.SIMULATION:
+        if self._platform_spec.type == PlatformType.SIMULATED_TIME:
             ext.collect_at(current_time)
             # Suggest a time jump if there are resources waiting to be processed. Otherwise, it would just be set to 0.
             time_jump = ext.pending()[1]

@@ -87,7 +87,8 @@ setup(
         'cyst.metadata_providers': [
         ],
         'cyst.platforms': [
-            'cyst=cyst.platform.main:platform_description'
+            'cyst_simulated_time=cyst.platform.main:simulated_time_platform_description',
+            'cyst_real_time=cyst.platform.main:real_time_platform_description',
         ]
     },
 

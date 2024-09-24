@@ -9,11 +9,11 @@ class PlatformType(Enum):
 
     Possible values:
 
-        :SIMULATION: A platform fully controls execution time.
-        :EMULATION: A platform is operating in real-time.
+        :SIMULATED_TIME: A platform fully controls execution time.
+        :REAL_TIME: A platform is operating in real-time.
     """
-    SIMULATION = auto()
-    EMULATION = auto()
+    SIMULATED_TIME = auto()
+    REAL_TIME = auto()
 
 
 @dataclass(frozen=True)
