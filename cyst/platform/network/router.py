@@ -9,6 +9,7 @@ from cyst.api.host.service import ActiveService
 from cyst.api.network.elements import Connection, Route
 from cyst.api.network.node import Node
 from cyst.api.network.firewall import FirewallPolicy, FirewallRule, FirewallChainType
+from cyst.api.utils.duration import msecs
 
 from cyst.platform.environment.message import MessageImpl, RequestImpl, ResponseImpl
 from cyst.platform.network.node import NodeImpl
@@ -42,6 +43,8 @@ class Router(NodeImpl):
         # WARNING: No access policy is created, so the only way to abuse this service is to perform an exploitation
         service = PassiveServiceImpl("router", "router", "1.2.3", False, AccessLevel.LIMITED)
         self.add_service(service)
+
+        self._default_processing_time = msecs(20).to_float()
 
     # jsonpickle struggles with IPAddress and IPNetwork in a router, even though it has specific handlers for it,
     # so we convert it to a string and back
@@ -261,25 +264,25 @@ class Router(NodeImpl):
 
         return None
 
-    async def process_message(self, message: MessageImpl, delay: int) -> Tuple[bool, int]:
+    async def process_message(self, message: MessageImpl, delay: float) -> Tuple[bool, float]:
         # Do not process messages that are going on for far too long
         if message.decrease_ttl() == 0:
             m = ResponseImpl(message, status=Status(StatusOrigin.NETWORK, StatusValue.FAILURE), content="TTL expired", session=message.session)
             m.set_next_hop()
-            self._env.send_message(m, delay + 1)
-            return False, 1
+            self._env.send_message(m, delay + self._default_processing_time)
+            return False, self._default_processing_time
 
         # If message is still going through a session then pass it along where it should go...
         if message.in_session:
             message.set_next_hop()
-            return True, 1
+            return True, self._default_processing_time
 
         # ...the same goes for responses, which travel back from whence they came
         if message.type == MessageType.RESPONSE:
             port = self._request_cache.get(message.id, -1)
             if port != -1:
                 message.set_next_hop(Endpoint(self.id, port, self._ports[port].ip), self._ports[port].endpoint)
-                return True, 1
+                return True, self._default_processing_time
 
         # Unless the request vanished from cache - then we have to try to deliver it the old-fashioned way
 
@@ -291,8 +294,8 @@ class Router(NodeImpl):
                                  content="Message stuck in a cycle", session=message.session)
                 # The next hop is automatically calculated because it is a response
                 m.set_next_hop(Endpoint(self.id, port, self._ports[port].ip), self._ports[port].endpoint)
-                self._env.send_message(m, delay + 1)
-                return False, 1
+                self._env.send_message(m, delay + self._default_processing_time)
+                return False, self._default_processing_time
 
         # TODO evaluate permeability between networks!
         # When looking at the current target, the router must also check, if the target is within the same network as
@@ -316,23 +319,23 @@ class Router(NodeImpl):
                 # Store the info about incoming port to enable pass-through of responses
                 if message.type == MessageType.REQUEST:
                     self._request_cache[message.id] = message.current.port
-                return True, 1
+                return True, self._default_processing_time
             # It is, but in another network
             else:
                 m = ResponseImpl(message, status=Status(StatusOrigin.NETWORK, StatusValue.FAILURE),
                              content="Host unreachable", session=message.session)
                 # The next hop is automatically calculated because it is a response
                 m.set_next_hop()
-                self._env.send_message(m, delay + 1)
-                return False, 1
+                self._env.send_message(m, delay + self._default_processing_time)
+                return False, self._default_processing_time
 
         # It is not, but belongs to router's constituency
         elif self._is_local_ip(message.dst_ip):
             m = ResponseImpl(message, status=Status(StatusOrigin.NETWORK, StatusValue.FAILURE), content="Host unreachable", session=message.session)
             # The next hop is automatically calculated because it is a response
             m.set_next_hop()
-            self._env.send_message(m, delay + 1)
-            return False, 1
+            self._env.send_message(m, delay + self._default_processing_time)
+            return False, self._default_processing_time
         # Try to send it somewhere
         else:
             for route in self._routes:
@@ -341,12 +344,12 @@ class Router(NodeImpl):
                     # Store the info about incoming port to enable pass-through of responses
                     if message.type == MessageType.REQUEST:
                         self._request_cache[message.id] = message.current.port
-                    return True, 1
+                    return True, self._default_processing_time
 
             m = ResponseImpl(message, status=Status(StatusOrigin.NETWORK, StatusValue.FAILURE), content="Network address {} not routable".format(message.dst_ip), session=message.session)
             m.set_next_hop()
-            self._env.send_message(m, delay + 1)
-            return False, 1
+            self._env.send_message(m, delay + self._default_processing_time)
+            return False, self._default_processing_time
 
     @staticmethod
     def cast_from(o: Node) -> 'Router':

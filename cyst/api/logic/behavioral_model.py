@@ -13,16 +13,17 @@ from cyst.api.environment.message import Request, Response
 from cyst.api.logic.action import Action
 from cyst.api.logic.composite_action import CompositeActionManager
 from cyst.api.network.node import Node
+from cyst.api.utils.duration import Duration
 
 
 class BehavioralModel(ABC):
 
     @abstractmethod
-    async def action_flow(self, message: Request) -> Tuple[int, Response]:
+    async def action_flow(self, message: Request) -> Tuple[Duration, Response]:
         pass
 
     @abstractmethod
-    async def action_effect(self, message: Request, node: Node) -> Tuple[int, Response]:
+    async def action_effect(self, message: Request, node: Node) -> Tuple[Duration, Response]:
         pass
 
     @abstractmethod

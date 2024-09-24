@@ -48,7 +48,9 @@ class CYSTPlatform(Platform, EnvironmentConfiguration, Clock):
 
         self._message_log = logging.getLogger("messaging")
 
-        self._time = 0
+        self._time = 0.0
+        self._init_time = 0.0
+
         self._message_queue: List[Tuple[int, int, Message]] = []
         self._execute_queue: List[Tuple[int, int, Message]] = []
 
@@ -76,6 +78,7 @@ class CYSTPlatform(Platform, EnvironmentConfiguration, Clock):
 
             self._network.create_session(owner, waypoints, src_service, dst_service, parent, reverse)
 
+        self._init_time = time.time()
         return True
 
     def terminate(self) -> bool:
@@ -146,7 +149,7 @@ class CYSTPlatform(Platform, EnvironmentConfiguration, Clock):
             self._time = time.time()
             return datetime.fromtimestamp(self._time)
         else:
-            raise NotImplementedError()
+            return datetime.fromtimestamp(self._init_time + self._time)
 
     def timeout(self, callback: Union[ActiveService, Callable[[Timeout], None]], delay: float, parameter: Any = None) -> None:
         timeout = TimeoutImpl(callback, self.current_time(), delay, parameter)

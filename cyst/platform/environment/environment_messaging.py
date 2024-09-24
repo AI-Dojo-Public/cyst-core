@@ -13,6 +13,7 @@ from cyst.api.logic.metadata import Metadata
 from cyst.api.network.firewall import Firewall
 from cyst.api.network.session import Session
 from cyst.api.utils.counter import Counter
+from cyst.api.utils.duration import msecs
 
 from cyst.platform.environment.message import RequestImpl, ResponseImpl, MessageImpl, MessageType
 from cyst.platform.host.service import ServiceImpl
@@ -24,12 +25,11 @@ from cyst.platform.network.session import SessionImpl
 if TYPE_CHECKING:
     from cyst.platform.main import CYSTPlatform
 
-
 class EnvironmentMessagingImpl(EnvironmentMessaging):
     def __init__(self, platform: CYSTPlatform):
         self._platform = platform
 
-    def send_message(self, message: Message, delay: int = 0) -> None:
+    def send_message(self, message: Message, delay: float = 0.0) -> None:
         # Messages with composite actions need to be processed via ActionManager
         # Logic:
         # if message.action.is_composite_action:
@@ -80,7 +80,7 @@ def extract_metadata_action(action: Action, action_list: List[Action]):
             extract_metadata_action(c, action_list)
 
 
-def _send_message(self: CYSTPlatform, message: MessageImpl, delay: int = 0) -> None:
+def _send_message(self: CYSTPlatform, message: MessageImpl, delay: float = 0.0) -> None:
     # Shortcut for timeout
     if message.type == MessageType.TIMEOUT:
         heappush(self._message_queue, (self._time + delay, Counter().get("msg"), message))
@@ -189,15 +189,15 @@ async def _message_hop(self: CYSTPlatform, message: Message) -> None:
         pass
 
     message = MessageImpl.cast_from(result)
-    # Traversing of connections must take at least 1 time unit
-    processing_time = max(1, delay)
+    # TODO: Parametrization of platform should be in one place and not be magic constants everywhere
+    processing_time = max(msecs(20).to_float(), delay)
 
     # HACK: Because we want to enable actions to be able to target routers, we need to bypass the router processing
     #       if the message is at the end of its journey
     last_hop = message.dst_ip == message.current.ip  # MYPY: current can return None
 
     if not last_hop and current_node.type == "Router":
-        result, delay = await current_node.process_message(message, processing_time)  # MYPY: This only returns one int, will crash
+        result, delay = await current_node.process_message(message, processing_time)
         processing_time += delay
         if result:
             heappush(self._message_queue, (self._time + processing_time, Counter().get("msg"), message))
@@ -284,7 +284,8 @@ async def _message_process(self: CYSTPlatform, message: Message) -> None:
             if message.type == MessageType.RESPONSE:
                 return
 
-            processing_time += 1
+            # TODO: Parametrization of platform
+            processing_time += msecs(20).to_float()
             response = ResponseImpl(message, Status(StatusOrigin.NODE, StatusValue.ERROR),
                                     "Nonexistent service {} at node {}".format(message.dst_service, message.dst_ip),
                                     session=message.session, auth=message.auth)
