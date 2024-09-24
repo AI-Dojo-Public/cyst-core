@@ -50,6 +50,7 @@ from cyst.core.environment.stats import StatisticsImpl
 from cyst.core.environment.stores import ServiceStoreImpl
 from cyst.core.environment.external_resources import ExternalResourcesImpl
 from cyst.core.logic.composite_action import CompositeActionManagerImpl
+# from cyst.platform.environment.message import MessageImpl  # TODO: is this the correct import?
 
 
 # Environment is unlike other core implementation given an underscore-prefixed name to let python complain about
@@ -381,6 +382,7 @@ class _Environment(Environment, PlatformInterface):
     # Internal functions
     # TODO: Bloody names!
     def _process_finalized_task(self, task: asyncio.Task) -> None:
+        # TODO: in case the task contains exception (`task.exception()`), it is ignored and the exception is lost
         delay, response = task.result()
         # TODO: Leaving this here, until Duration is everywhere
         if isinstance(delay, Duration):
