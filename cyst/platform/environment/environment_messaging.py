@@ -266,11 +266,6 @@ async def _message_process(self: CYSTPlatform, message: Message) -> None:
         result, delay = await processor.process_message(message)
         processing_time += delay
         if not result:
-            # This feels like a hack, but we are making sure that the firewall properly sends a termination response
-            if isinstance(processor, Firewall):
-                response = ResponseImpl(message, Status(StatusOrigin.NETWORK, StatusValue.FAILURE),
-                                        "Host not reachable", session=message.session, auth=message.auth)
-                self._environment_messaging.send_message(response, processing_time)
             return
 
     # Service is requested
