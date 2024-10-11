@@ -6,6 +6,7 @@ import logging
 import os
 import signal
 import sys
+import traceback
 
 if sys.version_info < (3, 10):
     from importlib_metadata import entry_points
@@ -166,6 +167,7 @@ class _Environment(Environment, PlatformInterface):
 
         # Logs
         self._message_log = logging.getLogger("messaging")
+        self._system_log = logging.getLogger("system")
 
         atexit.register(self.cleanup)
 
@@ -176,7 +178,10 @@ class _Environment(Environment, PlatformInterface):
         self._terminate = True
 
     def loop_exception_handler(self, loop: asyncio.AbstractEventLoop, context: Dict[str, Any]) -> None:
-        print(f"Unhandled exception in event loop. Exception: {context['exception']}. Task {context['future']}.")
+        exception_text = str(context['exception'])
+        if "future" in context:
+            exception_text += f". Task {context['future']}"
+        print(f"Unhandled exception in event loop. Exception: {exception_text}.")
         self._terminate = True
 
     def __getstate__(self) -> dict:
@@ -382,8 +387,16 @@ class _Environment(Environment, PlatformInterface):
     # Internal functions
     # TODO: Bloody names!
     def _process_finalized_task(self, task: asyncio.Task) -> None:
-        # TODO: in case the task contains exception (`task.exception()`), it is ignored and the exception is lost
-        delay, response = task.result()
+        try:
+            delay, response = task.result()
+        except Exception:  # Too broad... yeah, whatever
+            call_stack = ""
+            for frame in task.get_stack():
+                call_stack += f"{frame.f_code.co_filename}:{frame.f_lineno} :: {frame.f_code.co_qualname}\n"
+            self._system_log.log(logging.ERROR, f"There was an exception when running a task: {repr(task.exception())}.\nCall stack:\n{call_stack}")
+            self._terminate = True
+            return
+
         # TODO: Leaving this here, until Duration is everywhere
         if isinstance(delay, Duration):
             delay = delay.to_float()
