@@ -178,9 +178,15 @@ class _Environment(Environment, PlatformInterface):
         self._terminate = True
 
     def loop_exception_handler(self, loop: asyncio.AbstractEventLoop, context: Dict[str, Any]) -> None:
-        exception_text = str(context['exception'])
+        exception_text = str(context['exception']) + "\nCall stack: \n"
         if "future" in context:
-            exception_text += f". Task {context['future']}"
+            for frame in context["future"].get_stack():
+                exception_text += f"{frame.f_code.co_filename}:{frame.f_lineno} :: {frame.f_code.co_qualname}\n"
+        else:
+            trace = traceback.StackSummary.extract(traceback.walk_tb(context["exception"].__traceback__))
+            for frame in trace:
+                exception_text += f"{frame.filename}:{frame.line} :: {frame.name}\n"
+
         print(f"Unhandled exception in event loop. Exception: {exception_text}.")
         self._terminate = True
 
