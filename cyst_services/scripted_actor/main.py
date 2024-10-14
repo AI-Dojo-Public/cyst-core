@@ -1,7 +1,8 @@
+import inspect
 import logging
 
 from abc import ABC, abstractmethod
-from typing import List, Tuple, Optional, Dict, Any, Union, Callable
+from typing import List, Tuple, Optional, Dict, Any, Union, Callable, Awaitable
 
 from cyst.api.logic.action import Action
 from cyst.api.logic.access import Authorization, AuthenticationToken
@@ -31,7 +32,7 @@ class ScriptedActorControl(ABC):
         pass
 
     @abstractmethod
-    def set_run_callback(self, fn: Callable[[EnvironmentMessaging, EnvironmentResources], None]):
+    def set_run_callback(self, fn: Callable[[EnvironmentMessaging, EnvironmentResources], Awaitable[None]]):
         pass
 
     @abstractmethod
@@ -64,7 +65,7 @@ class ScriptedActor(ActiveService, ScriptedActorControl):
     async def run(self):
         self._log.info("Launched a scripted Actor")
         if self._run_callback:
-            self._run_callback(self._messaging, self._resources)
+            await self._run_callback(self._messaging, self._resources)
 
     def execute_action(self, target: str, service: str, action: Action, session: Session = None,
                        auth: Optional[Union[Authorization, AuthenticationToken]] = None) -> None:
@@ -120,7 +121,7 @@ class ScriptedActor(ActiveService, ScriptedActorControl):
     def set_message_callback(self, message_type: MessageType, fn: Callable[[EnvironmentMessaging, EnvironmentResources, Message], Tuple[bool, int]]):
         self._callbacks[message_type] = fn
 
-    def set_run_callback(self, fn: Callable[[EnvironmentMessaging, EnvironmentResources], None]):
+    def set_run_callback(self, fn: Callable[[EnvironmentMessaging, EnvironmentResources], Awaitable[Any]]):
         self._run_callback = fn
 
     @staticmethod
