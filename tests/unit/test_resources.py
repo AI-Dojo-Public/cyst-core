@@ -95,7 +95,7 @@ class ResourceTests(unittest.TestCase):
 
         self._test_count = 0
 
-        def run_callback_1(messaging: EnvironmentMessaging, resources: EnvironmentResources):
+        async def run_callback_1(messaging: EnvironmentMessaging, resources: EnvironmentResources):
             resources.external.send(self._test_file.as_uri(), "hello", params={"mode":"w"}, callback_service=self._attacker_service)
 
         def resource_callback_1(messaging: EnvironmentMessaging, resources: EnvironmentResources, message: Message) -> Tuple[bool, int]:
