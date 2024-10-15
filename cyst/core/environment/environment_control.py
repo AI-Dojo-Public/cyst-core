@@ -130,20 +130,18 @@ def _run(self: _Environment) -> Tuple[bool, EnvironmentState]:
     if self._state == EnvironmentState.PAUSED:
         self._pause = False
 
-    async def execute_runs():
-        async with asyncio.TaskGroup() as group:
-            for service in self._service_store.get_active_services():
-                group.create_task(service.run())
-
-    # if this is the first run() after init, call all run() methods of active services and activate passive services
-    if self._state == EnvironmentState.INIT:
-        self._loop.run_until_complete(execute_runs())
-
     # Run
-    self._state = EnvironmentState.RUNNING
     self._finish = False
 
     while not (self._pause or self._finish or self._terminate):
+        # As a first thing after init, we run all the services
+        if self._state == EnvironmentState.INIT:
+
+            for service in self._service_store.get_active_services():
+                self._loop.create_task(service.run())
+
+            self._state = EnvironmentState.RUNNING
+
         t = self._loop.create_task(self._process_async())
         self._loop.call_soon(self._loop.stop)
         self._loop.run_forever()
