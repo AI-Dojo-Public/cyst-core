@@ -186,7 +186,7 @@ class ExternalResources(ABC):
         """
 
     @abstractmethod
-    async def send_async(self, resource: Union[str, Resource], data: str, params: Optional[dict[str, str]] = None, timeout: float = 0.0) -> None:
+    async def send_async(self, resource: Union[str, Resource], data: str, params: Optional[dict[str, str]] = None, timeout: float = 0.0) -> int:
         """
         Asynchronously send data to a resource. This function is intended to be used by behavioral models and platforms.
         The agents currently must use the synchronous option.
@@ -209,8 +209,8 @@ class ExternalResources(ABC):
             take timeout number of time units, and emulated will take up-to timeout time units.
         :type timeout: float
 
-        :return: None. The sending operation is always expected to write all of its contents. In case of some error
-            an exception is thrown.
+        :return: The number of bytes written. However, the sending operation is expected to write all of its contents.
+            In case of some error an exception should be thrown.
         """
 
     @abstractmethod
