@@ -114,7 +114,7 @@ class _Environment(Environment, PlatformInterface):
                 spec1_flag = spec1 in self._platforms
                 spec2_flag = spec2 in self._platforms
 
-                if spec1_flag or spec2_flag == False:
+                if not spec1_flag and not spec2_flag == True:
                     platform_not_found = True
                 elif spec1_flag and spec2_flag == True:
                     platform_underspecified = True
