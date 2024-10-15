@@ -146,7 +146,7 @@ class FileResource(ResourceImpl):
         try:
             self._handle = open(self._path, self._mode)
         except Exception as e:
-            raise RuntimeError("Failed to open a file. Reason: " + str(e))
+            raise RuntimeError(f"Failed to open a file with path '{self._path}' and mode '{self._mode}'. Reason: " + str(e))
 
         self._state = ResourcesState.OPENED
 
