@@ -226,7 +226,7 @@ class ExternalResourcesImpl(ExternalResources):
             if isinstance(resource, ResourceImpl):
                 resource.close()
 
-    async def send_async(self, resource: Union[str, Resource], data: str, params: Optional[dict[str, str]] = None, timeout: float = 0.0) -> None:
+    async def send_async(self, resource: Union[str, Resource], data: str, params: Optional[dict[str, str]] = None, timeout: float = 0.0) -> int:
         r = resource
         if isinstance(resource, str):
             r = self.create_resource(resource, params)
@@ -238,8 +238,13 @@ class ExternalResourcesImpl(ExternalResources):
             r.open()
 
         self._async_ops_running += 1
-        await self._schedule_task(r, ResourceOp.SEND, data, params, timeout)
+        result = await self._schedule_task(r, ResourceOp.SEND, data, params, timeout)
         self._async_ops_running -= 1
+
+        if r.persistence == ResourcePersistence.TRANSIENT:
+            r.close()
+
+        return result
 
     # Not really nice code duplication. But I still need to decide on whether jump into the rabbit hole and go full-on
     # on asyncio processing in the engine.
@@ -295,7 +300,7 @@ class ExternalResourcesImpl(ExternalResources):
         task.add_done_callback(self._process_finished_tasks)
         heappush(self._pending, self._clock.current_time() + timeout)
 
-    async def _schedule_task(self, resource: ResourceImpl, resource_op: ResourceOp, data: str, params: Optional[dict[str, str]], timeout: float = 0.0) -> Optional[str]:
+    async def _schedule_task(self, resource: ResourceImpl, resource_op: ResourceOp, data: str, params: Optional[dict[str, str]], timeout: float = 0.0) -> None | str | int:
         future = self._loop.create_future()
 
         if resource_op == ResourceOp.SEND:
