@@ -468,7 +468,7 @@ class _Environment(Environment, PlatformInterface):
                 return
 
         # Nothing pending in queues
-        if not (have_something_to_do or platform_has_something_to_do or composite_processing_left or ext.collecting() or ext.pending()[0]):
+        if not (have_something_to_do or platform_has_something_to_do or composite_processing_left or ext.active()):
             self._finish = True
             return
 

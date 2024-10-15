@@ -131,7 +131,8 @@ class FileResource(ResourceImpl):
 
     def init(self, path: ParseResult, params: Optional[dict[str, str]] = None, persistence: ResourcePersistence = ResourcePersistence.TRANSIENT) -> bool:
         self._url = str(path)
-        self._path = urllib.request.url2pathname(path.path)
+        # The path has a first slash included, so we have to remove it to make it work correctly
+        self._path = urllib.request.url2pathname(path.path[1:])
         self._persistent = persistence
 
         if params and "mode" in params:
@@ -178,6 +179,7 @@ class ExternalResourcesImpl(ExternalResources):
         self._finished: List[Tuple[float, int, Union[asyncio.Future, ActiveService], asyncio.Task, Resource]] = []
         self._pending: List[float] = []
         self._collecting = 0
+        self._async_ops_running = 0
 
         self._resources: dict[str, Union[Type, ResourceImpl]] = {}
         self.register_resource("file", FileResource)
@@ -235,7 +237,9 @@ class ExternalResourcesImpl(ExternalResources):
         if r.persistence == ResourcePersistence.TRANSIENT:
             r.open()
 
+        self._async_ops_running += 1
         await self._schedule_task(r, ResourceOp.SEND, data, params, timeout)
+        self._async_ops_running -= 1
 
     # Not really nice code duplication. But I still need to decide on whether jump into the rabbit hole and go full-on
     # on asyncio processing in the engine.
@@ -266,7 +270,9 @@ class ExternalResourcesImpl(ExternalResources):
         if r.persistence == ResourcePersistence.TRANSIENT:
             r.open()
 
+        self._async_ops_running += 1
         result = await self._schedule_task(r, ResourceOp.FETCH, "", params, timeout)
+        self._async_ops_running -= 1
 
         if r.persistence == ResourcePersistence.TRANSIENT:
             r.close()
@@ -325,6 +331,9 @@ class ExternalResourcesImpl(ExternalResources):
 
     def collecting(self) -> bool:
         return self._collecting != 0
+
+    def active(self) -> bool:
+        return self.pending()[0] or self.collecting() or self._async_ops_running != 0
 
     def finish_collecting(self, task: asyncio.Task) -> None:
         self._collecting -= 1
