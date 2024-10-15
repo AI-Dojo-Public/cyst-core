@@ -130,9 +130,9 @@ class FileResource(ResourceImpl):
         return self._persistent
 
     def init(self, path: ParseResult, params: Optional[dict[str, str]] = None, persistence: ResourcePersistence = ResourcePersistence.TRANSIENT) -> bool:
+        # TODO: In the current incarnation, when filenames are supplied as a relative path then everything breaks down.
         self._url = str(path)
-        # The path has a first slash included, so we have to remove it to make it work correctly
-        self._path = urllib.request.url2pathname(path.path[1:])
+        self._path = urllib.request.url2pathname(path.path)
         self._persistent = persistence
 
         if params and "mode" in params:
