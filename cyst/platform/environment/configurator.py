@@ -10,6 +10,7 @@ import jsonpickle
 from cyst.api.environment.configuration import GeneralConfiguration, ObjectType, ConfigurationObjectType
 from cyst.api.environment.messaging import EnvironmentMessaging
 from cyst.api.environment.platform import Platform
+from cyst.api.host.service import ActiveService, PassiveService, Service
 from cyst.api.configuration.configuration import ConfigItem
 from cyst.api.configuration.host.service import ActiveServiceConfig, PassiveServiceConfig
 from cyst.api.configuration.infrastructure.infrastructure import InfrastructureConfig
@@ -82,11 +83,27 @@ class Configurator:
     def get_object_by_id(self, id: str, object_type: Type[ObjectType]) -> ObjectType:
 
         o = self._obj_refs[id]
-        if not isinstance(o, object_type):
+        error = False
+
+        # We have to do a bit of a black magic to overcome Service type shadowing
+        if isinstance(o, ServiceImpl):
+            if object_type is ActiveService and o.active_service:
+                return o.active_service
+            elif object_type is PassiveService and o.passive_service:
+                return o.passive_service
+            elif object_type is Service:
+                return o
+            else:
+                error = True
+        elif not isinstance(o, object_type):
+            error = True
+
+        if error:
             raise AttributeError(
                 "Attempting to cast object with id: {} to an incompatible type: {}. Type is {}".format(id,
                                                                                                        str(object_type),
                                                                                                        type(o)))
+
         return o
 
     def add_object(self, id: str, obj: Any) -> None:
