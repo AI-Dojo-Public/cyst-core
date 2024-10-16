@@ -132,7 +132,6 @@ class Configurator:
                 value = [value]
             for v in value:
                 if type(v) in mapping:
-                    mapping[type(v)].append(v)
                     self.process_cfg_item(v)
 
         if type(item) in mapping:
