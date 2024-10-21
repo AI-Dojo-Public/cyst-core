@@ -94,8 +94,8 @@ class CompositeActionManagerImpl(CompositeActionManager):
             self._futures[request.id].set_result(response)
         else:
             caller_id = request.platform_specific["caller_id"]
-            service = self._general.get_object_by_id(caller_id, Service)
-            await service.active_service.process_message(response)
+            service = self._general.get_object_by_id(caller_id, ActiveService)
+            await service.process_message(response)
         self._log.debug(f"[ end ] Composite action: processing request from composite queue. Got this response: {response}")
         self._composites_processing -= 1
 
