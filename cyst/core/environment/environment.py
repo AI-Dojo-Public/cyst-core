@@ -441,7 +441,7 @@ class _Environment(Environment, PlatformInterface):
         # This is almost no-op if no requests are in a queue for it. And if there are, they will just be processed and
         # converted to normal messages down the line.
         # Note on that |= ... process returns bool if there is some processing being done
-        cam_queues_left, composite_processing_left = await self._cam.process()
+        cam_queues_left, composite_actions_resolving, composite_actions_processing = await self._cam.process()
         have_something_to_do |= cam_queues_left
 
         # --------------------------------------------------------------------------------------------------------------
@@ -455,8 +455,9 @@ class _Environment(Environment, PlatformInterface):
         # --------------------------------------------------------------------------------------------------------------
         # If there are still some resources that are being worked on (i.e., process after collection) than we forbid
         # the time jump
-        if ext.collecting():
+        if ext.collecting() or composite_actions_resolving:
             time_jump = 0
+            have_something_to_do = True
 
         # --------------------------------------------------------------------------------------------------------------
         # If there is a time to jump, instruct the platform to do so
@@ -468,7 +469,7 @@ class _Environment(Environment, PlatformInterface):
                 return
 
         # Nothing pending in queues
-        if not (have_something_to_do or platform_has_something_to_do or composite_processing_left or ext.active()):
+        if not (have_something_to_do or platform_has_something_to_do or composite_actions_resolving or composite_actions_processing or ext.active()):
             self._finish = True
             return
 
