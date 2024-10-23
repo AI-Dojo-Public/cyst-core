@@ -28,7 +28,7 @@ target = NodeConfig(
             id="web_server"
         )
     ],
-    shell="bash_service",
+    shell="bash",
     interfaces=[],
     traffic_processors=[],
     id="target"
@@ -51,7 +51,7 @@ attacker = NodeConfig(
     interfaces=[],
     traffic_processors=[],
     shell="",
-    id="attacker"
+    id="attacker_node"
 )
 # ----------------------------------------------------------------------------------------------------------------------
 
@@ -96,7 +96,7 @@ connection1 = ConnectionConfig(
 # Addition to 04_create_network.py
 # ----------------------------------------------------------------------------------------------------------------------
 connection2 = ConnectionConfig(
-        src_id="attacker",
+        src_id="attacker_node",
         src_port=-1,
         dst_id="router",
         dst_port=1
@@ -104,7 +104,7 @@ connection2 = ConnectionConfig(
 
 e = Environment.create().configure(target, exploit1, router, connection1, attacker, connection2)
 
-attacker_service = e.configuration.general.get_object_by_id("attacker_service", Service).active_service
+attacker_service = e.configuration.general.get_object_by_id("attacker_node.attacker", Service).active_service
 attacker_control = e.configuration.service.get_service_interface(attacker_service, ScriptedActorControl)
 # ----------------------------------------------------------------------------------------------------------------------
 
@@ -112,6 +112,6 @@ e.control.init()
 e.control.run()
 e.control.commit()
 
-stats = e.resources.statistics
+stats = e.infrastructure.statistics
 print(f"Run id: {stats.run_id}\nStart time real: {stats.start_time_real}\n"
       f"End time real: {stats.end_time_real}\nDuration virtual: {stats.end_time_virtual}")
