@@ -306,6 +306,7 @@ To recap, this is the resulting code, which creates a machine with a specified s
             ],
             shell="bash",
             interfaces=[],
+            traffic_processors=[],
             id="target"
         )
 
@@ -323,6 +324,13 @@ To recap, this is the resulting code, which creates a machine with a specified s
         )
 
         e = Environment.create().configure(target, exploit1)
+        e.control.init()
+        e.control.run()
+        e.control.commit()
+
+        stats = e.infrastructure.statistics
+        print(f"Run id: {stats.run_id}\nStart time real: {stats.start_time_real}\n"
+              f"End time real: {stats.end_time_real}\nDuration virtual: {stats.end_time_virtual}")
 
 As was the case before, you can run the simulation, but nothing will happen yet. But we are getting there!
 
@@ -436,6 +444,7 @@ The code is similar to the configuration of the target machine:
             ],
             passive_services=[],
             interfaces=[],
+            traffic_processors=[],
             shell="",
             id="attacker_node"
         )
@@ -485,14 +494,13 @@ This is the final code (it could be made much more compact if you want to sacrif
 
         from netaddr import IPNetwork, IPAddress
 
-        from cyst.api.configuration import NodeConfig, PassiveServiceConfig, AccessLevel, ExploitConfig, VulnerableServiceConfig, \
-            ActiveServiceConfig, RouterConfig, InterfaceConfig, ConnectionConfig
+        from cyst.api.environment.environment import Environment
+        from cyst.api.configuration import NodeConfig, PassiveServiceConfig, AccessLevel, ExploitConfig, VulnerableServiceConfig,\
+                                           RouterConfig, InterfaceConfig, ConnectionConfig, ActiveServiceConfig
         from cyst.api.host.service import Service
         from cyst.api.logic.exploit import ExploitLocality, ExploitCategory
-        from cyst.api.environment.environment import Environment
 
         from cyst_services.scripted_actor.main import ScriptedActorControl
-
 
         target = NodeConfig(
             active_services=[],
@@ -516,6 +524,7 @@ This is the final code (it could be made much more compact if you want to sacrif
             ],
             shell="bash",
             interfaces=[],
+            traffic_processors=[],
             id="target"
         )
 
@@ -531,24 +540,9 @@ This is the final code (it could be made much more compact if you want to sacrif
             ],
             passive_services=[],
             interfaces=[],
+            traffic_processors=[],
             shell="",
             id="attacker_node"
-        )
-
-        router = RouterConfig(
-            interfaces=[
-                InterfaceConfig(
-                    ip=IPAddress("192.168.0.1"),
-                    net=IPNetwork("192.168.0.1/24"),
-                    index=0
-                ),
-                InterfaceConfig(
-                    ip=IPAddress("192.168.0.1"),
-                    net=IPNetwork("192.168.0.1/24"),
-                    index=1
-                )
-            ],
-            id="router"
         )
 
         exploit1 = ExploitConfig(
@@ -564,21 +558,38 @@ This is the final code (it could be made much more compact if you want to sacrif
             id="http_exploit"
         )
 
+        router = RouterConfig(
+            interfaces=[
+              InterfaceConfig(
+                ip=IPAddress("192.168.0.1"),
+                net=IPNetwork("192.168.0.1/24"),
+                index=0
+              ),
+              InterfaceConfig(
+                ip=IPAddress("192.168.0.1"),
+                net=IPNetwork("192.168.0.1/24"),
+                index=1
+              )
+            ],
+            traffic_processors=[],
+            id="router"
+        )
+
         connection1 = ConnectionConfig(
-            src_id="target",
-            src_port=-1,
-            dst_id="router",
-            dst_port=0
+                src_id="target",
+                src_port=-1,
+                dst_id="router",
+                dst_port=0
         )
 
         connection2 = ConnectionConfig(
-            src_id="attacker_node",
-            src_port=-1,
-            dst_id="router",
-            dst_port=1
+                src_id="attacker_node",
+                src_port=-1,
+                dst_id="router",
+                dst_port=1
         )
 
-        e = Environment.create().configure(target, attacker, router, exploit1, connection1, connection2)
+        e = Environment.create().configure(target, exploit1, router, connection1, attacker, connection2)
 
         attacker_service = e.configuration.general.get_object_by_id("attacker_node.attacker", Service).active_service
         attacker_control = e.configuration.service.get_service_interface(attacker_service, ScriptedActorControl)
@@ -586,6 +597,10 @@ This is the final code (it could be made much more compact if you want to sacrif
         e.control.init()
         e.control.run()
         e.control.commit()
+
+        stats = e.infrastructure.statistics
+        print(f"Run id: {stats.run_id}\nStart time real: {stats.start_time_real}\n"
+              f"End time real: {stats.end_time_real}\nDuration virtual: {stats.end_time_virtual}")
 
 
 Simulating the first interaction
@@ -861,6 +876,7 @@ Here is the complete code:
             ],
             shell="bash",
             interfaces=[],
+            traffic_processors=[],
             id="target"
         )
 
@@ -876,6 +892,7 @@ Here is the complete code:
             ],
             passive_services=[],
             interfaces=[],
+            traffic_processors=[],
             shell="",
             id="attacker_node"
         )
@@ -893,6 +910,7 @@ Here is the complete code:
                     index=1
                 )
             ],
+            traffic_processors=[],
             id="router"
         )
 
@@ -988,7 +1006,7 @@ Here is the complete code:
 
         e.control.commit()
 
-        stats = e.resources.statistics
+        stats = e.infrastructure.statistics
         print(f"Run id: {stats.run_id}\nStart time real: {stats.start_time_real}\n"
               f"End time real: {stats.end_time_real}\nDuration virtual: {stats.end_time_virtual}")
 
