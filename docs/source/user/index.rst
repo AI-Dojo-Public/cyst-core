@@ -54,7 +54,7 @@ Setting it all up
 CYST is distributed as a collection of loosely connected python packages. The installation is therefore pretty
 straightforward.
 
-    - Requirements: Python 3.9+, pip
+    - Requirements: Python 3.11+, pip
 
 .. tabs::
 
@@ -108,7 +108,7 @@ my_awesome_project directory and type/copy this code.
         e.control.run()
         e.control.commit()
 
-        stats = e.resources.statistics
+        stats = e.infrastructure.statistics
         print(f"Run id: {stats.run_id}\nStart time real: {stats.start_time_real}\n"
               f"End time real: {stats.end_time_real}\nDuration virtual: {stats.end_time_virtual}")
 
@@ -155,7 +155,7 @@ to your previous code:
                             id="bash_service"
                         )
                     ],
-                    shell="bash_service",
+                    shell="bash",
                     interfaces=[],
                     traffic_processors=[],
                     id="target"
@@ -196,9 +196,12 @@ So... what properties have you given the bash service with this description?
         - The local parameter specifies, if the service is opened to the network and can be contacted remotely. In case
           of the bash service, it can't be contacted.
 
-        - The id is an optional parameter that can be used when you need to somewhere reference the concrete service.
+        - The id is an optional parameter that can be used when you need to somewhere reference the concrete service
+          configuration (not the service itself - for that you need to provide a fully qualified name of
+          node_id.service_type [if you feel that this is strange, yes it is and it shall be sorted in some future
+          release]).
 
-The rest of the configuration is mostly empty (but required), so the only important bit there is at (15) where the id
+The rest of the configuration is mostly empty (but required), so the only important bit there is at (15) where the type
 of the bash service is set as the shell of the node. By itself the shell does not play an important role, but it is
 used for evaluation of specific actions and exploits.
 
@@ -301,7 +304,7 @@ To recap, this is the resulting code, which creates a machine with a specified s
                     id="web_server"
                 )
             ],
-            shell="bash_service",
+            shell="bash",
             interfaces=[],
             id="target"
         )
@@ -394,7 +397,7 @@ So, now it's time to connect the router and the node.
 
 Connections are bi-directional, so it does not really matter who is src and who is dst. If a port is set to -1, first
 eligible port is chosen. Connections are expected to support various properties, like jitter, but that is currently not
-implemented.
+fully implemented.
 
 Because the connected machine "target" does not have any interface set, a new one is created and is assigned an IP from
 the DHCP pool 192.168.0.1/24. As the strategy is currently sequential, the machine will get an IP 192.168.0.2 and
@@ -434,7 +437,7 @@ The code is similar to the configuration of the target machine:
             passive_services=[],
             interfaces=[],
             shell="",
-            id="attacker"
+            id="attacker_node"
         )
 
 This configuration will create a new node with one active service of the type "scripted_actor" (line 6). The detailed
@@ -447,7 +450,7 @@ The other step is to connect the adversary to the same router as the target, so 
                 :linenos:
 
                 connection2 = ConnectionConfig(
-                        src_id="attacker",
+                        src_id="attacker_node",
                         src_port=-1,
                         dst_id="router",
                         dst_port=1
@@ -464,7 +467,7 @@ step happens only after the simulation environment is configured, as you need to
 
         e = Environment.create().configure(target, router, attacker, exploit1, connection1, connection2)
 
-        attacker_service = e.configuration.general.get_object_by_id("attacker_service", Service).active_service
+        attacker_service = e.configuration.general.get_object_by_id("attacker_node.attacker", Service).active_service
         attacker_control = e.configuration.service.get_service_interface(attacker_service, ScriptedActorControl)
 
 Each active service can define any number of interfaces, which are used for external control of the service. However,
@@ -511,7 +514,7 @@ This is the final code (it could be made much more compact if you want to sacrif
                     id="web_server"
                 )
             ],
-            shell="bash_service",
+            shell="bash",
             interfaces=[],
             id="target"
         )
@@ -529,7 +532,7 @@ This is the final code (it could be made much more compact if you want to sacrif
             passive_services=[],
             interfaces=[],
             shell="",
-            id="attacker"
+            id="attacker_node"
         )
 
         router = RouterConfig(
@@ -569,7 +572,7 @@ This is the final code (it could be made much more compact if you want to sacrif
         )
 
         connection2 = ConnectionConfig(
-            src_id="attacker",
+            src_id="attacker_node",
             src_port=-1,
             dst_id="router",
             dst_port=1
@@ -577,7 +580,7 @@ This is the final code (it could be made much more compact if you want to sacrif
 
         e = Environment.create().configure(target, attacker, router, exploit1, connection1, connection2)
 
-        attacker_service = e.configuration.general.get_object_by_id("attacker_service", Service).active_service
+        attacker_service = e.configuration.general.get_object_by_id("attacker_node.attacker", Service).active_service
         attacker_control = e.configuration.service.get_service_interface(attacker_service, ScriptedActorControl)
 
         e.control.init()
@@ -610,7 +613,7 @@ This is the code, that should be included before the run() is called.
     .. code-block:: python
         :linenos:
 
-        e.control.add_pause_on_response("attacker.attacker")
+        e.control.add_pause_on_response("attacker_node.attacker")
 
 The string identifying when to pause is in the form <node_name>.<service_name>.
 
@@ -678,9 +681,10 @@ Let's scan the first 16 addresses in the network and see what we get.
             e.control.run()
             print(f"{ip}: {attacker_control.get_last_response().status}")
 
-The control interface of scripted actor has two functions:
+The control interface of the scripted actor has many possible customizations, but for you these two functions are
+relevant:
 
-        - execute_action(), which execute one specified action on a target
+        - execute_action(), which executes one specified action on a target
         - get_last_response(), which returns the last response the actor received
 
 Due to setting the pause trigger on received response, you are enabled to do the processing in the loop: queueing an
@@ -713,8 +717,9 @@ If you run this code, you should receive something like this:
                 192.168.0.4: (NETWORK, FAILURE)
                 ...
 
-There will be some debugging outputs interspersed. You will soon-ish be enabled to turn it off. Nevertheless, you
-managed to run your first real simulation. Congratulations!
+There will be some debugging outputs interspersed. You can tune it out through the configuration item
+:class:`cyst.api.environment.configuration.LogConfig`. Whether you kept it or not, you managed to run your first real
+simulation. Congratulations!
 
 Now, let's prepare an attack. First, you need to find out what to attack (and for a moment forget that you already know
 it because you configured it). Let's assume that you as the attacker know that your IP is 192.168.0.3. The previous
@@ -854,7 +859,7 @@ Here is the complete code:
                     id="web_server"
                 )
             ],
-            shell="bash_service",
+            shell="bash",
             interfaces=[],
             id="target"
         )
@@ -872,7 +877,7 @@ Here is the complete code:
             passive_services=[],
             interfaces=[],
             shell="",
-            id="attacker"
+            id="attacker_node"
         )
 
         router = RouterConfig(
@@ -912,7 +917,7 @@ Here is the complete code:
         )
 
         connection2 = ConnectionConfig(
-            src_id="attacker",
+            src_id="attacker_node",
             src_port=-1,
             dst_id="router",
             dst_port=1
@@ -920,10 +925,10 @@ Here is the complete code:
 
         e = Environment.create().configure(target, attacker, router, exploit1, connection1, connection2)
 
-        attacker_service = e.configuration.general.get_object_by_id("attacker_service", Service).active_service
+        attacker_service = e.configuration.general.get_object_by_id("attacker_node.attacker", Service).active_service
         attacker_control = e.configuration.service.get_service_interface(attacker_service, ScriptedActorControl)
 
-        e.control.add_pause_on_response("attacker.attacker")
+        e.control.add_pause_on_response("attacker_node.attacker")
         e.control.init()
 
         # Store the actions
