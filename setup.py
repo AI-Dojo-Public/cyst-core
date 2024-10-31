@@ -11,7 +11,7 @@ long_description = (here / 'README.md').read_text(encoding='utf-8')
 
 setup(
     name='cyst-core',
-    version='0.6.0',
+    version='0.6.0a0',
     description='API and runtime of the CYST framework',
     long_description=long_description,
     long_description_content_type='text/markdown',
