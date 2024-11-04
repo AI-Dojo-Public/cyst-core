@@ -5,7 +5,7 @@ from typing import Callable
 
 from cyst.api.configuration.configuration import ConfigItem
 from cyst.api.environment.clock import Clock
-from cyst.api.environment.configuration import EnvironmentConfiguration, GeneralConfiguration, ActionConfiguration, ExploitConfiguration
+from cyst.api.environment.configuration import EnvironmentConfiguration, GeneralConfiguration, ActionConfiguration, ExploitConfiguration, PhysicalConfiguration
 from cyst.api.environment.infrastructure import EnvironmentInfrastructure
 from cyst.api.environment.messaging import EnvironmentMessaging
 from cyst.api.environment.platform_interface import PlatformInterface
@@ -139,4 +139,4 @@ class PlatformDescription:
     """
     specification: PlatformSpecification
     description: str
-    creation_fn: Callable[[PlatformInterface, GeneralConfiguration, EnvironmentResources, ActionConfiguration, ExploitConfiguration, EnvironmentInfrastructure], Platform]
+    creation_fn: Callable[[PlatformInterface, GeneralConfiguration, EnvironmentResources, ActionConfiguration, ExploitConfiguration, PhysicalConfiguration, EnvironmentInfrastructure], Platform]

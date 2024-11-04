@@ -6,12 +6,13 @@ from cyst.api.environment.configuration import (
     NetworkConfiguration,
     ExploitConfiguration,
     ActionConfiguration,
-    AccessConfiguration
+    AccessConfiguration,
+    PhysicalConfiguration
 )
 
 class EnvironmentConfigurationImpl(EnvironmentConfiguration):
     def __init__(self, general: GeneralConfiguration, platform: EnvironmentConfiguration, action: ActionConfiguration,
-                 exploit: ExploitConfiguration):
+                 exploit: ExploitConfiguration, physical: PhysicalConfiguration):
         self._general = general
         self._node = platform.node
         self._service = platform.service
@@ -19,6 +20,7 @@ class EnvironmentConfigurationImpl(EnvironmentConfiguration):
         self._exploit = exploit
         self._action = action
         self._access = platform.access
+        self._physical = physical
 
     @property
     def general(self) -> GeneralConfiguration:
@@ -47,3 +49,7 @@ class EnvironmentConfigurationImpl(EnvironmentConfiguration):
     @property
     def access(self) -> AccessConfiguration:
         return self._access
+
+    @property
+    def physical(self) -> PhysicalConfiguration:
+        return self._physical
