@@ -7,6 +7,8 @@ from typing import Dict, List, Union, Any, Callable, Optional, Type
 
 import netaddr
 
+from cyst.api.configuration.infrastructure.physical import PhysicalLocationConfig, PhysicalConnectionConfig, \
+    PhysicalAccessConfig
 from cyst.api.environment.configuration import GeneralConfiguration, ObjectType, ConfigurationObjectType
 from cyst.api.environment.environment import Environment
 from cyst.api.configuration.configuration import ConfigItem
@@ -25,7 +27,8 @@ from cyst.api.configuration.network.node import NodeConfig
 
 
 class Configurator:
-    def __init__(self):
+    def __init__(self, environment: Environment):
+        self._env = environment
         self._refs: Dict[str, Any] = {}
         self._connections: List[ConnectionConfig] = []
         self._nodes: List[NodeConfig] = []
@@ -41,6 +44,9 @@ class Configurator:
         self._access_schemes: List[AccessSchemeConfig] = []
         self._authorization_domains: List[AuthorizationDomainConfig] = []
         self._logs: List[LogConfig] = []
+        self._physical_access_config: List[PhysicalAccessConfig] = []
+        self._physical_location_config: List[PhysicalLocationConfig] = []
+        self._physical_connection_config: List[PhysicalConnectionConfig] = []
 
     def __getstate__(self):
         result = self.__dict__
@@ -313,6 +319,23 @@ class Configurator:
             self._process_LogConfig(log)
         return cfg.id
 
+    def _process_PhysicalAccessConfig(self, cfg: PhysicalAccessConfig) -> str:
+        self._refs[cfg.id] = cfg
+        self._physical_access_config.append(cfg)
+        return cfg.id
+
+    def _process_PhysicalLocationConfig(self, cfg: PhysicalLocationConfig) -> str:
+        self._refs[cfg.id] = cfg
+        self._physical_location_config.append(cfg)
+        for access in cfg.access:
+            self._process_PhysicalAccessConfig(access)
+        return cfg.id
+
+    def _process_PhysicalConnectionConfig(self, cfg: PhysicalConnectionConfig) -> str:
+        self._refs[cfg.id] = cfg
+        self._physical_connection_config.append(cfg)
+        return cfg.id
+
     def _process_default(self, cfg):
         raise ValueError("Unknown config type provided")
 
@@ -330,7 +353,8 @@ class Configurator:
     def preprocess(self,
                   *configs: Union[NetworkConfig, ConnectionConfig, RouterConfig, NodeConfig,
                                   InterfaceConfig, ActiveServiceConfig, PassiveServiceConfig,
-                                  AuthorizationConfig, DataConfig]) -> 'Configurator':
+                                  AuthorizationConfig, DataConfig, PhysicalAccessConfig, PhysicalLocationConfig,
+                                  PhysicalConnectionConfig]) -> 'Configurator':
 
         # --------------------------------------------------------------------------------------------------------------
         # Process all provided items and do a complete id->cfg mapping
@@ -499,6 +523,26 @@ class Configurator:
 
         logging.config.dictConfig(log_config_dict)
 
+        for location_cfg in self._physical_location_config:
+            self._env.configuration.physical.create_physical_location(location_id=location_cfg.id)
+            for physical_access_cfg in location_cfg.access:
+                physical_access = self._env.configuration.physical.create_physical_access(
+                    identity=physical_access_cfg.identity,
+                    time_from=physical_access_cfg.time_from,
+                    time_to=physical_access_cfg.time_to
+                )
+                self._env.configuration.physical.add_physical_access(location_cfg.id, physical_access)
+
+            for asset in location_cfg.assets:
+                self._env.configuration.physical.place_asset(location_cfg.id, asset)
+
+        for physical_connection_cfg in self._physical_connection_config:
+            self._env.configuration.physical.add_physical_connection(
+                origin=physical_connection_cfg.origin,
+                destination=physical_connection_cfg.destination,
+                travel_time=physical_connection_cfg.travel_time
+            )
+
     def get_configuration_by_id(self, id: str) -> Optional[Any]:
         if id not in self._refs:
             return None
@@ -532,7 +576,7 @@ class Configurator:
 class GeneralConfigurationImpl(GeneralConfiguration):
 
     def __init__(self, env: Environment) -> None:
-        self._configurator = Configurator()
+        self._configurator = Configurator(env)
         self._env = env
 
     def preprocess(self, *config) -> None:

@@ -40,6 +40,7 @@ from cyst.api.utils.duration import Duration
 from cyst.core.environment.configuration import GeneralConfigurationImpl
 from cyst.core.environment.configuration_action import ActionConfigurationImpl
 from cyst.core.environment.configuration_exploit import ExploitConfigurationImpl
+from cyst.core.environment.configuration_physical import PhysicalConfigurationImpl
 from cyst.core.environment.environment_configuration import EnvironmentConfigurationImpl
 from cyst.core.environment.environment_control import EnvironmentControlImpl
 from cyst.core.environment.environment_messaging import EnvironmentMessagingImpl
@@ -91,6 +92,7 @@ class _Environment(Environment, PlatformInterface):
         self._general_configuration = GeneralConfigurationImpl(self)
         self._action_configuration = ActionConfigurationImpl()
         self._exploit_configuration = ExploitConfigurationImpl(self)
+        self._physical_configuration = PhysicalConfigurationImpl(self)
         self._runtime_configuration = RuntimeConfiguration()
 
         self._platform = None
@@ -149,7 +151,8 @@ class _Environment(Environment, PlatformInterface):
 
         # When platform is initialized, create a combined configuration for behavioral models
         self._environment_configuration = EnvironmentConfigurationImpl(self._general_configuration, self._platform.configuration,
-                                                                       self._action_configuration, self._exploit_configuration)
+                                                                       self._action_configuration, self._exploit_configuration,
+                                                                       self._physical_configuration)
 
         # Initialize stores in a platform-dependent manner
 
@@ -594,7 +597,8 @@ class _Environment(Environment, PlatformInterface):
 
         return self._platforms[specification].creation_fn(self.platform_interface, self._general_configuration,
                                                           self.resources, self._action_configuration,
-                                                          self._exploit_configuration, self._infrastructure)
+                                                          self._exploit_configuration, self._physical_configuration,
+                                                          self._infrastructure)
 
 def create_environment(platform: Optional[Union[str, PlatformSpecification]]) -> Environment:
     e = _Environment(platform)

@@ -9,7 +9,8 @@ from typing import List, Tuple, Union, Optional, Any, Callable
 from cyst.api.configuration.configuration import ConfigItem
 from cyst.api.environment.clock import Clock
 from cyst.api.environment.configuration import EnvironmentConfiguration, GeneralConfiguration, NodeConfiguration, \
-    ServiceConfiguration, NetworkConfiguration, ExploitConfiguration, AccessConfiguration, ActionConfiguration
+    ServiceConfiguration, NetworkConfiguration, ExploitConfiguration, AccessConfiguration, ActionConfiguration, \
+    PhysicalConfiguration
 from cyst.api.environment.infrastructure import EnvironmentInfrastructure
 from cyst.api.environment.message import Message, MessageType, Timeout
 from cyst.api.environment.messaging import EnvironmentMessaging
@@ -37,11 +38,12 @@ class CYSTPlatform(Platform, EnvironmentConfiguration, Clock):
     def __init__(self, platform_interface: PlatformInterface, general_configuration: GeneralConfiguration,
                  resources: EnvironmentResources, action_configuration: ActionConfiguration,
                  exploit_configuration: ExploitConfiguration, infrastructure: EnvironmentInfrastructure,
-                 platform_type: PlatformType):
+                 physical_configuration: PhysicalConfiguration, platform_type: PlatformType):
         self._platform_interface = platform_interface
         self._resources = resources
         self._action_configuration = action_configuration
         self._exploit_configuration = exploit_configuration
+        self._physical_configuration = physical_configuration
         self._infrastructure = infrastructure
         self._platform_type = platform_type
         self._real_time_wait_factor = 0.1
@@ -122,6 +124,10 @@ class CYSTPlatform(Platform, EnvironmentConfiguration, Clock):
     @property
     def access(self) -> AccessConfiguration:
         return self._access_configuration
+
+    @property
+    def physical(self) -> PhysicalConfiguration:
+        return self._physical_configuration
 
     # ------------------------------------------------------------------------------------------------------------------
     @property
@@ -271,18 +277,18 @@ class CYSTPlatform(Platform, EnvironmentConfiguration, Clock):
 
 def create_simulated_time_platform(platform_interface: PlatformInterface, general_configuration: GeneralConfiguration,
                                    resources: EnvironmentResources, action_configuration: ActionConfiguration,
-                                   exploit_configuration: ExploitConfiguration,
+                                   exploit_configuration: ExploitConfiguration, physical_configuration: PhysicalConfiguration,
                                    infrastructure: EnvironmentInfrastructure) -> CYSTPlatform:
     p = CYSTPlatform(platform_interface, general_configuration, resources, action_configuration, exploit_configuration,
-                     infrastructure, PlatformType.SIMULATED_TIME)
+                     infrastructure, physical_configuration, PlatformType.SIMULATED_TIME)
     return p
 
 def create_real_time_platform(platform_interface: PlatformInterface, general_configuration: GeneralConfiguration,
                               resources: EnvironmentResources, action_configuration: ActionConfiguration,
-                              exploit_configuration: ExploitConfiguration,
+                              exploit_configuration: ExploitConfiguration, physical_configuration: PhysicalConfiguration,
                               infrastructure: EnvironmentInfrastructure) -> CYSTPlatform:
     p = CYSTPlatform(platform_interface, general_configuration, resources, action_configuration, exploit_configuration,
-                     infrastructure, PlatformType.REAL_TIME)
+                     infrastructure, physical_configuration, PlatformType.REAL_TIME)
     return p
 
 
