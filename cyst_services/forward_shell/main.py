@@ -13,9 +13,11 @@ class ForwardShell(ActiveService):
     def __init__(self,
                  msg: EnvironmentMessaging,
                  res: EnvironmentResources,
+                 id: str,
                  args: Optional[Dict[str, Any]] = None) -> None:
         self._messaging = msg
         self._resources = res
+        self._id = id
         self._log = logging.getLogger("services.forward_shell")
         self._ignore_requests: bool = args is None or args.get("ignore_requests", True)
 
@@ -76,8 +78,8 @@ class ForwardShell(ActiveService):
 
 
 def create_shell(msg: EnvironmentMessaging, res: EnvironmentResources,
-                 args: Optional[Dict[str, Any]]) -> ActiveService:
-    return ForwardShell(msg, res, args)
+                 id:str, args: Optional[Dict[str, Any]]) -> ActiveService:
+    return ForwardShell(msg, res, id, args)
 
 
 service_description = ActiveServiceDescription(

@@ -108,8 +108,9 @@ class ActiveServiceDescription:
     :param description: A short description of the service purpose and function.
     :type description: str
 
-    :param creation_fn: A function that is able to create instances of the service.
-    :type creation_fn: Callable[[EnvironmentMessaging, EnvironmentResources, Optional[Dict[str, Any]]], ActiveService]
+    :param creation_fn: A function that is able to create instances of the service. In addition to environment
+        interfaces, the id and configuration dictionary is passed to service as well.
+    :type creation_fn: Callable[[EnvironmentMessaging, EnvironmentResources, str, Optional[Dict[str, Any]]], ActiveService]
     """
 
     name: str
@@ -118,7 +119,7 @@ class ActiveServiceDescription:
     #      information about their configuration
     creation_fn: Callable[['cyst.api.environment.messaging.EnvironmentMessaging',
                            'cyst.api.environment.resources.EnvironmentResources',
-                           Optional[Dict[str, Any]]], ActiveService]
+                           str, Optional[Dict[str, Any]]], ActiveService]
 
 
 class ServiceState(IntEnum):

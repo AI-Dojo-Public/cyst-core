@@ -123,7 +123,6 @@ class ServiceStore(ABC):
     """
     Service store provides a unified interface for creating active services. Due to centrality of this concept to all
     CYST, regardless of the platform it uses, all services must be instantiated through this store.
-    TODO: Better description for service store
     """
 
     @abstractmethod
@@ -131,22 +130,26 @@ class ServiceStore(ABC):
                               service_access_level: AccessLevel = AccessLevel.LIMITED,
                               configuration: Optional[Dict[str, Any]] = None, id: str = "") -> Optional[ActiveService]:
         """
-        Creates an active service...
+        Creates an active service instance.
 
-        :param type:
-        :param owner:
-        :param name:
-        :param node:
-        :param service_access_level:
-        :param configuration:
-        :param id:
-        :return:
+        :param type: The name of the active service, under which it is registered into the system.
+        :param owner: The identity of user, under whose identity this service should be running.
+        :param name: The name of the service, under which it is present at the node. Currently, it is used instead
+            of ports to route messages. TODO: The name/id system is retarded and has to be changed.
+        :param node: The node at which the service should be instantiated.
+        :param service_access_level: The level of access the service has on the system.
+        :param id: System-wide unique ID of the service. Unless overridden, it will have the form of
+            `<node_id>.<service_name>`.
+        :param configuration: A dictionary with arbitrary configuration items.
+
+        :return: The instantiated active service or None if there was an error.
         """
 
     @abstractmethod
     def get_active_service(self, id) -> Optional[ActiveService]:
         """
-        Returns an already instantiated active service
+        Returns an already instantiated active service, given its full id (that is, not just a name).
+
         :param id:
         :return:
         """

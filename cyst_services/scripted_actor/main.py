@@ -49,7 +49,8 @@ class ScriptedActorControl(ABC):
 
 
 class ScriptedActor(ActiveService, ScriptedActorControl):
-    def __init__(self, env: EnvironmentMessaging = None, res: EnvironmentResources = None, args: Optional[Dict[str, Any]] = None) -> None:
+    def __init__(self, env: EnvironmentMessaging = None, res: EnvironmentResources = None, id: str = "", args: Optional[Dict[str, Any]] = None) -> None:
+        self._id = id
         self._messaging = env
         self._resources = res
         self._responses = []
@@ -137,8 +138,8 @@ class ScriptedActor(ActiveService, ScriptedActorControl):
             raise ValueError("Not an active service passed")
 
 
-def create_actor(msg: EnvironmentMessaging, res: EnvironmentResources, args: Optional[Dict[str, Any]]) -> ActiveService:
-    actor = ScriptedActor(msg, res, args)
+def create_actor(msg: EnvironmentMessaging, res: EnvironmentResources, id:str, args: Optional[Dict[str, Any]]) -> ActiveService:
+    actor = ScriptedActor(msg, res, id, args)
     return actor
 
 

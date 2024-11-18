@@ -45,7 +45,7 @@ class ServiceStoreImpl(ServiceStore):
         if not type in self._services:
             raise RuntimeError(f"Attempting to create nonexistent service {type}.")
         service_description: ActiveServiceDescription = self._services[type]
-        service = service_description.creation_fn(self._messaging, self._resources, configuration)
+        service = service_description.creation_fn(self._messaging, self._resources, id, configuration)
         #return ServiceImpl(type, service, name, owner, service_access_level, id)
 
         # service is stored according to its in-engine ID as well as its address to help with message sending

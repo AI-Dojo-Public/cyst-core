@@ -15,9 +15,11 @@ class ReverseShell(ActiveService):
     def __init__(self,
                  msg: EnvironmentMessaging,
                  res: EnvironmentResources,
+                 id: str,
                  args: Optional[Dict[str, Any]] = None) -> None:
         self._messaging = msg
         self._resources = res
+        self._id = id
         self._log = logging.getLogger("services.reverse_shell")
 
         self._success_sent = False
@@ -89,8 +91,8 @@ class ReverseShell(ActiveService):
 
 
 def create_shell(msg: EnvironmentMessaging, res: EnvironmentResources,
-                 args: Optional[Dict[str, Any]]) -> ActiveService:
-    return ReverseShell(msg, res, args)
+                 id:str, args: Optional[Dict[str, Any]]) -> ActiveService:
+    return ReverseShell(msg, res, id, args)
 
 
 service_description = ActiveServiceDescription(
