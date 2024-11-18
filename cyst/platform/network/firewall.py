@@ -122,7 +122,7 @@ class FirewallImpl(ActiveService, Firewall):
         return result, processing_time
 
 
-def create_firewall(msg: EnvironmentMessaging, res: EnvironmentResources, args: Optional[Dict[str, Any]]) -> ActiveService:
+def create_firewall(msg: EnvironmentMessaging, res: EnvironmentResources, id: str, args: Optional[Dict[str, Any]]) -> ActiveService:
     fw = FirewallImpl(msg, args)
     return fw
 
