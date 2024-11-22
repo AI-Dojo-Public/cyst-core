@@ -1,6 +1,6 @@
 from dataclasses import dataclass, field
 from datetime import datetime
-from typing import List
+from typing import List, Optional
 from uuid import uuid4
 
 from cyst.api.configuration.configuration import ConfigItem
@@ -25,14 +25,13 @@ class PhysicalAccessConfig(ConfigItem):
     :param time_to: A specification of a time of a day (the date part is ignored) to which the access is granted.
         If no time is provided, then 23:59:59 is assumed.
     :type time_to: datetime | None
-
-    :param id: A unique identifier of the physical access configuration.
-    :type id: str
     """
     identity: str
     time_from: datetime | None
     time_to: datetime | None
-    id: str = field(default_factory=lambda: str(uuid4()))
+    ref: str = field(default_factory=lambda: str(uuid4()))
+    name: str = "__physical_access"
+    id: str = ""
 
 
 @dataclass
@@ -48,12 +47,12 @@ class PhysicalLocationConfig(ConfigItem):
     :param access: A list of physical access configurations.
     :type access: List[PhysicalAccessConfig]
 
-    :param id: A unique identifier of the physical location configuration.
-    :type id: str
     """
     assets: List[str]
     access: List[PhysicalAccessConfig]
-    id: str = field(default_factory=lambda: str(uuid4()))
+    ref: str = field(default_factory=lambda: str(uuid4()))
+    name: str = "__physical_location"
+    id: str = ""
 
 
 @dataclass
@@ -78,10 +77,10 @@ class PhysicalConnectionConfig(ConfigItem):
     :param travel_time: A time needed to traverse the physical connection.
     :type travel_time: Duration
 
-    :param id: A unique identifier of the physical connection configuration.
-    :type id: str
     """
     origin: str
     destination: str
     travel_time: Duration
-    id: str = field(default_factory=lambda: str(uuid4()))
+    ref: str = field(default_factory=lambda: str(uuid4()))
+    name: str = "__physical_connection"
+    id: str = ""

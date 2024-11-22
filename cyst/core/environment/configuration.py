@@ -1,9 +1,9 @@
 import jsonpickle
 import logging.config
-import uuid
 
 from dataclasses import dataclass, field
 from typing import Dict, List, Union, Any, Callable, Optional, Type
+from uuid import uuid4
 
 import netaddr
 
@@ -24,6 +24,7 @@ from cyst.api.configuration.network.firewall import FirewallChainConfig, Firewal
 from cyst.api.configuration.network.network import NetworkConfig
 from cyst.api.configuration.network.router import RouterConfig
 from cyst.api.configuration.network.node import NodeConfig
+from cyst.api.utils.counter import Counter
 
 
 class Configurator:
@@ -77,274 +78,273 @@ class Configurator:
     # be only a flat configuration with ids and no nesting (see members above)
     # ------------------------------------------------------------------------------------------------------------------
     def _process_NetworkConfig(self, cfg: NetworkConfig) -> NetworkConfig:
-        node_ids = []
-        conn_ids = []
+        node_refs = []
+        conn_refs = []
 
         for node in cfg.nodes:
             if isinstance(node, str):
-                node_ids.append(node)
+                node_refs.append(node)
             else:
-                node_ids.append(self._process_cfg_item(node))
+                node_refs.append(self._process_cfg_item(node))
 
         for conn in cfg.connections:
             if isinstance(conn, str):
-                conn_ids.append(conn)
+                conn_refs.append(conn)
             else:
-                conn_ids.append(self._process_cfg_item(conn))
+                conn_refs.append(self._process_cfg_item(conn))
 
-        cfg.nodes = node_ids
-        cfg.connections = conn_ids
+        cfg.nodes = node_refs
+        cfg.connections = conn_refs
 
         return cfg
 
     def _process_ConnectionConfig(self, cfg: ConnectionConfig) -> str:
         self._connections.append(cfg)
-        self._refs[cfg.id] = cfg
-        return cfg.id
+        self._refs[cfg.ref] = cfg
+        return cfg.ref
 
     def _process_RouterConfig(self, cfg: RouterConfig):
-        interface_ids = []
-        traffic_processor_ids = []
-        route_ids = []
+        interface_refs = []
+        traffic_processor_refs = []
 
         for interface in cfg.interfaces:
             if isinstance(interface, str):
-                interface_ids.append(interface)
+                interface_refs.append(interface)
             else:
-                interface_ids.append(self._process_cfg_item(interface))
+                interface_refs.append(self._process_cfg_item(interface))
 
         for processor in cfg.traffic_processors:
             if isinstance(processor, str):
-                traffic_processor_ids.append(processor)
+                traffic_processor_refs.append(processor)
             else:
-                traffic_processor_ids.append(self._process_cfg_item(processor))
+                traffic_processor_refs.append(self._process_cfg_item(processor))
 
         for route in cfg.routing_table:
             self._process_RouteConfig(route)
 
-        cfg.interfaces = interface_ids
-        cfg.traffic_processors = traffic_processor_ids
+        cfg.interfaces = interface_refs
+        cfg.traffic_processors = traffic_processor_refs
 
         self._routers.append(cfg)
-        self._refs[cfg.id] = cfg
-        return cfg.id
+        self._refs[cfg.ref] = cfg
+        return cfg.ref
 
     def _process_NodeConfig(self, cfg: NodeConfig) -> str:
-        passive_service_ids = []
-        active_service_ids = []
-        traffic_processor_ids = []
-        interface_ids = []
+        passive_service_refs = []
+        active_service_refs = []
+        traffic_processor_refs = []
+        interface_refs = []
 
         for service in cfg.passive_services:
             if isinstance(service, str):
-                passive_service_ids.append(service)
+                passive_service_refs.append(service)
             else:
-                passive_service_ids.append(self._process_cfg_item(service))
+                passive_service_refs.append(self._process_cfg_item(service))
 
         for service in cfg.active_services:
             if isinstance(service, str):
-                active_service_ids.append(service)
+                active_service_refs.append(service)
             else:
-                active_service_ids.append(self._process_cfg_item(service))
+                active_service_refs.append(self._process_cfg_item(service))
 
         for processor in cfg.traffic_processors:
             if isinstance(processor, str):
-                traffic_processor_ids.append(processor)
+                traffic_processor_refs.append(processor)
             else:
-                traffic_processor_ids.append(self._process_cfg_item(processor))
+                traffic_processor_refs.append(self._process_cfg_item(processor))
 
         for interface in cfg.interfaces:
             if isinstance(interface, str):
-                interface_ids.append(interface)
+                interface_refs.append(interface)
             else:
-                interface_ids.append(self._process_cfg_item(interface))
+                interface_refs.append(self._process_cfg_item(interface))
 
-        cfg.passive_services = passive_service_ids
-        cfg.active_services = active_service_ids
-        cfg.traffic_processors = traffic_processor_ids
-        cfg.interfaces = interface_ids
+        cfg.passive_services = passive_service_refs
+        cfg.active_services = active_service_refs
+        cfg.traffic_processors = traffic_processor_refs
+        cfg.interfaces = interface_refs
 
         self._nodes.append(cfg)
-        self._refs[cfg.id] = cfg
+        self._refs[cfg.ref] = cfg
 
-        return cfg.id
+        return cfg.ref
 
     def _process_PortConfig(self, cfg: PortConfig) -> str:
-        self._refs[cfg.id] = cfg
+        self._refs[cfg.ref] = cfg
         self._interfaces.append(cfg)
-        return cfg.id
+        return cfg.ref
 
     def _process_InterfaceConfig(self, cfg: InterfaceConfig) -> str:
-        self._refs[cfg.id] = cfg
+        self._refs[cfg.ref] = cfg
         self._interfaces.append(cfg)
-        return cfg.id
+        return cfg.ref
 
     def _process_ActiveServiceConfig(self, cfg: ActiveServiceConfig) -> str:
-        self._refs[cfg.id] = cfg
+        self._refs[cfg.ref] = cfg
         self._active_services.append(cfg)
-        return cfg.id
+        return cfg.ref
 
     def _process_FirewallConfig(self, cfg: FirewallConfig) -> str:
-        self._refs[cfg.id] = cfg
+        self._refs[cfg.ref] = cfg
         self._firewalls.append(cfg)
-        return cfg.id
+        return cfg.ref
 
     def _process_PassiveServiceConfig(self, cfg: PassiveServiceConfig) -> str:
-        self._refs[cfg.id] = cfg
+        self._refs[cfg.ref] = cfg
         self._passive_services.append(cfg)
 
-        public_data_ids = []
-        private_data_ids = []
-        public_auth_ids = []
-        private_auth_ids = []
+        public_data_refs = []
+        private_data_refs = []
+        public_auth_refs = []
+        private_auth_refs = []
 
         for data in cfg.public_data:
             if isinstance(data, str):
-                public_data_ids.append(data)
+                public_data_refs.append(data)
             else:
-                public_data_ids.append(self._process_cfg_item(data))
+                public_data_refs.append(self._process_cfg_item(data))
 
         for data in cfg.private_data:
             if isinstance(data, str):
-                private_data_ids.append(data)
+                private_data_refs.append(data)
             else:
-                private_data_ids.append(self._process_cfg_item(data))
+                private_data_refs.append(self._process_cfg_item(data))
 
         for auth in cfg.public_authorizations:
             if isinstance(auth, str):
-                public_auth_ids.append(auth)
+                public_auth_refs.append(auth)
             else:
-                public_auth_ids.append(self._process_cfg_item(auth))
+                public_auth_refs.append(self._process_cfg_item(auth))
 
         for auth in cfg.private_authorizations:
             if isinstance(auth, str):
-                private_auth_ids.append(auth)
+                private_auth_refs.append(auth)
             else:
-                private_auth_ids.append(self._process_cfg_item(auth))
+                private_auth_refs.append(self._process_cfg_item(auth))
 
-        cfg.public_data = public_data_ids
-        cfg.private_data = private_data_ids
-        cfg.public_authorizations = public_auth_ids
-        cfg.private_authorizations = private_auth_ids
+        cfg.public_data = public_data_refs
+        cfg.private_data = private_data_refs
+        cfg.public_authorizations = public_auth_refs
+        cfg.private_authorizations = private_auth_refs
 
-        auth_provider_ids = []
+        auth_provider_refs = []
         for provider in cfg.authentication_providers:
             if isinstance(provider, str):
-                auth_provider_ids.append(provider)
+                auth_provider_refs.append(provider)
             else:
-                auth_provider_ids.append(self._process_cfg_item(provider))
-        cfg.authentication_providers = auth_provider_ids
+                auth_provider_refs.append(self._process_cfg_item(provider))
+        cfg.authentication_providers = auth_provider_refs
 
-        access_scheme_ids = []
+        access_scheme_refs = []
         for scheme in cfg.access_schemes:
             if isinstance(scheme, str):
-                access_scheme_ids.append(scheme)
+                access_scheme_refs.append(scheme)
             else:
-                access_scheme_ids.append(self._process_cfg_item(scheme))
-        cfg.access_schemes = access_scheme_ids
+                access_scheme_refs.append(self._process_cfg_item(scheme))
+        cfg.access_schemes = access_scheme_refs
 
-        return cfg.id
+        return cfg.ref
 
     def _process_AuthorizationConfig(self, cfg: AuthorizationConfig) -> str:
-        self._refs[cfg.id] = cfg
+        self._refs[cfg.ref] = cfg
         self._authorizations.append(cfg)
-        return cfg.id
+        return cfg.ref
 
     def _process_DataConfig(self, cfg: DataConfig) -> str:
-        self._refs[cfg.id] = cfg
+        self._refs[cfg.ref] = cfg
         self._data.append(cfg)
-        return cfg.id
+        return cfg.ref
 
     def _process_ExploitConfig(self, cfg: ExploitConfig) -> str:
-        self._refs[cfg.id] = cfg
+        self._refs[cfg.ref] = cfg
         self._exploits.append(cfg)
-        return cfg.id
+        return cfg.ref
 
     def _process_AuthenticationProviderConfig(self, cfg: AuthenticationProviderConfig) -> str:
-        self._refs[cfg.id] = cfg
+        self._refs[cfg.ref] = cfg
         self._authentication_providers.append(cfg)
-        return cfg.id
+        return cfg.ref
 
     def _process_AccessSchemeConfig(self, cfg: AccessSchemeConfig) -> str:
 
-        auth_provider_ids = []
+        auth_provider_refs = []
         for provider in cfg.authentication_providers:
             if isinstance(provider, str):
-                auth_provider_ids.append(provider)
+                auth_provider_refs.append(provider)
             else:
-                auth_provider_ids.append(self._process_cfg_item(provider))
-        cfg.authentication_providers = auth_provider_ids
+                auth_provider_refs.append(self._process_cfg_item(provider))
+        cfg.authentication_providers = auth_provider_refs
 
         if not isinstance(cfg.authorization_domain, str):
             cfg.authorization_domain = self._process_cfg_item(cfg.authorization_domain)
 
-        self._refs[cfg.id] = cfg
+        self._refs[cfg.ref] = cfg
         self._access_schemes.append(cfg)
-        return cfg.id
+        return cfg.ref
 
     def _process_AuthorizationDomainConfig(self, cfg: AuthorizationDomainConfig) -> str:
 
-        authorization_ids = []
+        authorization_refs = []
         for auth in cfg.authorizations:
             if isinstance(auth, str):
-                authorization_ids.append(auth)
+                authorization_refs.append(auth)
             else:
-                authorization_ids.append(self._process_cfg_item(auth))
-        cfg.authorizations = authorization_ids
+                authorization_refs.append(self._process_cfg_item(auth))
+        cfg.authorizations = authorization_refs
 
-        self._refs[cfg.id] = cfg
+        self._refs[cfg.ref] = cfg
         self._authorization_domains.append(cfg)
-        return cfg.id
+        return cfg.ref
 
     def _process_FederatedAuthorizationConfig(self, cfg: FederatedAuthorizationConfig):
 
         # TODO : Ask how this is meant to be handled
 
-        self._refs[cfg.id] = cfg
-        return cfg.id
+        self._refs[cfg.ref] = cfg
+        return cfg.ref
 
     def _process_RouteConfig(self, cfg: RouteConfig) -> str:
 
-        self._refs[cfg.id] = cfg
-        return cfg.id
+        self._refs[cfg.ref] = cfg
+        return cfg.ref
 
     def _process_LogConfig(self, cfg: LogConfig) -> str:
-        self._refs[cfg.id] = cfg
+        self._refs[cfg.ref] = cfg
         self._logs.append(cfg)
-        return cfg.id
+        return cfg.ref
 
     def _process_InfrastructureConfig(self, cfg: InfrastructureConfig) -> str:
-        self._refs[cfg.id] = cfg
+        self._refs[cfg.ref] = cfg
         for log in cfg.log:
             self._process_LogConfig(log)
-        return cfg.id
+        return cfg.ref
 
     def _process_PhysicalAccessConfig(self, cfg: PhysicalAccessConfig) -> str:
-        self._refs[cfg.id] = cfg
+        self._refs[cfg.ref] = cfg
         self._physical_access_config.append(cfg)
-        return cfg.id
+        return cfg.ref
 
     def _process_PhysicalLocationConfig(self, cfg: PhysicalLocationConfig) -> str:
-        self._refs[cfg.id] = cfg
+        self._refs[cfg.ref] = cfg
         self._physical_location_config.append(cfg)
         for access in cfg.access:
             self._process_PhysicalAccessConfig(access)
-        return cfg.id
+        return cfg.ref
 
     def _process_PhysicalConnectionConfig(self, cfg: PhysicalConnectionConfig) -> str:
-        self._refs[cfg.id] = cfg
+        self._refs[cfg.ref] = cfg
         self._physical_connection_config.append(cfg)
-        return cfg.id
+        return cfg.ref
 
     def _process_default(self, cfg):
         raise ValueError("Unknown config type provided")
 
     def _process_cfg_item(self, cfg: Any) -> str:
-        if hasattr(cfg, "id") and cfg.id in self._refs:
-            if self._refs[cfg.id] != cfg:
-                raise ValueError("Duplicate identifier for different configuration objects found: {}".format(cfg.id))
+        if hasattr(cfg, "ref") and cfg.ref in self._refs:
+            if self._refs[cfg.ref] != cfg:
+                raise ValueError("Duplicate identifier for different configuration objects found: {}".format(cfg.ref))
             else:
-                return cfg.id
+                return cfg.ref
         else:
             fn: Callable[[ConfigItem], str] = getattr(self, "_process_" + type(cfg).__name__, self._process_default)
             return fn(cfg)
@@ -365,19 +365,19 @@ class Configurator:
         for connection_cfg in self._connections:
             if connection_cfg.dst_port == -1 or connection_cfg.src_port == -1:
                 if connection_cfg.dst_port == -1:
-                    target_id = connection_cfg.dst_id
-                    source_id = connection_cfg.src_id
+                    target_ref = connection_cfg.dst_ref
+                    source_ref = connection_cfg.src_ref
                     source_port = connection_cfg.src_port
                 else:
-                    target_id = connection_cfg.src_id
-                    source_id = connection_cfg.dst_id
+                    target_ref = connection_cfg.src_ref
+                    source_ref = connection_cfg.dst_ref
                     source_port = connection_cfg.dst_port
 
-                target_config = self._refs[target_id]
-                source_config = self._refs[source_id]
+                target_config = self._refs[target_ref]
+                source_config = self._refs[source_ref]
 
                 new_interface_index = len(target_config.interfaces)
-                new_interface_id = str(uuid.uuid4())
+                new_interface_ref = str(uuid4())
 
                 source_net = self._refs[source_config.interfaces[source_port]].net
 
@@ -387,17 +387,17 @@ class Configurator:
 
                     # The following is not pretty and not optimal, however...
                     # Get all nodes connected to the same router we are trying to connect to now
-                    connected_ids = []
+                    connected_refs = []
                     for conn in self._connections:
-                        if source_config.id == conn.src_id:
-                            connected_ids.append(conn.dst_id)
-                        elif source_config.id == conn.dst_id:
-                            connected_ids.append(conn.src_id)
+                        if source_config.ref == conn.src_ref:
+                            connected_refs.append(conn.dst_ref)
+                        elif source_config.ref == conn.dst_ref:
+                            connected_refs.append(conn.src_ref)
 
                     for node_cfg in self._nodes:
-                        if node_cfg.id in connected_ids:
-                            for iface_id in node_cfg.interfaces:
-                                iface_cfg = self._refs[iface_id]
+                        if node_cfg.ref in connected_refs:
+                            for iface_ref in node_cfg.interfaces:
+                                iface_cfg = self._refs[iface_ref]
                                 allocated_ips.append(iface_cfg.ip)
 
                     # Add router addresses
@@ -414,10 +414,10 @@ class Configurator:
                         raise RuntimeError(f"Cannot find a free IP for target in a connection {connection_cfg}.")
 
                     iface = InterfaceConfig(
-                        ip = new_ip,
-                        net = source_net,
-                        index = new_interface_index,
-                        id = new_interface_id
+                        ip=new_ip,
+                        net=source_net,
+                        index=new_interface_index,
+                        ref=new_interface_ref
                     )
 
                 # The port is on the router, just copy the configuration from the leaf node
@@ -427,20 +427,67 @@ class Configurator:
                         ip=netaddr.IPAddress(source_net.first + 1),
                         net=source_net,
                         index=new_interface_index,
-                        id=new_interface_id
+                        ref=new_interface_ref
                     )
 
                 else:
                     raise RuntimeError(f"Attempting to connect something else than a node or router: {target_config}.")
 
                 self._interfaces.append(iface)
-                self._refs[new_interface_id] = iface
-                target_config.interfaces.append(new_interface_id)
+                self._refs[new_interface_ref] = iface
+                target_config.interfaces.append(new_interface_ref)
 
                 if connection_cfg.dst_port == -1:
                     connection_cfg.dst_port = new_interface_index
                 else:
                     connection_cfg.src_port = new_interface_index
+
+        # Construct names and IDs
+        processed_ref_set = set()
+
+        # TODO: I am ignoring the whole network configuration, because nobody is using it. Should it be removed?
+        def name_config_item(parent_id: str, item: ConfigItem):
+            # Some configuration items are shared in multiple places, but for each ref there should be only one object
+            # with distinct id. So if we hit an already used ref, we assign it an existing id.
+            if item.ref in processed_ref_set:
+                other = self._refs[item.ref]
+                item.name = other.name
+                item.id = other.id
+            else:
+                use_counter = False
+                if not item.name:
+                    # This is for the case when someone directly sets a name to empty string
+                    if item.id:
+                        item.name = item.id
+                    else:
+                        item.name = str(uuid4())
+                elif item.name.startswith("__"):
+                    item.name = item.name.removeprefix("__")
+                    use_counter = True
+
+                if not item.id:
+                    partial_id = parent_id + "." + item.name if parent_id else item.name
+
+                    if use_counter:
+                        item_number = str(Counter().get(partial_id))
+                        item.name = item.name + "_" + item_number
+                        item.id = partial_id + "_" + item_number
+                    else:
+                        item.id = partial_id
+
+                processed_ref_set.add(item.ref)
+
+            for key, value in item.__dict__.items():
+                if isinstance(value, ConfigItem):
+                    name_config_item(item.id, value)
+                elif isinstance(value, list):
+                    for x in value:
+                        if isinstance(x, ConfigItem):
+                            name_config_item(item.id, x)
+
+        config_tree = self.get_configuration()
+        for item in config_tree:
+            name_config_item("", item)
 
         return self
 
@@ -552,7 +599,7 @@ class Configurator:
     def _resolve_config_item(self, item: ConfigItem) -> ConfigItem:
         replaced = {}
         for key, value in item.__dict__.items():
-            if isinstance(value, str) and not key.endswith("id") and value in self._refs:
+            if isinstance(value, str) and not key.endswith("ref") and value in self._refs:
                 replaced[key] = self._resolve_config_item(self._refs[value])
             if isinstance(value, list):
                 tmp = []

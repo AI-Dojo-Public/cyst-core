@@ -245,26 +245,24 @@ target = NodeConfig(
     active_services=[],
     passive_services=[
         PassiveServiceConfig(
-            type="bash",
+            name="bash",
             owner="root",
             version="8.1.0",
             access_level=AccessLevel.LIMITED,
             local=True,
-            id="bash_service"
         ),
         PassiveServiceConfig(
-            type="lighttpd",
+            name="lighttpd",
             owner="www",
             version="1.4.62",
             access_level=AccessLevel.LIMITED,
             local=False,
-            id="web_server"
         )
     ],
     shell="bash",
     traffic_processors=[],
     interfaces=[],
-    id="target"
+    name="target"
 )
 
 attacker = NodeConfig(
@@ -274,14 +272,13 @@ attacker = NodeConfig(
             name="attacker",
             owner="attacker",
             access_level=AccessLevel.LIMITED,
-            id="attacker_service"
         )
     ],
     passive_services=[],
     interfaces=[],
     shell="",
     traffic_processors=[],
-    id="attacker_node"
+    name="attacker_node"
 )
 
 router = RouterConfig(
@@ -315,7 +312,7 @@ router = RouterConfig(
 exploit1 = ExploitConfig(
     services=[
         VulnerableServiceConfig(
-            name="lighttpd",
+            service="lighttpd",
             min_version="1.4.62",
             max_version="1.4.62"
         )
@@ -326,16 +323,16 @@ exploit1 = ExploitConfig(
 )
 
 connection1 = ConnectionConfig(
-    src_id="target",
+    src_ref=target.ref,
     src_port=-1,
-    dst_id="router",
+    dst_ref=router.ref,
     dst_port=0
 )
 
 connection2 = ConnectionConfig(
-    src_id="attacker_node",
+    src_ref=attacker.ref,
     src_port=-1,
-    dst_id="router",
+    dst_ref=router.ref,
     dst_port=1
 )
 

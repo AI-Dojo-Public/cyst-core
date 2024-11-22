@@ -20,7 +20,7 @@ node_1 = NodeConfig(
     traffic_processors=[],
     shell="",
     interfaces=[InterfaceConfig(IPAddress("192.168.0.2"), IPNetwork("192.168.0.2/24"))],
-    id=node_1_id)
+    name=node_1_id)
 
 node_2_id = "node_2"
 node_2 = NodeConfig(
@@ -29,7 +29,7 @@ node_2 = NodeConfig(
     traffic_processors=[],
     shell="",
     interfaces=[InterfaceConfig(IPAddress("192.168.0.3"), IPNetwork("192.168.0.3/24"))],
-    id=node_2_id)
+    name=node_2_id)
 
 router_id = "router"
 router = RouterConfig(
@@ -42,12 +42,12 @@ router = RouterConfig(
                         IPNetwork("192.168.0.0/24"),
                         index=1),
       ],
-    id=router_id
+    name=router_id
 )
 
 connections_cfg = [
-    ConnectionConfig(node_1_id, 0, router_id, 0),
-    ConnectionConfig(node_2_id, 0, router_id, 1),
+    ConnectionConfig(node_1, 0, router, 0),
+    ConnectionConfig(node_2, 0, router, 1),
 ]
 
 user_1_id = "user_1"

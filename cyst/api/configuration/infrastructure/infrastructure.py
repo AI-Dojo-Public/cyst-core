@@ -18,4 +18,6 @@ class InfrastructureConfig(ConfigItem):
     :type log: Optional[List[LogConfig]]
     """
     log: Optional[List[LogConfig]] = None
-    id: str = field(default_factory=lambda: str(uuid4()))
+    ref: str = field(default_factory=lambda: str(uuid4()))
+    name: str = "__infrastructure"
+    id: str = ""

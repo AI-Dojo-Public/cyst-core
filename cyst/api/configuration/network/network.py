@@ -23,10 +23,9 @@ class NetworkConfig(ConfigItem):
 
     :param connections: A collection of connections that constitute the edges of network topology.
     :type connections: List[Union[ConnectionConfig, str]]
-
-    :param id: A unique identifier of the network configuration.
-    :type id: str
     """
     nodes: List[Union[NodeConfig, RouterConfig, str]]
     connections: List[Union[ConnectionConfig, str]]
-    id: str = field(default_factory=lambda: str(uuid4()))
+    ref: str = field(default_factory=lambda: str(uuid4()))
+    name: str = "__network"
+    id: str = ""

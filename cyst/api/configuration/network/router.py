@@ -17,7 +17,7 @@ class RouterConfig(ConfigItem):
     Router models an active network device that forwards messages over the network according to rules. At the conceptual
     level it conflates the concept of switch and router to one device.
 
-    Currently a router is implemented as a special type of node, with distinct code paths, in the future it is expected
+    Currently, a router is implemented as a special type of node, with distinct code paths, in the future it is expected
     that a router would be implemented as an active service on a node. This will enable better logical separation
     between its routing, firewalling, and IDS/IPS activities. It will also be more fit for SDN modelling.
 
@@ -35,11 +35,11 @@ class RouterConfig(ConfigItem):
 
     :param firewall: A configuration of firewall rules.
     :type firewall: Optional[FirewallConfig]
-
-    :param id: A unique identifier of the router configuration.
-    :type id: str
     """
     interfaces: List[Union[InterfaceConfig, str]]
     traffic_processors: List[Union[FirewallConfig, ActiveServiceConfig, str]]
     routing_table: List[RouteConfig] = field(default_factory=list)  # TODO: check if such a default is ok
-    id: str = field(default_factory=lambda: str(uuid4()))
+    ref: str = field(default_factory=lambda: str(uuid4()))
+    name: str = "__router"
+    id: str = ""
+

@@ -25,13 +25,12 @@ class AuthorizationConfig(ConfigItem):
 
     :param access_level: An access level of this particular authorization
     :type access_level: AccessLevel
-
-    :param id: A unique identifier of the authorization configuration.
-    :type id: str
     """
     identity: str
     access_level: AccessLevel
-    id: str = field(default_factory=lambda: str(uuid4()))
+    ref: str = field(default_factory=lambda: str(uuid4()))
+    name: str = "__authorization"
+    id: str = ""
 
 
 @serialize
@@ -54,15 +53,14 @@ class FederatedAuthorizationConfig(ConfigItem):
 
     :param services: A list of service ids this authorization applies to.
     :type services: List[str]
-
-    :param id: A unique identifier of the authorization configuration.
-    :type id: str
     """
     identity: str
     access_level: AccessLevel
     nodes: List[str]
     services: List[str]
-    id: str = field(default_factory=lambda: str(uuid4()))
+    ref: str = field(default_factory=lambda: str(uuid4()))
+    name: str = "__authorization"
+    id: str = ""
 
 
 class AuthorizationDomainType(IntEnum):
@@ -87,13 +85,12 @@ class AuthorizationDomainConfig(ConfigItem):
 
     :param authorizations: A list of authorization configurations
     :type authorizations: List[Union[AuthorizationConfig, FederatedAuthorizationConfig]]
-
-    :param id: A unique identifier of the authorization domain configuration.
-    :type id: str
     """
     type: AuthorizationDomainType
     authorizations: List[Union[AuthorizationConfig, FederatedAuthorizationConfig]]
-    id: str = field(default_factory=lambda: str(uuid4()))
+    ref: str = field(default_factory=lambda: str(uuid4()))
+    name: str = "__authorization_domain"
+    id: str = ""
 
 
 @serialize
@@ -113,9 +110,6 @@ class AuthenticationProviderConfig(ConfigItem):
     :param token_security: Security mechanism applied to stored tokens.
     :type token_security: AuthenticationTokenSecurity
 
-    :param id: A unique identifier of the authentication provider configuration.
-    :type id: str
-
     :param ip: An optional IP address, which is intended for remote or federated providers. It represents an IP address
         where this provider can be accessed.
     :type ip: Optional[IPAddress]
@@ -123,39 +117,13 @@ class AuthenticationProviderConfig(ConfigItem):
     provider_type: AuthenticationProviderType
     token_type: AuthenticationTokenType
     token_security: AuthenticationTokenSecurity
-    id: str = field(default_factory=lambda: str(uuid4()))
     ip: Optional[IPAddress] = field(default=None, metadata={
         'serde_serializer': lambda x: {"cls_type": typename(type(x)), "value": str(x)},
     })
     timeout: int = 0
-
-    # Copy stays the same, but changes the id
-    def __call__(self, id: Optional[str] = None) -> 'AuthenticationProviderConfig':
-        """ A copy constructor for the authentication provider configuration.
-
-        Authentication provider configurations can be used as templates to reduce repetitions in configuration
-        declarations. The first defined instance of a configuration serves as a template and the others can be used
-        by creating named copies.
-
-        Example:
-
-        .. code-block:: python
-
-            local_password_auth = AuthenticationProviderConfig(
-                provider_type=AuthenticationProviderType.LOCAL,
-                token_type=AuthenticationTokenType.PASSWORD,
-                token_security=AuthenticationTokenSecurity.SEALED,
-                timeout=30
-            )
-
-            ssh_provider = local_password_auth("openssh_local_pwd_auth")
-        """
-        new_one = copy(self)
-        if id:
-            new_one.id = id
-        else:
-            new_one.id = str(uuid4())
-        return new_one
+    ref: str = field(default_factory=lambda: str(uuid4()))
+    name: str = "__authentication_provider"
+    id: str = ""
 
 
 @serialize
@@ -200,10 +168,9 @@ class AccessSchemeConfig(ConfigItem):
 
     :param authorization_domain: A domain from which authorization tokens are created after successful authentication.
     :type authorization_domain: Union[AuthorizationDomainConfig, str]
-
-    :param id: A unique identifier of the access scheme configuration.
-    :type id: str
     """
     authentication_providers: List[Union[AuthenticationProviderConfig, str]]
     authorization_domain: Union[AuthorizationDomainConfig, str]
-    id: str = field(default_factory=lambda: str(uuid4()))
+    ref: str = field(default_factory=lambda: str(uuid4()))
+    name: str = "__access_scheme"
+    id: str = ""

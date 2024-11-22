@@ -1,3 +1,4 @@
+import dataclasses
 from dataclasses import dataclass, field
 from typing import List, Union, Optional
 from uuid import uuid4
@@ -33,13 +34,12 @@ class NodeConfig(ConfigItem):
 
     :param interfaces: A list of interfaces on the node.
     :type interfaces: List[Union[InterfaceConfig, str]]
-
-    :param id: A unique identifier of the node configuration.
-    :type id: str
     """
     active_services: List[Union[ActiveServiceConfig, str]]
     passive_services: List[Union[PassiveServiceConfig, str]]
     traffic_processors: List[Union[FirewallConfig, ActiveServiceConfig, str]]
     shell: str
     interfaces: List[Union[InterfaceConfig, str]]
-    id: str = field(default_factory=lambda: str(uuid4()))
+    ref: str = field(default_factory=lambda: str(uuid4()))
+    name: str = "__node"
+    id: str = ""
