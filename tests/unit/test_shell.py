@@ -30,11 +30,10 @@ FAILURE = Status(StatusOrigin.SERVICE, StatusValue.FAILURE)
 target = NodeConfig(
     active_services=[
         ActiveServiceConfig(
-            "forward_shell",
-            "forward_shell",
-            "target",
-            AccessLevel.LIMITED,
-            id="forward_shell_service",
+            type="forward_shell",
+            name="forward_shell",
+            owner="target",
+            access_level=AccessLevel.LIMITED,
             configuration=
             {  # to get meaningful response on invalid requests
                 "ignore_requests": False,
@@ -44,20 +43,19 @@ target = NodeConfig(
     traffic_processors=[],
     shell="",
     interfaces=[InterfaceConfig(IPAddress(TARGET), IPNetwork("192.168.0.2/24"))],
-    id="target_node")
+    name="target_node")
 
 attacker = NodeConfig(active_services=[
-    ActiveServiceConfig("scripted_actor",
-                        "scripted_attacker",
-                        "attacker",
-                        AccessLevel.LIMITED,
-                        id="attacker_service")
+    ActiveServiceConfig(type="scripted_actor",
+                        name="scripted_attacker",
+                        owner="attacker",
+                        access_level=AccessLevel.LIMITED)
 ],
                       passive_services=[],
                       traffic_processors=[],
                       shell="",
                       interfaces=[InterfaceConfig(IPAddress(ATTACKER), IPNetwork("192.168.0.3/24"))],
-                      id="attacker_node")
+                      name="attacker_node")
 
 router = RouterConfig(
     traffic_processors=[
@@ -80,12 +78,12 @@ router = RouterConfig(
                         IPNetwork("192.168.0.0/24"),
                         index=1),
       ],
-    id="router"
+    name="router"
 )
 
 connections = [
-    ConnectionConfig("target_node", 0, "router", 0),
-    ConnectionConfig("attacker_node", 0, "router", 1),
+    ConnectionConfig(target, 0, router, 0),
+    ConnectionConfig(attacker, 0, router, 1),
 ]
 
 

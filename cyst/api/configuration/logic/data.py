@@ -18,10 +18,9 @@ class DataConfig(ConfigItem):
 
     :param description: A textual description of the data. Currently the only mechanism to distinguish different data.
     :type description: str
-
-    :param id: A unique identifier of the data configuration.
-    :type id: str
     """
     owner: str
     description: str
-    id: str = field(default_factory=lambda: str(uuid4()))
+    ref: str = field(default_factory=lambda: str(uuid4()))
+    name: str = "__data"
+    id: str = ""

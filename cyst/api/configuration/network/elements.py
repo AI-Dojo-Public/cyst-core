@@ -1,7 +1,7 @@
 from dataclasses import dataclass, field
 
 from netaddr import IPAddress, IPNetwork
-from typing import Optional
+from typing import Union
 from uuid import uuid4
 from serde import serialize
 from serde.compat import typename
@@ -28,9 +28,6 @@ class PortConfig(ConfigItem):
     :param index: The index of the port. The index is used for unique addressing of a port within a node, especially
         for correctly setting routing tables. If left at the default value, it is assigned the next free index.
     :type index: int
-
-    :param id: A unique identifier of the port configuration.
-    :type id: str
     """
     ip: IPAddress = field(metadata={
         'serde_serializer': lambda x: {"cls_type": typename(type(x)), "value": str(x)},
@@ -39,7 +36,9 @@ class PortConfig(ConfigItem):
         'serde_serializer': lambda x: {"cls_type": typename(type(x)), "value": str(x)},
     })
     index: int = field(default=-1)
-    id: str = field(default_factory=lambda: str(uuid4()))
+    ref: str = field(default_factory=lambda: str(uuid4()))
+    name: str = "__port"
+    id: str = ""
 
 
 @serialize
@@ -59,9 +58,6 @@ class InterfaceConfig(ConfigItem):
     :param index: The index of the interface. The index is used for unique addressing of an interface within a node. If
         left at the default value, it is assigned the next free index.
     :type index: int
-
-    :param id: A unique identifier of the interface configuration.
-    :type id: str
     """
     ip: IPAddress = field(metadata={
         'serde_serializer': lambda x: {"cls_type": typename(type(x)), "value": str(x)}
@@ -70,7 +66,9 @@ class InterfaceConfig(ConfigItem):
         'serde_serializer': lambda x: {"cls_type": typename(type(x)), "value": str(x)}
     })
     index: int = field(default=-1)
-    id: str = field(default_factory=lambda: str(uuid4()))
+    ref: str = field(default_factory=lambda: str(uuid4()))
+    name: str = "__interface"
+    id: str = ""
 
 
 @serialize
@@ -83,26 +81,35 @@ class ConnectionConfig(ConfigItem):
     in the code now, it is not propagated into the configuration a so, each connection has a unit speed (in terms of
     the simulation time) with zero drops.
 
-    :param src_id: The id of a source node.
-    :type src_id: str
+    :param src_ref: Connection source configuration or its ref.
+    :type src_ref: ConfigItem | str
 
     :param src_port: The index of a source port/interface.
     :type src_port: int
 
-    :param dst_id: The id of a destination node.
-    :type dst_id: str
+    :param dst_ref: Connection destination configuration or its ref.
+    :type dst_ref: ConfigItem | str
 
     :param dst_port: The index of a destination port/interface.
     :type dst_port: int
-
-    :param id: A unique identifier of the connection configuration.
-    :type id: str
     """
-    src_id: str
+    src_ref: Union[ConfigItem, str]
     src_port: int
-    dst_id: str
+    dst_ref: Union[ConfigItem, str]
     dst_port: int
-    id: str = field(default_factory=lambda: str(uuid4()))
+    ref: str = field(default_factory=lambda: str(uuid4()))
+    name: str = "__connection"
+    id: str = ""
+
+    def __post_init__(self):
+        if isinstance(self.src_ref, ConfigItem):
+            self.src_ref = self.src_ref.ref
+
+        if isinstance(self.dst_ref, ConfigItem):
+            self.dst_ref = self.dst_ref.ref
+
+        if not self.src_ref or not self.dst_ref:
+            raise RuntimeError(f"Connection configuration can't have an empty source or destination. Source: {self.src_ref}, Destination: {self.dst_ref}.")
 
 
 @serialize
@@ -123,11 +130,10 @@ class RouteConfig(ConfigItem):
 
     :param metric: A route metric used for deciding which route to use in case of network overlap.
     :type metric: int
-
-    :param id: A unique identifier of the route configuration.
-    :type id: str
     """
     network: IPNetwork
     port: int
     metric: int = field(default=100)
-    id: str = field(default_factory=lambda: str(uuid4()))
+    ref: str = field(default_factory=lambda: str(uuid4()))
+    name: str = "__route"
+    id: str = ""

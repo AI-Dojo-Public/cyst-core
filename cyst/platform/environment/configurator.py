@@ -137,7 +137,7 @@ class Configurator:
         if type(item) in mapping:
             mapping[type(item)].append(item)  # For once, the type inspection is helpless here
 
-        self._refs[item.id] = item
+        self._refs[item.ref] = item
 
     # ------------------------------------------------------------------------------------------------------------------
     # Gather all configuration items
@@ -178,7 +178,8 @@ class Configurator:
 
             # Go through all providers and if they do not exist instantiate them
             for provider_conf in scheme.authentication_providers:
-                #provider_conf: AuthenticationProviderConfig = self._refs[provider_id]
+                if isinstance(provider_conf, str):
+                    provider_conf: AuthenticationProviderConfig = self._refs[provider_conf]
 
                 if provider_conf.id not in self._obj_refs:
                     provider = self._platform.configuration.access.create_authentication_provider(
@@ -195,7 +196,7 @@ class Configurator:
                 self._platform.configuration.access.add_provider_to_scheme(provider, scheme_instance)
 
             for auth in authorization_domain.authorizations:
-                auth = self._refs[auth.id]
+                auth = self._refs[auth.ref]
                 if isinstance(auth, AuthorizationConfig) or isinstance(auth, FederatedAuthorizationConfig):
                     identity = auth.identity
 
@@ -242,7 +243,7 @@ class Configurator:
         # 2) Passive Services
         passive_service_obj = {}
         for service in self._passive_services:
-            s = self._platform.configuration.service.create_passive_service(service.type, service.owner, service.version,
+            s = self._platform.configuration.service.create_passive_service(service.name, service.owner, service.version,
                                                                        service.local, service.access_level, service.id)
             # This was pre-split managed in _run method of the environment, but as PassiveServiceImpl is now
             # platform-specific, there is no clear way to set it there.
@@ -293,7 +294,7 @@ class Configurator:
                 s = self._platform.configuration.service.create_active_service(service_cfg.type, service_cfg.owner,
                                                                                service_cfg.name, n, service_cfg.access_level,
                                                                                service_cfg.configuration,
-                                                                               node.id + "." + service_cfg.name)  # The ID creation is clunky at best
+                                                                               service_cfg.id)
                 self._platform.configuration.node.add_service(n, ServiceImpl(service_cfg.type, s.active_service, service_cfg.name, service_cfg.owner, service_cfg.access_level, service_cfg.id))
             
             for processor_cfg in node.traffic_processors:
@@ -301,14 +302,14 @@ class Configurator:
                     s = self._platform.configuration.service.create_active_service(processor_cfg.type, processor_cfg.owner,
                                                                                    processor_cfg.name, n, processor_cfg.access_level,
                                                                                    processor_cfg.configuration,
-                                                                                   node.id + "." + processor_cfg.name)
+                                                                                   processor_cfg.id)
                 else:
                     # TODO: Owner/name/access_level not in the config. It should probably be there. Otherwise we have
                     #       to hardcode.
                     s = self._platform.configuration.service.create_active_service("firewall", "root",
                                                                                    "firewall", n, AccessLevel.ELEVATED,
                                                                                    None,
-                                                                                   node.id + ".__firewall")  # Ugh...
+                                                                                   node.id + ".firewall_0")  # TODO: This is definitely wrong in the new naming scheme
 
                     # This is not very pretty. But coding around it would require unnecessary expansion of the API.
                     if isinstance(s, FirewallImpl):
@@ -377,13 +378,13 @@ class Configurator:
                 if isinstance(processor_cfg, ActiveServiceConfig):
                     s = self._platform.configuration.service.create_active_service(processor_cfg.type, processor_cfg.owner,
                                                                               processor_cfg.name, r, processor_cfg.access_level,
-                                                                              processor_cfg.configuration)
+                                                                              processor_cfg.configuration)  # TODO: Default ID unknown
                 else:
                     # TODO: Owner/name/access_level not in the config. It should probably be there. Otherwise we have
                     #       to hardcode.
                     s = self._platform.configuration.service.create_active_service("firewall", "root",
                                                                               "firewall", r, AccessLevel.ELEVATED,
-                                                                              {"default_policy": processor_cfg.default_policy})
+                                                                              {"default_policy": processor_cfg.default_policy}) # TODO: Default ID not known
 
                     # This is not very pretty. But coding around it would require unnecessary expansion of the API.
                     if isinstance(s.active_service, FirewallImpl):
@@ -400,14 +401,14 @@ class Configurator:
 
         # 5) Connections
         for conn_config in self._connections:
-            src: NodeImpl = self._obj_refs[conn_config.src_id]
-            dst: NodeImpl = self._obj_refs[conn_config.dst_id]
+            src: NodeImpl = self._obj_refs[self._refs[conn_config.src_ref].id]
+            dst: NodeImpl = self._obj_refs[self._refs[conn_config.dst_ref].id]
 
             conn = self._platform.configuration.network.add_connection(src, dst, conn_config.src_port, conn_config.dst_port)
             conn = ConnectionImpl.cast_from(conn)
 
             # Propagate new interfaces back into the configuration
-            src_config = self._refs[conn_config.src_id]
+            src_config = self._refs[conn_config.src_ref]
             src_port_id = conn.hop.src.port
             src_iface = src.interfaces[src_port_id]
 
@@ -418,17 +419,17 @@ class Configurator:
                     iface_cfg = InterfaceConfig(ip=src_iface.ip, net=src_iface.net, index=src_port_id)
 
                 src_config.interfaces.append(iface_cfg)
-                self._refs[iface_cfg.id] = iface_cfg
+                self._refs[iface_cfg.ref] = iface_cfg
                 conn_config.src_port = src_port_id
 
             # Fix interfaces without explicit index (i.e., taken from a list)
             # At this point, ..._config contains only references to other objects, so the complaint about type mismatch
             # is not valid
-            self._refs[src_config.interfaces[src_port_id].id].index = src_port_id
+            self._refs[src_config.interfaces[src_port_id].ref].index = src_port_id
 
             dst_port_id = conn.hop.dst.port
             dst_iface = dst.interfaces[dst_port_id]
-            dst_config = self._refs[conn_config.dst_id]
+            dst_config = self._refs[conn_config.dst_ref]
 
             if conn_config.dst_port == -1:
                 if isinstance(dst_config, RouterConfig):
@@ -436,8 +437,8 @@ class Configurator:
                 else:
                     iface_cfg = InterfaceConfig(ip=dst_iface.ip, net=dst_iface.net, index=dst_port_id)
 
-                dst_config.interfaces.append(iface_cfg.id)
-                self._refs[iface_cfg.id] = iface_cfg
+                dst_config.interfaces.append(iface_cfg.ref)
+                self._refs[iface_cfg.ref] = iface_cfg
                 conn_config.dst_port = dst_port_id
 
             # Fix interfaces without explicit index (i.e., taken from a list)
@@ -448,4 +449,4 @@ class Configurator:
             if isinstance(dst_config.interfaces[dst_port_id], str):
                 self._refs[dst_config.interfaces[dst_port_id]].index = dst_port_id
             else:
-                self._refs[dst_config.interfaces[dst_port_id].id].index = dst_port_id
+                self._refs[dst_config.interfaces[dst_port_id].ref].index = dst_port_id

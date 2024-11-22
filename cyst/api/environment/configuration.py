@@ -1379,7 +1379,7 @@ class PhysicalConfiguration(ABC):
         Adds physical access to a given location. Accesses may overlap, asi it does not matter, because they all
         represent an ALLOW rule.
 
-        :param location_id: The id of a location where to add the access. Throws if nonexistent.
+        :param location_id: The ID of a location where to add the access. Throws if nonexistent.
         :type location_id: str
 
         :param access: A physical access handle.
@@ -1393,7 +1393,7 @@ class PhysicalConfiguration(ABC):
         """
         Lists all accesses that are in effect at a given location.
 
-        :param location_id: The id of a location to list accesses from. Throws if nonexistent.
+        :param location_id: The ID of a location to list accesses from. Throws if nonexistent.
         :type location_id: str
 
         :return: Physical access handles for the given location.
@@ -1405,7 +1405,7 @@ class PhysicalConfiguration(ABC):
         """
         Removes physical access from the given location.
 
-        :param location_id: The id of a location to remove accesses from. Throws if nonexistent.
+        :param location_id: The ID of a location to remove accesses from. Throws if nonexistent.
         :type location_id: str
 
         :param access: A physical access handle.
@@ -1471,7 +1471,7 @@ class PhysicalConfiguration(ABC):
         asset is already present elsewhere. In such case the asset is removed from the other location and placed in this
         one. If the asset is already assigned to the given location, nothing happens.
 
-        :param location_id: An id of a location where to place the asset. Throws if nonexistent.
+        :param location_id: An ID of a location where to place the asset. Throws if nonexistent.
         :type location_id: str
 
         :param asset: An ID of the asset to add to a location.
@@ -1487,7 +1487,7 @@ class PhysicalConfiguration(ABC):
         This is a deus ex machina function. The asset is removed from the location instantaneously and is placed in a
         limbo.
 
-        :param location_id: An id of a location from which to remove the asset. Throws if nonexistent.
+        :param location_id: An ID of a location from which to remove the asset. Throws if nonexistent.
         :type location_id: str
 
         :param asset: An ID of the asset to remove from a location.
@@ -1525,7 +1525,7 @@ class PhysicalConfiguration(ABC):
         """
         Get the list of assets present at the specified location.
 
-        :param location_id: An id of a location from which to get the assets. Throws if nonexistent.
+        :param location_id: A name of a location from which to get the assets. Throws if nonexistent.
         :type location_id: str
 
         :return: A list of assets.

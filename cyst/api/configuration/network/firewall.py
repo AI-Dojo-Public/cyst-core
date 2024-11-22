@@ -22,14 +22,13 @@ class FirewallChainConfig(ConfigItem):
 
     :param rules: A set of rules governing what happens with a network traffic.
     :type rules: List[FirewallRule]
-
-    :param id: A unique identifier of the firewall chain configuration.
-    :type id: str
     """
     type: FirewallChainType
     policy: FirewallPolicy
     rules: List[FirewallRule]
-    id: str = field(default_factory=lambda: str(uuid4()))
+    ref: str = field(default_factory=lambda: str(uuid4()))
+    name: str = "__firewall_chain"
+    id: str = ""
 
 
 @serialize
@@ -45,10 +44,9 @@ class FirewallConfig(ConfigItem):
 
     :param chains: A list of firewall chain configurations.
     :type chains: List[FirewallChainConfig]
-
-    :param id: A unique identifier of the firewall configuration.
-    :type id: str
     """
     default_policy: FirewallPolicy
     chains: List[FirewallChainConfig]
-    id: str = field(default_factory=lambda: str(uuid4()))
+    ref: str = field(default_factory=lambda: str(uuid4()))
+    name: str = "__firewall"
+    id: str = ""

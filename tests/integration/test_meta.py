@@ -29,14 +29,14 @@ local_password_auth = AuthenticationProviderConfig(
 )
 
 ssh_service = PassiveServiceConfig(
-    type="openssh",
+    name="openssh",
     owner="ssh",
     version="8.1.0",
     local=False,
     access_level=AccessLevel.ELEVATED,
-    authentication_providers=[local_password_auth("openssh_local_auth_id")],
+    authentication_providers=[local_password_auth("openssh_local_auth")],
     access_schemes=[AccessSchemeConfig(
-        authentication_providers=["openssh_local_auth_id"],
+        authentication_providers=["openssh_local_auth"],
         authorization_domain=AuthorizationDomainConfig(
             type=AuthorizationDomainType.LOCAL,
             authorizations=[
@@ -50,18 +50,17 @@ ssh_service = PassiveServiceConfig(
     ]
 )
 
-target1 = NodeConfig(id="target1", active_services=[], passive_services=[ssh_service],
+target1 = NodeConfig(name="target1", active_services=[], passive_services=[ssh_service],
                      traffic_processors=[],
                      shell="bash", interfaces=[InterfaceConfig(IPAddress("192.168.0.3"), IPNetwork("192.168.0.1/24"))])
 
 attacker1 = NodeConfig(
     active_services=[
         ActiveServiceConfig(
-            "scripted_actor",
-            "scripted_attacker",
-            "attacker",
-            AccessLevel.LIMITED,
-            id="attacker_service"
+            type="scripted_actor",
+            name="scripted_attacker",
+            owner="attacker",
+            access_level=AccessLevel.LIMITED,
         )
     ],
     passive_services=[],
@@ -70,7 +69,7 @@ attacker1 = NodeConfig(
         InterfaceConfig(IPAddress("192.168.0.5"), IPNetwork("192.168.0.1/24"))
     ],
     shell="",
-    id="attacker_node"
+    name="attacker_node"
 )
 
 router1 = RouterConfig(
@@ -90,12 +89,11 @@ router1 = RouterConfig(
             ]
         )
     ],
-    id="router1"
 )
 
 connections = [
-    ConnectionConfig("attacker_node", 0, "router1", 0),
-    ConnectionConfig("target1", 0, "router1", 1),
+    ConnectionConfig(attacker1, 0, router1, 0),
+    ConnectionConfig(target1, 0, router1, 1),
 ]
 
 
@@ -123,8 +121,7 @@ class TestMETAIntegration(unittest.TestCase):
         cls._attacker: ScriptedActorControl = cls._env.configuration.service.get_service_interface(
             attacker_service.active_service, ScriptedActorControl)
 
-        provider = cls._env.configuration.general.get_object_by_id("openssh_local_auth_id",
-                                                                   AuthenticationProvider)
+        # provider = cls._env.configuration.general.get_object_by_id(openssh_local_auth.id, AuthenticationProvider)
         cls._ssh_token = AuthenticationTokenImpl(AuthenticationTokenType.PASSWORD,
                                                  AuthenticationTokenSecurity.OPEN, "root", True)._set_content(uuid.uuid4())
 

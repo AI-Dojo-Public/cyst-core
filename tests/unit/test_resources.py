@@ -59,14 +59,13 @@ attacker = NodeConfig(
             name="attacker",
             owner="attacker",
             access_level=AccessLevel.LIMITED,
-            id="attacker_service"
         )
     ],
     passive_services=[],
     interfaces=[],
     shell="",
     traffic_processors=[],
-    id="attacker_node"
+    name="attacker_node"
 )
 
 

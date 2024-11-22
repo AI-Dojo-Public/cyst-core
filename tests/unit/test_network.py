@@ -220,7 +220,7 @@ class TestSessions(unittest.TestCase):
 
         ssh_service = PassiveServiceConfig \
                 (
-                type="ssh",
+                name="ssh",
                 owner="ssh",
                 version="8.0.0",
                 local=False,
@@ -242,7 +242,7 @@ class TestSessions(unittest.TestCase):
             )
 
         bash = PassiveServiceConfig(
-            type="bash",
+            name="bash",
             owner="bash",
             version="5.0.0",
             local=True,
@@ -265,7 +265,7 @@ class TestSessions(unittest.TestCase):
             passive_services=[
                 PassiveServiceConfig \
                         (
-                        type="ssh",
+                        name="ssh",
                         owner="ssh",
                         version="8.0.0",
                         local=False,
@@ -287,7 +287,7 @@ class TestSessions(unittest.TestCase):
                     ),
 
                 PassiveServiceConfig(
-                    type="bash",
+                    name="bash",
                     owner="bash",
                     version="5.0.0",
                     local=True,
@@ -317,7 +317,7 @@ class TestSessions(unittest.TestCase):
             passive_services=[
                 PassiveServiceConfig \
                         (
-                        type="ssh",
+                        name="ssh",
                         owner="ssh",
                         version="8.0.0",
                         local=False,
@@ -339,7 +339,7 @@ class TestSessions(unittest.TestCase):
                     ),
 
                 PassiveServiceConfig(
-                    type="bash",
+                    name="bash",
                     owner="bash",
                     version="5.0.0",
                     local=True,
@@ -368,7 +368,7 @@ class TestSessions(unittest.TestCase):
             passive_services=[
                 PassiveServiceConfig \
                         (
-                        type="ssh",
+                        name="ssh",
                         owner="ssh",
                         version="8.0.0",
                         local=False,
@@ -390,7 +390,7 @@ class TestSessions(unittest.TestCase):
                     ),
 
                 PassiveServiceConfig(
-                    type="bash",
+                    name="bash",
                     owner="bash",
                     version="5.0.0",
                     local=True,
@@ -415,11 +415,10 @@ class TestSessions(unittest.TestCase):
         attacker_node = NodeConfig(
             active_services=[
                 ActiveServiceConfig(
-                    "scripted_actor",
-                    "scripted_actor",
-                    "attacker",
-                    AccessLevel.LIMITED,
-                    id="attacker_service"
+                    type="scripted_actor",
+                    name="scripted_actor",
+                    owner="attacker",
+                    access_level=AccessLevel.LIMITED,
                 )
             ],
             passive_services=[],
@@ -428,7 +427,7 @@ class TestSessions(unittest.TestCase):
                 InterfaceConfig(IPAddress("192.168.0.2"), IPNetwork("192.168.0.0/24"))
             ],
             shell="",
-            id="attacker_node"
+            name="attacker_node"
         )
 
         router1 = RouterConfig(
@@ -461,7 +460,7 @@ class TestSessions(unittest.TestCase):
                     port=1
                 )
             ],
-            id="router1"
+            name="router1"
         )
 
         router2 = RouterConfig(
@@ -494,21 +493,21 @@ class TestSessions(unittest.TestCase):
                     port=3
                 )
             ],
-            id="router2"
+            name="router2"
         )
 
         connections = [
-            ConnectionConfig("router1", 1, "router2", 3),
-            ConnectionConfig("attacker_node", 0, "router1", 0),
-            ConnectionConfig("target1", 0, "router2", 0),
-            ConnectionConfig("target1", 1, "router2", 1),
-            ConnectionConfig("target2", 0, "router2", 1),
-            ConnectionConfig("target2", 1, "router2", 2),
-            ConnectionConfig("target3", 0, "router2", 2)
+            ConnectionConfig(router1, 1, router2, 3),
+            ConnectionConfig(attacker_node, 0, router1, 0),
+            ConnectionConfig(target1, 0, router2, 0),
+            ConnectionConfig(target1, 1, router2, 1),
+            ConnectionConfig(target2, 0, router2, 1),
+            ConnectionConfig(target2, 1, router2, 2),
+            ConnectionConfig(target3, 0, router2, 2)
         ]
 
         env = Environment.create().configure(target1, target2, target3, attacker_node, router1, router2, *connections)
-        env.control.add_pause_on_response("attacker_node.scripted_attacker")
+        env.control.add_pause_on_response("attacker_node.scripted_actor")
 
         # This is ugly but serves its purpose, until the authentication/authorization framework is more fleshed out
         ssh_token_t1 = env.configuration.access.create_authentication_token(AuthenticationTokenType.PASSWORD, AuthenticationTokenSecurity.OPEN, "root", True)._set_content(uuid.uuid4())
@@ -601,11 +600,10 @@ class TestSessions(unittest.TestCase):
         active_node_1 = NodeConfig(
             active_services=[
                 ActiveServiceConfig(
-                    "scripted_actor",
-                    "scripted_actor",
-                    "actor_1",
-                    AccessLevel.LIMITED,
-                    id="actor_service_1"
+                    type="scripted_actor",
+                    name="scripted_actor",
+                    owner="actor_1",
+                    access_level=AccessLevel.LIMITED,
                 )
             ],
             passive_services=[],
@@ -614,17 +612,16 @@ class TestSessions(unittest.TestCase):
             interfaces=[
                 InterfaceConfig(IPAddress("192.168.0.2"), IPNetwork("192.168.0.2/24"))
             ],
-            id="active_node_1"
+            name="active_node_1"
         )
 
         active_node_2 = NodeConfig(
             active_services=[
                 ActiveServiceConfig(
-                    "scripted_actor",
-                    "scripted_actor",
-                    "actor_2",
-                    AccessLevel.LIMITED,
-                    id="actor_service_2"
+                    type="scripted_actor",
+                    name="scripted_actor",
+                    owner="actor_2",
+                    access_level=AccessLevel.LIMITED,
                 )
             ],
             passive_services=[],
@@ -634,7 +631,7 @@ class TestSessions(unittest.TestCase):
                 InterfaceConfig(IPAddress("192.168.0.3"), IPNetwork("192.168.0.3/24")),
                 InterfaceConfig(IPAddress("192.168.1.2"), IPNetwork("192.168.1.2/24"))
             ],
-            id="active_node_2"
+            name="active_node_2"
         )
 
         passive_node = NodeConfig(
@@ -645,7 +642,7 @@ class TestSessions(unittest.TestCase):
             interfaces=[
                 InterfaceConfig(IPAddress("192.168.1.3"), IPNetwork("192.168.1.3/24"))
             ],
-            id="passive_node"
+            name="passive_node"
         )
 
         router = RouterConfig(
@@ -671,14 +668,14 @@ class TestSessions(unittest.TestCase):
                 InterfaceConfig(IPAddress("192.168.1.1"), IPNetwork("192.168.1.0/24"), index=3)
             ],
             routing_table=[],
-            id="router"
+            name="router"
         )
 
         connections = [
-            ConnectionConfig("active_node_1", 0, "router", 0),
-            ConnectionConfig("active_node_2", 0, "router", 1),
-            ConnectionConfig("active_node_2", 1, "router", 2),
-            ConnectionConfig("passive_node",  0, "router", 3)
+            ConnectionConfig(active_node_1, 0, router, 0),
+            ConnectionConfig(active_node_2, 0, router, 1),
+            ConnectionConfig(active_node_2, 1, router, 2),
+            ConnectionConfig(passive_node,  0, router, 3)
         ]
 
         env = Environment.create().configure(active_node_1, active_node_2, passive_node, router, *connections)
@@ -923,18 +920,17 @@ class TestConnection(unittest.TestCase):
         source_node = NodeConfig(
             active_services=[
                 ActiveServiceConfig(
-                    "scripted_actor",
-                    "attacker",
-                    "scripted_actor",
-                    AccessLevel.ELEVATED,
-                    id="attacker_service"
+                    type="scripted_actor",
+                    name="attacker",
+                    owner="scripted_actor",
+                    access_level=AccessLevel.ELEVATED,
                 )
             ],
             passive_services=[],
             traffic_processors=[],
             shell="",
             interfaces=[InterfaceConfig(IPAddress(cls.SOURCE), IPNetwork("192.168.0.2/24"))],
-            id="source_node"
+            name="source_node"
         )
 
         cls.DESTINATION = "192.168.0.3"
@@ -944,7 +940,7 @@ class TestConnection(unittest.TestCase):
             traffic_processors=[],
             shell="",
             interfaces=[InterfaceConfig(IPAddress(cls.DESTINATION), IPNetwork("192.168.0.3/24"))],
-            id="destination_node"
+            name="destination_node"
         )
 
         router = RouterConfig(
@@ -968,12 +964,12 @@ class TestConnection(unittest.TestCase):
                                 IPNetwork("192.168.0.0/24"),
                                 index=1),
             ],
-            id="router"
+            name="router"
         )
 
         connections = [
-                ConnectionConfig("source_node", 0, "router", 0),
-                ConnectionConfig("destination_node", 0, "router", 1),
+                ConnectionConfig(source_node, 0, router, 0),
+                ConnectionConfig(destination_node, 0, router, 1),
         ]
 
         cls.configs = [source_node, destination_node, router, *connections]
