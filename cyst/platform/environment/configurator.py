@@ -231,7 +231,7 @@ class Configurator:
 
             services = []
             for s in exploit.services:
-                service = self._platform.configuration.exploit.create_vulnerable_service(s.name, s.min_version,
+                service = self._platform.configuration.exploit.create_vulnerable_service(s.service, s.min_version,
                                                                                     s.max_version)
                 services.append(service)
 
