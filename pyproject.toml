@@ -1,0 +1,76 @@
+[tool.poetry]
+name = "cyst-core"
+version = "0.6.0"
+description = "API and runtime of the CYST framework"
+authors = ["Martin Drasar <drasar@ics.muni.cz>"]
+readme = "README.md"
+homepage = 'https://muni.cz/go/cyst/'
+classifiers = [
+    # How mature is this project? Common values are
+    #   3 - Alpha
+    #   4 - Beta
+    #   5 - Production/Stable
+    'Development Status :: 4 - Beta',
+
+    # Indicate who your project is intended for
+    'Intended Audience :: Developers',
+    'Intended Audience :: Science/Research',
+    'Topic :: Scientific/Engineering',
+    'Topic :: Scientific/Engineering :: Artificial Intelligence',
+    'Topic :: Security',
+    'Typing :: Typed',
+
+    # Pick your license as you wish
+    'License :: OSI Approved :: GNU Lesser General Public License v3 (LGPLv3)',
+
+    # Specify the Python versions you support here. In particular, ensure
+    # that you indicate you support Python 3. These classifiers are *not*
+    # checked by 'pip install'. See instead 'python_requires' below.
+    'Programming Language :: Python :: 3',
+
+    'Operating System :: OS Independent'
+]
+
+packages = [
+    { include = "cyst", from = "." },
+    { include = "cyst_examples", from = "." },
+    #{ include = "cyst_metadata_providers", from = "." },
+    { include = "cyst_models", from = "." },
+    { include = "cyst_services", from = "." },
+]
+
+[tool.poetry.dependencies]
+    python = "^3.11"
+    netaddr = "^0.9.0"
+    py-flags = "^1.1.4"
+    semver = "^3.0.2"
+    rejson = "^0.5.6"
+    networkx = "^3.2.1"
+    cachetools = "^5.3.2"
+    pyserde = "^0.12.5"
+    importlib_metadata = "^6.8.0"
+    jsonpickle = "^3.0.2"
+    deprecated = "^1.2.14"
+
+[build-system]
+    requires = ["poetry-core"]
+    build-backend = "poetry.core.masonry.api"
+
+[tool.poetry.plugins]
+
+[tool.poetry.plugins."cyst.models"]
+    cyst="cyst_models.cyst.main:behavioral_model_description"
+    meta="cyst_models.meta.main:behavioral_model_description"
+
+[tool.poetry.plugins."cyst.services"]
+    scripted_actor="cyst_services.scripted_actor.main:service_description"
+    forward_shell="cyst_services.forward_shell.main:service_description"
+    reverse_shell="cyst_services.reverse_shell.main:service_description"
+    # This does not seem very pretty
+    firewall="cyst.platform.network.firewall:service_description"
+
+[tool.poetry.plugins."cyst.metadata_providers"]
+
+[tool.poetry.plugins."cyst.platforms"]
+    cyst_simulated_time="cyst.platform.main:simulated_time_platform_description"
+    cyst_real_time="cyst.platform.main:real_time_platform_description"
