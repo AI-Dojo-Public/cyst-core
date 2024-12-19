@@ -30,7 +30,8 @@ class MessageImpl(Message):
 
         # Messages are globally indexed so that they can be ordered and are unique
         if force_id == -1:
-            self._id = Counter().get("message")
+            # Timeout is retaining its own counter, because it messes up the IDs if it is used extensively.
+            self._id = Counter().get("timeout" if type == MessageType.TIMEOUT else "message")
         else:
             self._id = force_id
 
