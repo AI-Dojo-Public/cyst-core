@@ -4,6 +4,7 @@ from typing import Tuple, Dict, Callable, List
 from netaddr import IPAddress
 
 from cyst.api.environment.configuration import EnvironmentConfiguration
+from cyst.api.environment.infrastructure import EnvironmentInfrastructure
 from cyst.api.environment.message import Request, Response, Status, StatusOrigin, StatusValue, StatusDetail, Message
 from cyst.api.environment.messaging import EnvironmentMessaging
 from cyst.api.environment.policy import EnvironmentPolicy
@@ -32,6 +33,7 @@ class AuthenticationTracker:
 class METAModel(BehavioralModel):
     def __init__(self, configuration: EnvironmentConfiguration, resources: EnvironmentResources,
                  policy: EnvironmentPolicy, messaging: EnvironmentMessaging,
+                 infrastructure: EnvironmentInfrastructure,
                  composite_action_manager: CompositeActionManager) -> None:
 
         self._configuration = configuration
@@ -40,6 +42,7 @@ class METAModel(BehavioralModel):
         self._policy = policy
         self._messaging = messaging
         self._authentications: Dict[Tuple[str, str, str, str, str], AuthenticationTracker] = {}
+        self._infrastructure = infrastructure
         self._cam = composite_action_manager
 
         self._action_store.add(ActionDescription(id="meta:inspect:node",
@@ -144,8 +147,9 @@ class METAModel(BehavioralModel):
 
 def create_meta_model(configuration: EnvironmentConfiguration, resources: EnvironmentResources,
                       policy: EnvironmentPolicy, messaging: EnvironmentMessaging,
+                      infrastructure: EnvironmentInfrastructure,
                       composite_action_manager: CompositeActionManager) -> BehavioralModel:
-    model = METAModel(configuration, resources, policy, messaging, composite_action_manager)
+    model = METAModel(configuration, resources, policy, messaging, infrastructure, composite_action_manager)
     return model
 
 

@@ -1,6 +1,7 @@
 from typing import Tuple, Callable, Union, List
 
 from cyst.api.environment.configuration import EnvironmentConfiguration
+from cyst.api.environment.infrastructure import EnvironmentInfrastructure
 from cyst.api.environment.message import Request, Response, Status, StatusOrigin, StatusValue
 from cyst.api.environment.messaging import EnvironmentMessaging
 from cyst.api.environment.policy import EnvironmentPolicy
@@ -15,7 +16,7 @@ from cyst.api.utils.duration import Duration, msecs
 
 class CYSTModel(BehavioralModel):
     def __init__(self, configuration: EnvironmentConfiguration, resources: EnvironmentResources,
-                 policy: EnvironmentPolicy, messaging: EnvironmentMessaging,
+                 policy: EnvironmentPolicy, messaging: EnvironmentMessaging, infrastructure: EnvironmentInfrastructure,
                  composite_action_manager: CompositeActionManager) -> None:
 
         self._configuration = configuration
@@ -23,6 +24,7 @@ class CYSTModel(BehavioralModel):
         self._exploit_store = resources.exploit_store
         self._policy = policy
         self._messaging = messaging
+        self._infrastructure = infrastructure
         self._cam = composite_action_manager
 
         self._action_store.add(ActionDescription(id="cyst:test:echo_success",
@@ -204,8 +206,9 @@ class CYSTModel(BehavioralModel):
 
 def create_cyst_model(configuration: EnvironmentConfiguration, resources: EnvironmentResources,
                       policy: EnvironmentPolicy, messaging: EnvironmentMessaging,
+                      infrastructure: EnvironmentInfrastructure,
                       composite_action_manager: CompositeActionManager) -> BehavioralModel:
-    model = CYSTModel(configuration, resources, policy, messaging, composite_action_manager)
+    model = CYSTModel(configuration, resources, policy, messaging, infrastructure, composite_action_manager)
     return model
 
 

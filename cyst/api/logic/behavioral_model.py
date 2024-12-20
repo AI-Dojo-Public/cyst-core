@@ -4,6 +4,7 @@ from deprecated.sphinx import versionadded, versionchanged
 from enum import Enum
 from typing import Callable, List, Tuple, Union
 
+from cyst.api.environment.infrastructure import EnvironmentInfrastructure
 from cyst.api.environment.messaging import EnvironmentMessaging
 from cyst.api.environment.resources import EnvironmentResources
 from cyst.api.environment.configuration import EnvironmentConfiguration
@@ -55,5 +56,5 @@ class BehavioralModelDescription:
     """
     namespace: str
     description: str
-    creation_fn: Callable[[EnvironmentConfiguration, EnvironmentResources, EnvironmentPolicy, EnvironmentMessaging, CompositeActionManager], BehavioralModel]
+    creation_fn: Callable[[EnvironmentConfiguration, EnvironmentResources, EnvironmentPolicy, EnvironmentMessaging, EnvironmentInfrastructure, CompositeActionManager], BehavioralModel]
     platform: Union[PlatformSpecification, List[PlatformSpecification]] = PlatformSpecification(PlatformType.SIMULATED_TIME, "CYST")
