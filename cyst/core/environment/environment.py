@@ -560,10 +560,8 @@ class _Environment(Environment, PlatformInterface):
                 print("Behavioral model with namespace {} already registered, skipping it ...".format(
                     model_description.namespace))
             else:
-                #model = model_description.creation_fn(self, self._environment_resources, self._policy,
-                #                                      self._environment_messaging, self._cam)
                 model = model_description.creation_fn(self._environment_configuration, self._environment_resources, None,
-                                                      self._environment_messaging, self._cam)
+                                                      self._environment_messaging, self._infrastructure, self._cam)
                 self._behavioral_models[model_description.namespace] = model
 
     def _register_metadata_providers(self) -> None:
