@@ -2,7 +2,6 @@ from enum import Enum, auto
 from typing import Dict, Any, Union, Optional, List, Tuple, Type, Set, Callable
 
 from cyst.core.environment.data_store_backend import DataStoreBackend
-from cyst.core.environment.data_store_redis_backend import DataStoreRedisBackend
 from cyst.core.environment.data_store_memory_backend import DataStoreMemoryBackend
 
 # The data store is quite universal, but its main use-cases are configuration retrieval, log storage and simulation
@@ -24,13 +23,6 @@ class DataStore:
 
     def configure_default(self) -> None:
         raise RuntimeError("Could not find configuration function for backend " + self._backend_type)
-
-    @staticmethod
-    def configure_redis(self, host: str, port: int) -> DataStoreBackend:
-        backend = DataStoreRedisBackend(host, port)
-        if not backend:
-            raise RuntimeError("Could not connect client")
-        return backend
 
     @staticmethod
     def configure_memory(self) -> DataStoreBackend:
