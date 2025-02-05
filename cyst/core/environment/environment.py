@@ -292,7 +292,7 @@ class _Environment(Environment, PlatformInterface):
         cmdline_parser.add_argument("-c", "--config_file", type=str,
                                     help="Path to a file storing the configuration. Commandline overrides the items in configuration file.")
         cmdline_parser.add_argument("-b", "--data_backend", type=str,
-                                    help="The type of a backend to use. Currently supported are: REDIS")
+                                    help="The type of a backend to use. Currently supported are: MEMORY")
         cmdline_parser.add_argument("-p", "--data_backend_parameter", action="append", nargs=2, type=str,
                                     metavar=('NAME', 'VALUE'), help="Parameters to be passed to data backend.")
         cmdline_parser.add_argument("-r", "--run_id", type=str,

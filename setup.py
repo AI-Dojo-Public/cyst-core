@@ -56,7 +56,6 @@ setup(
         'netaddr',
         'py-flags',
         'semver',
-        'rejson',
         'networkx',
         'cachetools',
         'pyserde',
