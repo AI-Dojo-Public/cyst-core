@@ -140,7 +140,7 @@ class _Environment(Environment, PlatformInterface):
         # When platform specification is finalized, create components dependent on the platform specification and
         # components the platform depends on
         self._environment_resources = EnvironmentResourcesImpl(self, self._platform_spec)
-        self._service_store = ServiceStoreImpl(self._environment_messaging, self._environment_resources)
+        self._service_store = ServiceStoreImpl(self._environment_messaging, self._environment_resources, self._runtime_configuration)
         self._statistics = StatisticsImpl()
         self._infrastructure = EnvironmentInfrastructureImpl(self._runtime_configuration, self._service_store, self._statistics)
 

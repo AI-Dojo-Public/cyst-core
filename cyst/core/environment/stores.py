@@ -3,6 +3,7 @@ import builtins
 from copy import deepcopy
 from typing import List, Optional, Dict, Union, Tuple, Any
 
+from cyst.api.environment.configuration import RuntimeConfiguration
 from cyst.api.environment.environment import EnvironmentMessaging
 from cyst.api.environment.message import Message
 from cyst.api.environment.stores import ActionStore, ExploitStore, ServiceStore
@@ -22,10 +23,11 @@ from cyst.core.logic.action import ActionImpl
 
 class ServiceStoreImpl(ServiceStore):
 
-    def __init__(self, messaging: EnvironmentMessaging, resources: EnvironmentResources):
+    def __init__(self, messaging: EnvironmentMessaging, resources: EnvironmentResources, runtime_configuration: RuntimeConfiguration):
         self._services = {}
         self._messaging = messaging
         self._resources = resources
+        self._runtime_configuration = runtime_configuration
 
         self._service_instances = {}
         self._service_instance_ids = {}
@@ -45,6 +47,14 @@ class ServiceStoreImpl(ServiceStore):
         if not type in self._services:
             raise RuntimeError(f"Attempting to create nonexistent service {type}.")
         service_description: ActiveServiceDescription = self._services[type]
+
+        # Configuration is extended by parameters that are passed through the runtime configuration mechanism.
+        # The runtime configuration takes precedence over what is inside the configuration file.
+        if not configuration:
+            configuration = {}
+
+        configuration.update(self._runtime_configuration.other_params)
+
         service = service_description.creation_fn(self._messaging, self._resources, id, configuration)
         #return ServiceImpl(type, service, name, owner, service_access_level, id)
 
