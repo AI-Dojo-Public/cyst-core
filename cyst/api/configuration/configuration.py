@@ -2,8 +2,9 @@
 # value, which is a real shame (though understandable)
 from copy import copy
 from dataclasses import dataclass, field
+from enum import Enum, auto
 from uuid import uuid4
-from typing import Self
+from typing import Self, Any, List, Union
 
 """
 Provides an API to configure all aspects of the simulation engine.
@@ -89,3 +90,51 @@ class ConfigItem:
             new_one.id = id
 
         return new_one
+
+
+@dataclass
+class ConfigParameter(Any, str):
+    id: str
+
+
+class ConfigParameterValueType(Enum):
+    VALUE = auto()
+    REF = auto()
+    REF_COPY = auto()
+
+
+@dataclass
+class ConfigParameterSingle:
+    name: str
+    type: ConfigParameterValueType
+    description: str
+    default: Any
+    parameter_id: str
+
+
+class ConfigParameterGroupType(Enum):
+    ONE = auto()
+    ANY = auto()
+    ALL = auto()
+
+
+@dataclass
+class ConfigParameterGroupEntry:
+    parameter_id: str
+    value: Any
+    description: str
+
+
+@dataclass
+class ConfigParameterGroup:
+    name: str
+    group_type: ConfigParameterGroupType
+    value_type: ConfigParameterValueType
+    description: str
+    default: str
+    options: List[ConfigParameterGroupEntry]
+
+
+@dataclass
+class ConfigParametrization:
+    parameters: List[Union[ConfigParameterSingle, ConfigParameterGroup]]

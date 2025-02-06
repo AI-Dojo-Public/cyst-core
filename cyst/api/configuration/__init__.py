@@ -1,3 +1,4 @@
+from cyst.api.configuration.configuration import ConfigItem, ConfigParameter, ConfigParameterSingle, ConfigParameterGroup, ConfigParameterValueType, ConfigParameterGroupType, ConfigParameterGroupEntry, ConfigParametrization
 from cyst.api.configuration.host.service import ActiveServiceConfig, PassiveServiceConfig, ServiceParameter
 from cyst.api.configuration.logic.access import AccessLevel, AuthorizationConfig, AccessSchemeConfig, AuthenticationProviderConfig, AuthorizationDomainConfig, AuthorizationDomainType, FederatedAuthorizationConfig
 from cyst.api.configuration.logic.data import DataConfig
@@ -14,4 +15,5 @@ __all__ = ["ActiveServiceConfig", "PassiveServiceConfig", "AccessLevel", "Author
            "NetworkConfig", "NodeConfig", "IPAddress", "IPNetwork", "ConnectionConfig", "PortConfig", "InterfaceConfig", "RouterConfig",
            "FirewallRule", "FirewallChainType", "FirewallChainConfig", "FirewallPolicy", "FirewallConfig", "ServiceParameter",
            "AccessSchemeConfig", "AuthenticationProviderConfig", "AuthorizationDomainConfig", "AuthorizationDomainType",
-           "FederatedAuthorizationConfig", "RouteConfig"]
+           "FederatedAuthorizationConfig", "RouteConfig", "ConfigItem", "ConfigParameter", "ConfigParametrization", "ConfigParameterGroupEntry",
+           "ConfigParameterGroupType", "ConfigParameterSingle", "ConfigParameterGroup", "ConfigParameterValueType"]
