@@ -286,6 +286,13 @@ class _Environment(Environment, PlatformInterface):
         config_id = os.environ.get('CYST_CONFIG_ID')
         config_filename = os.environ.get('CYST_CONFIG_FILENAME')
 
+        # All the unknown, CYST-related params
+        # TODO: Where to document this?
+        for k, v in os.environ.items():
+            if k.startswith("CYST_"):
+                name = k[5:].lower()
+                self._runtime_configuration.other_params[name] = v
+
         # Command line (only parsing)
         cmdline_parser = argparse.ArgumentParser(description="CYST runtime configuration")
 
@@ -299,6 +306,8 @@ class _Environment(Environment, PlatformInterface):
                                     help="A unique identifier of a simulation run. If not specified, a UUID will be generated instead.")
         cmdline_parser.add_argument("-i", "--config_id", type=str,
                                     help="A unique identifier of simulation run configuration, which can be obtained from the data store.")
+        cmdline_parser.add_argument("-o", "--other_param", action="append", nargs=2, type=str, metavar=('NAME', 'VALUE'),
+                                    help="Other parameters that are passed to CYST components, agents, etc.")
 
         args, _ = cmdline_parser.parse_known_args()
         if args.config_file:
@@ -323,6 +332,11 @@ class _Environment(Environment, PlatformInterface):
 
         if args.config_id:
             config_id = args.config_id
+
+        if args.other_param:
+            for x in args.other_param:
+                name = x[0].lower()
+                self._runtime_configuration.other_params[name] = x[1]
 
         # --------------------------------------------------------------------------------------------------------------
         if data_backend:  # Fuck, I miss oneliners
@@ -599,6 +613,7 @@ class _Environment(Environment, PlatformInterface):
                                                           self.resources, self._action_configuration,
                                                           self._exploit_configuration, self._physical_configuration,
                                                           self._infrastructure)
+
 
 def create_environment(platform: Optional[Union[str, PlatformSpecification]]) -> Environment:
     e = _Environment(platform)
