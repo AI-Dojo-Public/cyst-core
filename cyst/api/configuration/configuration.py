@@ -274,7 +274,7 @@ class ConfigParameterGroup:
 
 
 @dataclass
-class ConfigParametrization:
+class ConfigParametrization(ConfigItem):
     """
     A top-level object covering all the parametrization in a given configuration.
 
