@@ -11,7 +11,7 @@ from cyst.api.configuration.infrastructure.physical import PhysicalLocationConfi
     PhysicalAccessConfig
 from cyst.api.environment.configuration import GeneralConfiguration, ObjectType, ConfigurationObjectType
 from cyst.api.environment.environment import Environment
-from cyst.api.configuration.configuration import ConfigItem
+from cyst.api.configuration.configuration import ConfigItem, ConfigParametrization
 from cyst.api.configuration.host.service import ActiveServiceConfig, PassiveServiceConfig
 from cyst.api.configuration.infrastructure.infrastructure import InfrastructureConfig
 from cyst.api.configuration.infrastructure.log import LogConfig, LogSource, log_defaults
@@ -336,8 +336,11 @@ class Configurator:
         self._physical_connection_config.append(cfg)
         return cfg.ref
 
+    def _process_ConfigParametrization(self, cfg: ConfigParametrization) -> str:
+        pass
+
     def _process_default(self, cfg):
-        raise ValueError("Unknown config type provided")
+        raise ValueError(f"Unknown config type provided: {type(cfg)}")
 
     def _process_cfg_item(self, cfg: Any) -> str:
         if hasattr(cfg, "ref") and cfg.ref in self._refs:
