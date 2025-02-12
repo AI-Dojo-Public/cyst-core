@@ -1,3 +1,4 @@
+from dataclasses import is_dataclass, fields
 from cyst.api.configuration import *
 from cyst.api.environment.environment import Environment
 
@@ -11,7 +12,7 @@ target = NodeConfig(
             name="bash",
             owner="root",
             version=ConfigParameter("my-custom-version"),
-            access_level=ConfigParameter("my-custom-access_level"),
+            access_level=ConfigParameter("my-custom-access-level"),
             local=True,
         ),
         PassiveServiceConfig(
@@ -132,13 +133,14 @@ parametrization = ConfigParametrization(
             parameter_id="my-custom-version"
         ),
         ConfigParameterSingle(
-            name="Vulnerable service version",
+            name="Vulnerable access level",
             type=ConfigParameterValueType.VALUE,
-            description="Sets the version of a vulnerable service. If you put version smaller than 1.3.11 and larger than 1.4.62, the exploit will not work.",
-            default="1.4.62",
-            parameter_id="my-custom-version"
+            description="Sets the access level for the service",
+            default="user",
+            parameter_id="my-custom-access-level"
         ),
         ConfigParameterGroup(
+            parameter_id="attacker-position",
             name="Attacker position",
             group_type=ConfigParameterGroupType.ONE,
             value_type=ConfigParameterValueType.REF,
@@ -147,12 +149,12 @@ parametrization = ConfigParametrization(
             options=[
                 ConfigParameterGroupEntry(
                     parameter_id="attacker_location_1",
-                    value="attacker_service_ref",
+                    value=attacker_service,
                     description="Node 1"
                 ),
                 ConfigParameterGroupEntry(
                     parameter_id="attacker_location_2",
-                    value="attacker_service_ref",
+                    value=attacker_service,
                     description="Node 2"
                 )
             ]
@@ -161,10 +163,38 @@ parametrization = ConfigParametrization(
 )
 
 
-all_config = [target, attacker_service, attacker_node_1, attacker_node_2, router, exploit1, connection1, connection2, connection3, parametrization]
+all_config = [target, attacker_service, attacker_node_1, attacker_node_2, router, exploit1, connection1, connection2, connection3]
 
-e = Environment.create()
+# e = Environment.create()
 # e.configuration.parametrization()
 # e.configure(*all_config, parameters)
-e.control.init()
-e.control.commit()
+# e.control.init()
+# e.control.commit()
+
+
+parameters = {"my-custom-version": "123", "attacker_location_1": attacker_service, "my-custom-access-level": "user"}
+
+
+def fill_config_parameters(config, parameters: dict):
+
+    def set_config_parameters(obj):
+        global parameters
+        match obj:
+            case ConfigParameter():
+                return parameters.get(obj.id)
+            case dict():
+                for key, value in obj.items():
+                    obj[key] = set_config_parameters(value)
+            case list():
+                for index, item in enumerate(obj):
+                    obj[index] = set_config_parameters(item)
+            case ConfigItem() if is_dataclass(obj):
+                for field in fields(obj):
+                    setattr(obj, field.name, set_config_parameters(getattr(obj, field.name)))
+        return obj
+
+    for item in config:
+        set_config_parameters(item)
+
+fill_config_parameters(all_config, parameters)
+print(all_config)
