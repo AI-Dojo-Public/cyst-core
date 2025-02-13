@@ -265,11 +265,12 @@ class ConfigParameterGroup:
     :param options: A list of configuration entries to select from.
     :type options: List[ConfigParameterGroupEntry]
     """
+    parameter_id: str
     name: str
     group_type: ConfigParameterGroupType
     value_type: ConfigParameterValueType
     description: str
-    default: str
+    default: list[str]
     options: List[ConfigParameterGroupEntry]
 
 
