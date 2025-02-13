@@ -1,4 +1,6 @@
 from dataclasses import is_dataclass, fields
+from typing import Any
+
 from cyst.api.configuration import *
 from cyst.api.environment.environment import Environment
 
@@ -145,7 +147,7 @@ parametrization = ConfigParametrization(
             group_type=ConfigParameterGroupType.ONE,
             value_type=ConfigParameterValueType.REF,
             description="The node, where the attacker starts at.",
-            default="attacker_location_1",
+            default=["attacker_location_1"],
             options=[
                 ConfigParameterGroupEntry(
                     parameter_id="attacker_location_1",
@@ -172,29 +174,80 @@ all_config = [target, attacker_service, attacker_node_1, attacker_node_2, router
 # e.control.commit()
 
 
-parameters = {"my-custom-version": "123", "attacker_location_1": attacker_service, "my-custom-access-level": "user"}
+def check_and_fill_parameters(config_parametrization, frontend_output):
+    def validate_group_entries(group_param, frontend_value):
+        if group_param.group_type == ConfigParameterGroupType.ONE:
+            if len(frontend_value) != 1:
+                raise ValueError(f"Group '{group_param.parameter_id}' must have exactly one value")
+        elif group_param.group_type == ConfigParameterGroupType.ANY:
+            if len(frontend_value) < 1:
+                raise ValueError(f"Group '{group_param.parameter_id}' must have at least one value")
 
+    for parameter in config_parametrization.parameters:
+        if isinstance(parameter, ConfigParameterSingle):
+            if parameter.parameter_id not in frontend_output['SingleParameters']:
+                frontend_output['SingleParameters'][parameter.parameter_id] = parameter.default
+        elif isinstance(parameter, ConfigParameterGroup):
+            if parameter.parameter_id not in frontend_output['GroupParameters']:
+                frontend_output['GroupParameters'][parameter.parameter_id] = parameter.default
+            validate_group_entries(parameter, frontend_output['GroupParameters'][parameter.parameter_id])
+
+
+def parse_frontend_output(parametrization: ConfigParametrization, frontend_output: dict[str, Any]):
+    parameters = {}
+
+    single_parameters = frontend_output['SingleParameters']
+    group_parameters = frontend_output['GroupParameters']
+
+    # Fill single parameters
+    parameters.update(single_parameters)
+
+    # Fill group parameters
+    for parameter in parametrization.parameters:
+        if isinstance(parameter, ConfigParameterGroup):
+            for group_entry in parameter.options:
+                if group_entry.parameter_id in group_parameters[parameter.parameter_id]:
+                    parameters[group_entry.parameter_id] = group_entry.value
+
+    return parameters
 
 def fill_config_parameters(config, parameters: dict):
 
     def set_config_parameters(obj):
-        global parameters
-        match obj:
-            case ConfigParameter():
-                return parameters.get(obj.id)
-            case dict():
-                for key, value in obj.items():
-                    obj[key] = set_config_parameters(value)
-            case list():
-                for index, item in enumerate(obj):
-                    obj[index] = set_config_parameters(item)
-            case ConfigItem() if is_dataclass(obj):
-                for field in fields(obj):
-                    setattr(obj, field.name, set_config_parameters(getattr(obj, field.name)))
+
+        if isinstance(obj, ConfigParameter):
+            # If it's a ConfigParameter, replace it with the value from parameters if available
+            if (parameter_value := parameters.get(obj.id)) is not None:
+                return parameter_value
+            else:
+                print(f"Warning: No value found for ConfigParameter with id: {obj.id}")
+                return None
+        elif isinstance(obj, dict):
+            # Recursively handle dictionary items
+            return {key: set_config_parameters(value) for key, value in obj.items()}
+        elif isinstance(obj, list):
+            # Recursively handle list elements
+            return [set_config_parameters(item) for item in obj]
+        elif is_dataclass(obj):
+            # Handle dataclass objects by iterating through their fields
+            for field in fields(obj):
+                setattr(obj, field.name, set_config_parameters(getattr(obj, field.name)))
         return obj
 
+    # Apply the set_config_parameters function to each item in the configuration
     for item in config:
         set_config_parameters(item)
 
+
+frontend_output = {"SingleParameters": {"my-custom-access-level": "user"}, "GroupParameters": {"attacker-position": ["attacker_location_1"]}}
+
+check_and_fill_parameters(parametrization ,frontend_output)
+print("Frontend output filled with defaults and checked: \n", frontend_output)
+
+parameters = parse_frontend_output(parametrization, frontend_output)
+print(f"One-dimensional parsed parameters for config item fillings: \n", parameters)
+
 fill_config_parameters(all_config, parameters)
+print("Final config:")
 print(all_config)
+
