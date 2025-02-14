@@ -1,7 +1,7 @@
 import jsonpickle
 import logging.config
 
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, fields, is_dataclass
 from typing import Dict, List, Union, Any, Callable, Optional, Type
 from uuid import uuid4
 
@@ -11,7 +11,8 @@ from cyst.api.configuration.infrastructure.physical import PhysicalLocationConfi
     PhysicalAccessConfig
 from cyst.api.environment.configuration import GeneralConfiguration, ObjectType, ConfigurationObjectType
 from cyst.api.environment.environment import Environment
-from cyst.api.configuration.configuration import ConfigItem, ConfigParametrization
+from cyst.api.configuration.configuration import ConfigItem, ConfigParametrization, ConfigParameterSingle, \
+    ConfigParameterGroup, ConfigParameterGroupType, ConfigParameter
 from cyst.api.configuration.host.service import ActiveServiceConfig, PassiveServiceConfig
 from cyst.api.configuration.infrastructure.infrastructure import InfrastructureConfig
 from cyst.api.configuration.infrastructure.log import LogConfig, LogSource, log_defaults
@@ -48,6 +49,7 @@ class Configurator:
         self._physical_access_config: List[PhysicalAccessConfig] = []
         self._physical_location_config: List[PhysicalLocationConfig] = []
         self._physical_connection_config: List[PhysicalConnectionConfig] = []
+        self._config_parametrization: ConfigParametrization
 
     def __getstate__(self):
         result = self.__dict__
@@ -337,6 +339,9 @@ class Configurator:
         return cfg.ref
 
     def _process_ConfigParametrization(self, cfg: ConfigParametrization) -> str:
+        # self._refs[cfg.ref] = cfg
+        # self._config_parametrization = cfg
+        # return cfg.ref
         pass
 
     def _process_default(self, cfg):
@@ -621,6 +626,89 @@ class Configurator:
             result.append(self._resolve_config_item(item))
         return result
 
+    @staticmethod
+    def parse_parameters(parametrization_config: ConfigParametrization, parameters: dict[str, Any]):
+        """
+        Parse user input parameters into a single dimensional dictionary for easier parametrization.
+        """
+        parsed_parameters = {}
+
+        single_parameters = parameters['SingleParameters']
+        group_parameters = parameters['GroupParameters']
+
+        # Fill single parameters
+        parsed_parameters.update(single_parameters)
+
+        # Fill group parameters
+        for parameter in parametrization_config.parameters:
+            if isinstance(parameter, ConfigParameterGroup):
+                for group_entry in parameter.options:
+                    if group_entry.parameter_id in group_parameters[parameter.parameter_id]:
+                        parsed_parameters[group_entry.parameter_id] = group_entry.value
+
+        return parsed_parameters
+
+
+    @staticmethod
+    def check_and_default_parameters(parametrization_config: ConfigParametrization, parameters: dict[str, Any]):
+        """
+        Check the correctness of group parameters and fill in the defaults if the parameters are missing
+        """
+
+        def validate_group_entries(group_param, frontend_value):
+            if group_param.group_type == ConfigParameterGroupType.ONE:
+                if len(frontend_value) != 1:
+                    raise ValueError(f"Group '{group_param.parameter_id}' must have exactly one value")
+            elif group_param.group_type == ConfigParameterGroupType.ANY:
+                if len(frontend_value) < 1:
+                    raise ValueError(f"Group '{group_param.parameter_id}' must have at least one value")
+
+        for parameter in parametrization_config.parameters:
+            if isinstance(parameter, ConfigParameterSingle):
+                if parameter.parameter_id not in parameters['SingleParameters']:
+                    parameters['SingleParameters'][parameter.parameter_id] = parameter.default
+            elif isinstance(parameter, ConfigParameterGroup):
+                if parameter.parameter_id not in parameters['GroupParameters']:
+                    parameters['GroupParameters'][parameter.parameter_id] = parameter.default
+                validate_group_entries(parameter, parameters['GroupParameters'][parameter.parameter_id])
+
+
+    def combine_config_items_with_parameters(self, parametrization_config: ConfigParametrization, config_items: list[ConfigItem], parameters: dict[str, Any]):
+        # check the correctness of group parameters and fill in the defaults if the parameters are missing
+        self.check_and_default_parameters(parametrization_config, parameters)
+
+        # parse the parameters into single dimensional dict for easier config items parametrization
+        parsed_parameters = self.parse_parameters(parametrization_config, parameters)
+
+        def set_config_parameters(obj):
+
+            if isinstance(obj, ConfigParameter):
+                # If it's a ConfigParameter, replace it with the value from parameters if available
+                if (parameter_value := parsed_parameters.get(obj.id)) is not None:
+                    return parameter_value
+                else:
+                    print(f"Warning: No value found for ConfigParameter with id: {obj.id}")
+                    return obj
+            elif isinstance(obj, dict):
+                # Recursively handle dictionary items
+                modified_dict = {key: set_config_parameters(value) for key, value in obj.items()}
+                # Remove ConfigParameter instances from the dictionary
+                return {k: v for k, v in modified_dict.items() if not isinstance(v, ConfigParameter)}
+            elif isinstance(obj, list):
+                # Recursively handle list elements
+                modified_list = [set_config_parameters(item) for item in obj]
+                # Remove ConfigParameter instances from the list
+                return [item for item in modified_list if not isinstance(item, ConfigParameter)]
+            elif is_dataclass(obj): # This should be ConfigItem, but it's not a dataclass
+                # Handle dataclass objects by iterating through their fields
+                for field in fields(obj):
+                    setattr(obj, field.name, set_config_parameters(getattr(obj, field.name)))
+            return obj
+
+        # Apply the set_config_parameters function to each item in the configuration
+        for item in config_items:
+            set_config_parameters(item)
+
 
 # ----------------------------------------------------------------------------------------------------------------------
 class GeneralConfigurationImpl(GeneralConfiguration):
@@ -628,6 +716,25 @@ class GeneralConfigurationImpl(GeneralConfiguration):
     def __init__(self, env: Environment) -> None:
         self._configurator = Configurator(env)
         self._env = env
+
+    def resolve_parametrization(self, config_items, parameters: dict[str, Any]):
+        """
+        Check the correctness of group parameters and fill in the defaults if the parameters are missing.
+        Then iterate through config items and apply parameters in place of ConfigParameters
+        """
+        parameter_configuration = None
+
+        # Check if there's a ConfigParametrization in config_items
+        for config_item in config_items:
+            if isinstance(config_item, ConfigParametrization):
+                parameter_configuration = config_item
+                break
+
+        if parameter_configuration is None:
+            raise ValueError("No parameter configuration found")
+
+        self._configurator.combine_config_items_with_parameters(parameter_configuration, config_items, parameters)
+        return config_items
 
     def preprocess(self, *config) -> None:
         self._configurator.preprocess(*config)
