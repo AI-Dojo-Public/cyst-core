@@ -165,16 +165,47 @@ parametrization = ConfigParametrization(
 )
 
 
-all_config = [target, attacker_service, attacker_node_1, attacker_node_2, router, exploit1, connection1, connection2, connection3]
+all_config = [target, attacker_service, attacker_node_1, attacker_node_2, router, exploit1, connection1, connection2, connection3, parametrization]
 
-# e = Environment.create()
-# e.configuration.parametrization()
-# e.configure(*all_config, parameters)
-# e.control.init()
-# e.control.commit()
+# Example of output that is passed from frontend or from user to /api/v1/environment/configure/ endpoint
+parameters = {"SingleParameters": {"my-custom-access-level": "user"}, "GroupParameters": {"attacker-position": ["attacker_location_1"]}}
+
+e = Environment.create()
+e.configure(all_config, parameters)
+e.control.init()
+e.control.commit()
 
 
-def check_and_fill_parameters(config_parametrization, frontend_output):
+# --------------------------------------------------------------------------------------------------------------
+# Parametrization testing
+
+def parse_parameters(parametrization_config: ConfigParametrization, parameters: dict[str, Any]):
+    """
+    Parse user input parameters into a single dimensional dictionary for easier parametrization.
+    """
+    parsed_parameters = {}
+
+    single_parameters = parameters['SingleParameters']
+    group_parameters = parameters['GroupParameters']
+
+    # Fill single parameters
+    parsed_parameters.update(single_parameters)
+
+    # Fill group parameters
+    for parameter in parametrization_config.parameters:
+        if isinstance(parameter, ConfigParameterGroup):
+            for group_entry in parameter.options:
+                if group_entry.parameter_id in group_parameters[parameter.parameter_id]:
+                    parsed_parameters[group_entry.parameter_id] = group_entry.value
+
+    return parsed_parameters
+
+
+def check_and_default_parameters(parametrization_config: ConfigParametrization, parameters: dict[str, Any]):
+    """
+    Check the correctness of group parameters and fill in the defaults if the parameters are missing
+    """
+
     def validate_group_entries(group_param, frontend_value):
         if group_param.group_type == ConfigParameterGroupType.ONE:
             if len(frontend_value) != 1:
@@ -183,71 +214,58 @@ def check_and_fill_parameters(config_parametrization, frontend_output):
             if len(frontend_value) < 1:
                 raise ValueError(f"Group '{group_param.parameter_id}' must have at least one value")
 
-    for parameter in config_parametrization.parameters:
+    for parameter in parametrization_config.parameters:
         if isinstance(parameter, ConfigParameterSingle):
-            if parameter.parameter_id not in frontend_output['SingleParameters']:
-                frontend_output['SingleParameters'][parameter.parameter_id] = parameter.default
+            if parameter.parameter_id not in parameters['SingleParameters']:
+                parameters['SingleParameters'][parameter.parameter_id] = parameter.default
         elif isinstance(parameter, ConfigParameterGroup):
-            if parameter.parameter_id not in frontend_output['GroupParameters']:
-                frontend_output['GroupParameters'][parameter.parameter_id] = parameter.default
-            validate_group_entries(parameter, frontend_output['GroupParameters'][parameter.parameter_id])
+            if parameter.parameter_id not in parameters['GroupParameters']:
+                parameters['GroupParameters'][parameter.parameter_id] = parameter.default
+            validate_group_entries(parameter, parameters['GroupParameters'][parameter.parameter_id])
 
 
-def parse_frontend_output(parametrization: ConfigParametrization, frontend_output: dict[str, Any]):
-    parameters = {}
+def combine_config_items_with_parameters(parametrization_config: ConfigParametrization,
+                                         config_items: list[ConfigItem], parameters: dict[str, Any]):
+    """
+    Check the correctness of group parameters and fill in the defaults if the parameters are missing.
+    Then iterate through config items and apply parameters in place of ConfigParameters.
+    """
+    # Check the correctness of group parameters and fill in the defaults if the parameters are missing
+    check_and_default_parameters(parametrization_config, parameters)
 
-    single_parameters = frontend_output['SingleParameters']
-    group_parameters = frontend_output['GroupParameters']
-
-    # Fill single parameters
-    parameters.update(single_parameters)
-
-    # Fill group parameters
-    for parameter in parametrization.parameters:
-        if isinstance(parameter, ConfigParameterGroup):
-            for group_entry in parameter.options:
-                if group_entry.parameter_id in group_parameters[parameter.parameter_id]:
-                    parameters[group_entry.parameter_id] = group_entry.value
-
-    return parameters
-
-def fill_config_parameters(config, parameters: dict):
+    # Parse the parameters into a single-dimensional dict for easier config items parametrization
+    parsed_parameters = parse_parameters(parametrization_config, parameters)
 
     def set_config_parameters(obj):
-
         if isinstance(obj, ConfigParameter):
             # If it's a ConfigParameter, replace it with the value from parameters if available
-            if (parameter_value := parameters.get(obj.id)) is not None:
+            if (parameter_value := parsed_parameters.get(obj.id)) is not None:
                 return parameter_value
             else:
                 print(f"Warning: No value found for ConfigParameter with id: {obj.id}")
-                return None
+                return obj
         elif isinstance(obj, dict):
             # Recursively handle dictionary items
-            return {key: set_config_parameters(value) for key, value in obj.items()}
+            modified_dict = {key: set_config_parameters(value) for key, value in obj.items()}
+            # Remove ConfigParameter instances from the dictionary
+            return {k: v for k, v in modified_dict.items() if not isinstance(v, ConfigParameter)}
         elif isinstance(obj, list):
             # Recursively handle list elements
-            return [set_config_parameters(item) for item in obj]
-        elif is_dataclass(obj):
+            modified_list = [set_config_parameters(item) for item in obj]
+            # Remove ConfigParameter instances from the list
+            return [item for item in modified_list if not isinstance(item, ConfigParameter)]
+        elif is_dataclass(obj):  # This should be ConfigItem, but it's not a dataclass
             # Handle dataclass objects by iterating through their fields
             for field in fields(obj):
                 setattr(obj, field.name, set_config_parameters(getattr(obj, field.name)))
         return obj
 
     # Apply the set_config_parameters function to each item in the configuration
-    for item in config:
-        set_config_parameters(item)
+    config_items = [set_config_parameters(item) for item in config_items]
 
+    return config_items
 
-frontend_output = {"SingleParameters": {"my-custom-access-level": "user"}, "GroupParameters": {"attacker-position": ["attacker_location_1"]}}
-
-check_and_fill_parameters(parametrization ,frontend_output)
-print("Frontend output filled with defaults and checked: \n", frontend_output)
-
-parameters = parse_frontend_output(parametrization, frontend_output)
-print(f"One-dimensional parsed parameters for config item fillings: \n", parameters)
-
-fill_config_parameters(all_config, parameters)
-print("Final config:")
-print(all_config)
+#
+# combine_config_items_with_parameters(parametrization, all_config, parameters)
+# print(all_config)
 
