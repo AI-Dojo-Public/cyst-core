@@ -650,10 +650,13 @@ class Configurator:
 
 
     @staticmethod
-    def check_and_default_parameters(parametrization_config: ConfigParametrization, parameters: dict[str, Any]):
+    def check_and_default_parameters(parametrization_config: ConfigParametrization, parameters: dict[str, Any] | None):
         """
-        Check the correctness of group parameters and fill in the defaults if the parameters are missing
+        Check the correctness of group parameters and fill in the defaults if the parameters are missing.
         """
+        # Initialize parameters as an empty dictionary if it is None
+        if parameters is None:
+            parameters = {'SingleParameters': {}, 'GroupParameters': {}}
 
         def validate_group_entries(group_param, frontend_value):
             if group_param.group_type == ConfigParameterGroupType.ONE:
@@ -673,7 +676,7 @@ class Configurator:
                 validate_group_entries(parameter, parameters['GroupParameters'][parameter.parameter_id])
 
 
-    def combine_config_items_with_parameters(self, parametrization_config: ConfigParametrization, config_items: list[ConfigItem], parameters: dict[str, Any]):
+    def combine_config_items_with_parameters(self, parametrization_config: ConfigParametrization, parameters: dict[str, Any] | None, *config_items: ConfigItem):
         # check the correctness of group parameters and fill in the defaults if the parameters are missing
         self.check_and_default_parameters(parametrization_config, parameters)
 
@@ -699,7 +702,7 @@ class Configurator:
                 modified_list = [set_config_parameters(item) for item in obj]
                 # Remove ConfigParameter instances from the list
                 return [item for item in modified_list if not isinstance(item, ConfigParameter)]
-            elif is_dataclass(obj): # This should be ConfigItem, but it's not a dataclass
+            elif is_dataclass(obj): # This should be ConfigItem, but ConfigItem is not a dataclass
                 # Handle dataclass objects by iterating through their fields
                 for field in fields(obj):
                     setattr(obj, field.name, set_config_parameters(getattr(obj, field.name)))
@@ -717,7 +720,7 @@ class GeneralConfigurationImpl(GeneralConfiguration):
         self._configurator = Configurator(env)
         self._env = env
 
-    def resolve_parametrization(self, config_items, parameters: dict[str, Any]):
+    def resolve_parametrization(self, *config_items: ConfigItem, parameters: dict[str, Any] | None):
         """
         Check the correctness of group parameters and fill in the defaults if the parameters are missing.
         Then iterate through config items and apply parameters in place of ConfigParameters
@@ -729,12 +732,8 @@ class GeneralConfigurationImpl(GeneralConfiguration):
             if isinstance(config_item, ConfigParametrization):
                 parameter_configuration = config_item
                 break
-
-        if parameter_configuration is None:
-            raise ValueError("No parameter configuration found")
-
-        self._configurator.combine_config_items_with_parameters(parameter_configuration, config_items, parameters)
-        return config_items
+        if parameter_configuration:
+            self._configurator.combine_config_items_with_parameters(parameter_configuration, parameters, *config_items)
 
     def preprocess(self, *config) -> None:
         self._configurator.preprocess(*config)
