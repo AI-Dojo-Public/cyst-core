@@ -15,6 +15,7 @@ import netaddr
 from cyst.api.configuration.logic.access import AuthorizationDomainType
 from cyst.api.configuration.network.elements import ConnectionConfig
 from cyst.api.environment.configuration import ServiceParameter
+from cyst.api.configuration.configuration import ConfigParameterValueType, ConfigParameterGroupType
 from cyst.api.environment.control import EnvironmentState
 from cyst.api.environment.message import MessageType, StatusOrigin, StatusValue, StatusDetail
 from cyst.api.host.service import ServiceState

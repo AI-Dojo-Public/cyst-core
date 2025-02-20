@@ -96,16 +96,16 @@ class Environment(ABC):
         """
 
     @abstractmethod
-    def configure(self, config_items: list[ConfigItem], parameters: Dict[str, Any] | None = None) -> 'Environment':
+    def configure(self, *config_item: ConfigItem, parameters: Dict[str, Any] | None = None) -> 'Environment':
         """
         Configures the environment, according to provided configuration items. This function can be called repeatedly,
         however, each subsequent call replaces the previous configuration. Therefore, a configuration must be done
         at once and every later change in the environment setup must be done through the
         :class:`cyst.api.environment.configuration.EnvironmentConfiguration` interface.
 
-        :param config_items: One or more configuration items. The number of items can be arbitrary and it is not
+        :param config_item: One or more configuration items. The number of items can be arbitrary and it is not
             order-dependent.
-        :type config_items: ConfigItem
+        :type config_item: ConfigItem
 
         :param parameters: Name-value mapping for configuration that supports parametrization. If none is provided,
             despite parameterizable configuration, default values are used.
