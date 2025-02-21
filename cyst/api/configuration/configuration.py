@@ -6,6 +6,8 @@ from enum import Enum, auto
 from uuid import uuid4
 from typing import Self, Any, List, Union
 
+from serde import serialize
+
 """
 Provides an API to configure all aspects of the simulation engine.
 
@@ -91,7 +93,7 @@ class ConfigItem:
 
         return new_one
 
-
+@serialize
 @dataclass
 class ConfigParameter(Any, str):
     """
@@ -145,8 +147,8 @@ class ConfigParameterSingle:
         parameters.
     :type name: str
 
-    :param type: The type of configuration parameter, i.e. what type of value will be there after substitution.
-    :type type: ConfigParameterValueType
+    :param value_type: The type of configuration parameter, i.e. what type of value will be there after substitution.
+    :type value_type: ConfigParameterValueType
 
     :param description: Additional information about the purpose of the configuration parameter. Most useful for
         user-facing interfaces.
@@ -160,7 +162,7 @@ class ConfigParameterSingle:
     :type parameter_id: str
     """
     name: str
-    type: ConfigParameterValueType
+    value_type: ConfigParameterValueType
     description: str
     default: Any
     parameter_id: str
@@ -273,7 +275,6 @@ class ConfigParameterGroup:
     default: list[str]
     options: List[ConfigParameterGroupEntry]
 
-
 @dataclass
 class ConfigParametrization(ConfigItem):
     """
@@ -283,3 +284,4 @@ class ConfigParametrization(ConfigItem):
     :type parameters: List[Union[ConfigParameterSingle, ConfigParameterGroup]]
     """
     parameters: List[Union[ConfigParameterSingle, ConfigParameterGroup]]
+    ref: str = field(default_factory=lambda: str(uuid4()))
