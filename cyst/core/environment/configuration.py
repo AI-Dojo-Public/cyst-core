@@ -381,13 +381,13 @@ class Configurator:
         return parsed_parameters
 
 
-    def check_and_default_parameters(self, parametrization_config: ConfigParametrization, parameters: dict[str, Any] | None):
+    def check_and_default_parameters(self, parametrization_config: ConfigParametrization, input_parameters: dict[str, Any] | None):
         """
         Check the correctness of group parameters and fill in the defaults if the parameters are missing.
         """
         # Initialize parameters as an empty dictionary if it is None
-        if parameters is None:
-            parameters = {'single_parameters': {}, 'group_parameters': {}}
+        if input_parameters is None:
+            input_parameters = {'single_parameters': {}, 'group_parameters': {}}
 
         def validate_group_entries(group_param, frontend_value):
             if group_param.group_type == ConfigParameterGroupType.ONE:
@@ -400,12 +400,13 @@ class Configurator:
 
         for parameter in parametrization_config.parameters:
             if isinstance(parameter, ConfigParameterSingle):
-                if parameter.parameter_id not in parameters['single_parameters']:
-                    parameters['single_parameters'][parameter.parameter_id] = parameter.default
+                if parameter.parameter_id not in input_parameters['single_parameters']:
+                    input_parameters['single_parameters'][parameter.parameter_id] = parameter.default
             elif isinstance(parameter, ConfigParameterGroup):
-                if parameter.parameter_id not in parameters['group_parameters']:
-                    parameters['group_parameters'][parameter.parameter_id] = parameter.default
-                validate_group_entries(parameter, parameters['group_parameters'][parameter.parameter_id])
+                if parameter.parameter_id not in input_parameters['group_parameters']:
+                    input_parameters['group_parameters'][parameter.parameter_id] = parameter.default
+                validate_group_entries(parameter, input_parameters['group_parameters'][parameter.parameter_id])
+        return input_parameters
 
     def get_config_parameter_value(self, value: str, value_type: ConfigParameterValueType) -> str | None:
         """
@@ -431,7 +432,7 @@ class Configurator:
         Fill in the correct parameter values in place of ConfigParameter instances in the configuration items.
         """
         # check the correctness of group parameters and fill in the defaults if the parameters are missing
-        self.check_and_default_parameters(self._config_parametrization, parameters)
+        parameters = self.check_and_default_parameters(self._config_parametrization, parameters)
 
         # parse the parameters into single dimensional dict for easier config items parametrization
         parsed_parameters = self.parse_parameters(self._config_parametrization, parameters)
@@ -457,6 +458,9 @@ class Configurator:
             elif is_dataclass(obj):
                 # Handle dataclass objects by iterating through their fields
                 for field in fields(obj):
+                    new_value = set_config_parameters(getattr(obj, field.name))
+                    if isinstance(new_value, ConfigParameter):
+                        raise ValueError(f"Parameter id of '{new_value.id}' is missing in parametrization configuration")
                     setattr(obj, field.name, set_config_parameters(getattr(obj, field.name)))
             return obj
 
