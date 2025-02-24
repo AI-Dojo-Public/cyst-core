@@ -142,7 +142,7 @@ class TestParametrization(unittest.TestCase):
                     name="Vulnerable access level",
                     value_type=ConfigParameterValueType.VALUE,
                     description="Sets the access level for the service",
-                    default="user",
+                    default=AccessLevel.LIMITED,
                     parameter_id="my-custom-access-level"
                 ),
                 ConfigParameterGroup(
@@ -210,12 +210,11 @@ class TestParametrization(unittest.TestCase):
         e.configure(*self.all_config, parameters=self.parameters)
         e.control.init()
         e.control.commit()
-        print(e.configuration.general.save_configuration(indent=4))
 
         for passive_service in self.target.passive_services:
             if passive_service.name == 'bash':
                 self.assertEqual(passive_service.version, '1.4.62')
-                self.assertEqual(passive_service.access_level, 'test_access_level')
+                self.assertEqual(passive_service.access_level, AccessLevel.LIMITED)
 
         # Check that the correct services are assigned to the attacker nodes
         self.assertIn(self.attacker_service, self.attacker_node_1.active_services)
