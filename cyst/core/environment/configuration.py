@@ -364,8 +364,8 @@ class Configurator:
         """
         parsed_parameters = {}
 
-        single_parameters = parameters['SingleParameters']
-        group_parameters = parameters['GroupParameters']
+        single_parameters = parameters['single_parameters']
+        group_parameters = parameters['group_parameters']
 
         # Fill group parameters
         for parameter in parametrization_config.parameters:
@@ -387,7 +387,7 @@ class Configurator:
         """
         # Initialize parameters as an empty dictionary if it is None
         if parameters is None:
-            parameters = {'SingleParameters': {}, 'GroupParameters': {}}
+            parameters = {'single_parameters': {}, 'group_parameters': {}}
 
         def validate_group_entries(group_param, frontend_value):
             if group_param.group_type == ConfigParameterGroupType.ONE:
@@ -400,12 +400,12 @@ class Configurator:
 
         for parameter in parametrization_config.parameters:
             if isinstance(parameter, ConfigParameterSingle):
-                if parameter.parameter_id not in parameters['SingleParameters']:
-                    parameters['SingleParameters'][parameter.parameter_id] = parameter.default
+                if parameter.parameter_id not in parameters['single_parameters']:
+                    parameters['single_parameters'][parameter.parameter_id] = parameter.default
             elif isinstance(parameter, ConfigParameterGroup):
-                if parameter.parameter_id not in parameters['GroupParameters']:
-                    parameters['GroupParameters'][parameter.parameter_id] = parameter.default
-                validate_group_entries(parameter, parameters['GroupParameters'][parameter.parameter_id])
+                if parameter.parameter_id not in parameters['group_parameters']:
+                    parameters['group_parameters'][parameter.parameter_id] = parameter.default
+                validate_group_entries(parameter, parameters['group_parameters'][parameter.parameter_id])
 
     def get_config_parameter_value(self, value: str, value_type: ConfigParameterValueType) -> str | None:
         """

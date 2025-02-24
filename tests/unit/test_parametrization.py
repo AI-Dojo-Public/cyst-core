@@ -196,11 +196,11 @@ class TestParametrization(unittest.TestCase):
         ]
 
         self.parameters = {
-            "SingleParameters": {
+            "single_parameters": {
                 "my-custom-access-level": "test_access_level",
                 "my-custom-version": "1.4.62"
             },
-            "GroupParameters": {
+            "group_parameters": {
                 "attacker-position": ["attacker_location_1"]
             }
         }
@@ -210,6 +210,7 @@ class TestParametrization(unittest.TestCase):
         e.configure(*self.all_config, parameters=self.parameters)
         e.control.init()
         e.control.commit()
+        print(e.configuration.general.save_configuration(indent=4))
 
         for passive_service in self.target.passive_services:
             if passive_service.name == 'bash':
