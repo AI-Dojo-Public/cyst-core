@@ -38,8 +38,8 @@ class NetworkConfigurationImpl(NetworkConfiguration):
                        defer: bool = False, reverse: bool = False) -> Optional[Session]:
         return _create_session(self._platform, owner, waypoints, src_service, dst_service, parent, defer, reverse)
 
-    def create_session_from_message(self, message: Message) -> Session:
-        return _create_session_from_message(self._platform, message)
+    def create_session_from_message(self, message: Message, reverse_direction: bool = False) -> Session:
+        return _create_session_from_message(self._platform, message, reverse_direction)
 
     def append_session(self, original_session: Session, appended_session: Session) -> Session:
         return _append_session(self._platform, original_session, appended_session)
@@ -104,7 +104,7 @@ def _append_session(self: CYSTPlatform, original_session: Session, appended_sess
     return session
 
 
-def _create_session_from_message(self: CYSTPlatform, message: Message) -> Session:
+def _create_session_from_message(self: CYSTPlatform, message: Message, reverse_direction: bool = False) -> Session:
     message = MessageImpl.cast_from(message)
 
     if message.auth:
@@ -120,8 +120,6 @@ def _create_session_from_message(self: CYSTPlatform, message: Message) -> Sessio
     if not path:
         return parent
 
-    session = SessionImpl(owner, parent, path, message.src_service, message.dst_service, self._network)
-
     # Source and destination services are taken from message and the session reference is inserted to both
     if message.type == MessageType.REQUEST:
         src_service = message.src_service
@@ -129,6 +127,12 @@ def _create_session_from_message(self: CYSTPlatform, message: Message) -> Sessio
     else:
         src_service = message.dst_service
         dst_service = message.src_service
+
+    if reverse_direction:
+        path = [hop.swap() for hop in reversed(path)]
+        src_service, dst_service = dst_service, src_service
+
+    session = SessionImpl(owner, parent, path, src_service, dst_service, self._network)
 
     if parent:
         p = SessionImpl.cast_from(parent)
