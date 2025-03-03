@@ -105,13 +105,15 @@ class EnvironmentMessaging(ABC):
         """
 
     @abstractmethod
-    def open_session(self, request: Request) -> Session:
+    def open_session(self, request: Request, reverse_direction: bool = False) -> Session:
         """
         Opens a session to the source of the request. If the request already contains a session, it will append the
         session, unless the current node is an endpoint of that session. In that case, the same session is returned.
 
         :param request: The request from which the session is established.
         :type request: Request
+        :param reverse_direction: Whether the direction of the shell is reversed or not.
+        :type reverse_direction: bool
 
         :return: A session to the request source.
         """

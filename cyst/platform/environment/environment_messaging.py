@@ -56,8 +56,8 @@ class EnvironmentMessagingImpl(EnvironmentMessaging):
         else:
             raise ValueError("Malformed request passed to create a response from")
 
-    def open_session(self, request: Request) -> Session:
-        return _open_session(self._platform, request)
+    def open_session(self, request: Request, reverse_direction: bool = False) -> Session:
+        return _open_session(self._platform, request, reverse_direction)
 
     async def message_hop(self, message: Message) -> None:
         await _message_hop(self._platform, message)
@@ -68,8 +68,8 @@ class EnvironmentMessagingImpl(EnvironmentMessaging):
 # ----------------------------------------------------------------------------------------------------------------------
 # Free function implementations of the above class. It is being done this way to shut up the type checking and to
 # overcome python's limitation on having a class implemented in multiple files.
-def _open_session(self: CYSTPlatform, request: Request) -> Session:
-    return self._network_configuration.create_session_from_message(request)
+def _open_session(self: CYSTPlatform, message: Message, reverse_direction: bool) -> Session:
+    return self._network_configuration.create_session_from_message(message, reverse_direction)
 
 
 def extract_metadata_action(action: Action, action_list: List[Action]):

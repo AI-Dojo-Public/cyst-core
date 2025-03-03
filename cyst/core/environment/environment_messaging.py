@@ -40,8 +40,8 @@ class EnvironmentMessagingImpl(EnvironmentMessaging):
                         original_response: Optional[Response] = None):
         return self._env.platform.messaging.create_response(request, status, content, session, auth, original_response)
 
-    def open_session(self, request: Request) -> Session:
-        return self._env.platform.messaging.open_session(request)
+    def open_session(self, request: Request, reverse_direction: bool = False) -> Session:
+        return self._env.platform.messaging.open_session(request, reverse_direction)
 
 
 # ----------------------------------------------------------------------------------------------------------------------

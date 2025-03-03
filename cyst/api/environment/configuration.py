@@ -852,13 +852,15 @@ class NetworkConfiguration(ABC):
         """
 
     @abstractmethod
-    def create_session_from_message(self, message: Message) -> Session:
+    def create_session_from_message(self, message: Message, reverse_direction: bool = False) -> Session:
         """
         Establishes a new session from the path the message travelled. This function is mostly used by behavioral models
         to create new sessions in response to messages coming from attackers.
 
         :param message: An instance of the message.
         :type message: Message
+        :param reverse_direction: Whether the direction of the shell is reversed or not.
+        :type reverse_direction: bool
 
         :return: A new session.
         """
