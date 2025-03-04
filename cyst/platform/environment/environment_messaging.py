@@ -182,13 +182,16 @@ async def _message_hop(self: CYSTPlatform, message: Message) -> None:
     message.hop()
     current_node: NodeImpl = self._network.get_node_by_id(message.current.id)  # MYPY: Get node can return None
 
-    connection = self.configuration.network.get_connections(current_node, message.current.port)[0]
-    delay, result = connection.evaluate(message)
-    if delay < 0:
-        # TODO: message dropped, what to do? Maybe send early without processing
-        pass
+    # If the message was not running around localhost, get the connection delay
+    delay = 0
+    if message.src_ip != message.dst_ip:
+        connection = self.configuration.network.get_connections(current_node, message.current.port)[0]
+        delay, result = connection.evaluate(message)
+        if delay < 0:
+            # TODO: message dropped, what to do? Maybe send early without processing
+            pass
 
-    message = MessageImpl.cast_from(result)
+    message = MessageImpl.cast_from(message)
     # TODO: Parametrization of platform should be in one place and not be magic constants everywhere
     processing_time = max(msecs(20).to_float(), delay)
 
