@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import asyncio
 import sys
 
 from heapq import heappush
@@ -54,11 +55,19 @@ def extract_metadata_action(action: Action, action_list: List[Action]):
 
 
 def _send_message(self: _Environment, message: Message, delay: int = 0) -> None:
-    # Get caller service id
-    # HACK: This is patently ugly, but oh so much better from the API point of view. So, future me, do not think bad of your past self...
+
     if isinstance(message, Request):
-        caller = sys._getframe(2).f_locals["self"]
-        if isinstance(caller, ActiveService):
+
+        # This is a hack that enables getting the caller of the send_message() function
+        # It is ugly and doubly so because of asyncio. But still better than alternatives.
+        try:
+            asyncio.get_running_loop()
+            t = asyncio.current_task()
+            caller = t.get_coro().cr_frame.f_locals["self"]
+        except:
+            caller = sys._getframe(2).f_locals["self"]
+
+        if caller and isinstance(caller, ActiveService):
             message.platform_specific["caller_id"] = self._service_store.get_active_service_id(id(caller))
 
     # I would much rather check by the MessageType, but then the type inspection would not work down the line :-/
