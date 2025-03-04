@@ -92,10 +92,11 @@ def _send_message(self: _Environment, message: Message, delay: int = 0) -> None:
         # ------------------------------------------------------------------------------------------------------------------
         # Direct actions
         elif action_type == ActionType.DIRECT:
-
             # --------------------------------------------------------------------------------------------------------------
             # Call the behavioral model to add components to direct actions
-            message.action.components.extend(self._behavioral_models[message.action.namespace].action_components(message))
+            # We ignore actions without behavioral models, such as direct agent-agent actions.
+            if message.action.namespace in self._behavioral_models:
+                message.action.components.extend(self._behavioral_models[message.action.namespace].action_components(message))
 
             # --------------------------------------------------------------------------------------------------------------
             # Enrich the message with metadata. The rule of thumb is that actions with components get the metadata from
