@@ -13,8 +13,13 @@ from cyst.platform.network.elements import Hop, Endpoint, Resolver
 # The session represents an existing chain of connections, which can be traversed without authorization by its owner
 class SessionImpl(Session):
     def __init__(self, owner: str, parent: Optional[Session] = None, path: Optional[List[Hop]] = None,
-                 src_service: str = "", dst_service: str = "", resolver: Optional[Resolver] = None) -> None:
-        self._id = uuid.uuid4()
+                 src_service: str = "", dst_service: str = "", resolver: Optional[Resolver] = None,
+                 id: Optional[str] = None) -> None:
+        if not id:
+            self._id = str(uuid.uuid4())
+        else:
+            self._id = id
+
         self._enabled = True
 
         # TODO Remove owners. They don't work and the are not needed

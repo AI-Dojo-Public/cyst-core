@@ -91,7 +91,7 @@ class Network(Resolver):
     # TODO: If one direction fails, session should try constructing itself in reverse order and then restructure hops
     #       so that the origin is always at the first waypoint.
     def create_session(self, owner: str, waypoints: List[Union[str, Node]], src_service: Optional[str],
-                        dst_service: Optional[str], parent: Optional[Session], reverse: bool) -> Session:
+                        dst_service: Optional[str], parent: Optional[Session], reverse: bool, id: Optional[str]) -> Session:
         path: List[Hop] = []
         source: NodeImpl
         session_reversed = False
@@ -210,4 +210,4 @@ class Network(Resolver):
             for i in range(0, len(path)):
                 path[i] = path[i].swap()
 
-        return SessionImpl(owner, parent, path, src_service, dst_service, self)  # MYPY: Services can be None, they are optional
+        return SessionImpl(owner, parent, path, src_service, dst_service, self, id)  # MYPY: Services can be None, they are optional

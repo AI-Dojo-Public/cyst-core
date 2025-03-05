@@ -1,7 +1,7 @@
 from dataclasses import dataclass, field
 
 from netaddr import IPAddress, IPNetwork
-from typing import Union
+from typing import Union, Optional, List
 from uuid import uuid4
 from serde import serialize
 from serde.compat import typename
@@ -136,4 +136,37 @@ class RouteConfig(ConfigItem):
     metric: int = field(default=100)
     ref: str = field(default_factory=lambda: str(uuid4()))
     name: str = "__route"
+    id: str = ""
+
+
+@serialize
+@dataclass
+class SessionConfig(ConfigItem):
+    """ Configuration of a session.
+
+    A session represents a virtual connection between two endpoint services that is ignoring the routing limitations
+    imposed by routers and firewalls en route.
+
+    :param src_service: A service that the session originates from.
+    :type src_service: str
+
+    :param dst_service: A service that the session terminates at.
+    :type dst_service: str
+
+    :param waypoints: A list of node IDs through which the session is established.
+    :type waypoints: List[str]
+
+    :param reverse: The direction of construction of the session. If reverse is set, then session is originating from
+        the destination service. This can matter, because the session creation should honor the router configuration and
+        the reverse shell can be the only one that can be established. But, for example, the CYST simulation engine
+        tries to construct the session in both ways to see if anything works, so this parameter may be inconsequential.
+    :type reverse: bool
+    """
+    src_service: str
+    dst_service: str
+    # TODO: Session configuration does not enable chaining through parent-child relation. This may be wanted in some cases.
+    waypoints: List[str]
+    reverse: bool = False
+    ref: str = field(default_factory=lambda: str(uuid4()))
+    name: str = "__session"
     id: str = ""

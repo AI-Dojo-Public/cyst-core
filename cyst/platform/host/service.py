@@ -56,6 +56,10 @@ class ServiceImpl(Service):
     def sessions(self) -> List[Session]:
         return self._sessions
 
+    @sessions.setter
+    def sessions(self, value: List) -> None:
+        self._sessions = value
+
     def add_session(self, session: Session) -> None:
         if session not in self._sessions:
             self._sessions.append(session)

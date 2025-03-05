@@ -35,8 +35,8 @@ class NetworkConfigurationImpl(NetworkConfiguration):
 
     def create_session(self, owner: str, waypoints: List[Union[str, Node]], src_service: Optional[str] = None,
                        dst_service: Optional[str] = None, parent: Optional[Session] = None,
-                       defer: bool = False, reverse: bool = False) -> Optional[Session]:
-        return _create_session(self._platform, owner, waypoints, src_service, dst_service, parent, defer, reverse)
+                       defer: bool = False, reverse: bool = False, id: Optional[str] = None) -> Optional[Session]:
+        return _create_session(self._platform, owner, waypoints, src_service, dst_service, parent, defer, reverse, id)
 
     def create_session_from_message(self, message: Message, reverse_direction: bool = False) -> Session:
         return _create_session_from_message(self._platform, message, reverse_direction)
@@ -61,13 +61,13 @@ def _add_connection(self: CYSTPlatform, source: Node, target: Node, source_port_
 #       to service interface
 def _create_session(self: CYSTPlatform, owner: str, waypoints: List[Union[str, Node]], src_service: Optional[str] = None,
                     dst_service: Optional[str] = None, parent: Optional[Session] = None, defer: bool = False,
-                    reverse: bool = False) -> Optional[Session]:
+                    reverse: bool = False, id: Optional[str] = None) -> Optional[Session]:
 
     if defer:
-        self._sessions_to_add.append((owner, waypoints, src_service, dst_service, parent, reverse))
+        self._sessions_to_add.append((owner, waypoints, src_service, dst_service, parent, reverse, id))
         return None
     else:
-        session = self._network.create_session(owner, waypoints, src_service, dst_service, parent, reverse)
+        session = self._network.create_session(owner, waypoints, src_service, dst_service, parent, reverse, id)
         if src_service or dst_service:
             if not src_service and dst_service:
                 raise RuntimeError("Both or neither services must be specified during session creation.")

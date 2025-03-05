@@ -23,6 +23,7 @@ from cyst.api.host.service import ActiveService
 from cyst.api.network.node import Node
 from cyst.api.network.session import Session
 
+from cyst.platform.host.service import Service, ServiceImpl
 from cyst.platform.environment.configuration_access import AccessConfigurationImpl
 from cyst.platform.environment.configuration_general import GeneralConfigurationImpl
 from cyst.platform.environment.configuration_network import NetworkConfigurationImpl
@@ -32,6 +33,7 @@ from cyst.platform.environment.configurator import Configurator
 from cyst.platform.environment.message import TimeoutImpl
 from cyst.platform.environment.environment_messaging import EnvironmentMessagingImpl
 from cyst.platform.network.network import Network
+from cyst.platform.network.session import SessionImpl
 
 
 class CYSTPlatform(Platform, EnvironmentConfiguration, Clock):
@@ -65,7 +67,7 @@ class CYSTPlatform(Platform, EnvironmentConfiguration, Clock):
         self._service_configuration = ServiceConfigurationImpl(self)
 
         self._network = Network(self._general_configuration)
-        self._sessions_to_add: List[Tuple[str, List[Union[str, Node]], Optional[str], Optional[str], Optional[Session], bool]] = []
+        self._sessions_to_add: List[Tuple[str, List[Union[str, Node]], Optional[str], Optional[str], Optional[Session], bool, Optional[str]]] = []
 
         self._environment_messaging = EnvironmentMessagingImpl(self)
 
@@ -77,8 +79,16 @@ class CYSTPlatform(Platform, EnvironmentConfiguration, Clock):
             dst_service = session[3]
             parent = session[4]
             reverse = session[5]
+            id = session[6]
 
-            self._network.create_session(owner, waypoints, src_service, dst_service, parent, reverse)
+            s: SessionImpl = SessionImpl.cast_from(self._network.create_session(owner, waypoints, src_service, dst_service, parent, reverse, id))
+
+            # Add sessions to services
+            src_service = ServiceImpl.cast_from(self._general_configuration.get_object_by_id(f"{s.startpoint.id}.{src_service}", Service))
+            dst_service = ServiceImpl.cast_from(self._general_configuration.get_object_by_id(f"{s.endpoint.id}.{dst_service}", Service))
+
+            src_service.sessions.append(s)
+            dst_service.sessions.append(s)
 
         self._init_time = time.time()
         return True

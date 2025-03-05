@@ -19,7 +19,7 @@ from cyst.api.configuration.logic.access import AuthorizationConfig, Authenticat
     AuthorizationDomainConfig, FederatedAuthorizationConfig
 from cyst.api.configuration.logic.data import DataConfig
 from cyst.api.configuration.logic.exploit import VulnerableServiceConfig, ExploitParameterConfig, ExploitConfig
-from cyst.api.configuration.network.elements import PortConfig, InterfaceConfig, ConnectionConfig, RouteConfig
+from cyst.api.configuration.network.elements import PortConfig, InterfaceConfig, ConnectionConfig, RouteConfig, SessionConfig
 from cyst.api.configuration.network.firewall import FirewallChainConfig, FirewallConfig, FirewallPolicy, FirewallChainType
 from cyst.api.configuration.network.network import NetworkConfig
 from cyst.api.configuration.network.router import RouterConfig
@@ -43,6 +43,7 @@ class Configurator:
         self._refs: Dict[str, Any] = {}
         self._obj_refs: Dict[str, Any] = {}
         self._connections: List[ConnectionConfig] = []
+        self._sessions: List[SessionConfig] = []
         self._nodes: List[NodeConfig] = []
         self._routers: List[RouterConfig] = []
         self._active_services: List[ActiveServiceConfig] = []
@@ -67,6 +68,7 @@ class Configurator:
         self._refs.clear()
         self._obj_refs.clear()
         self._connections.clear()
+        self._sessions.clear()
         self._nodes.clear()
         self._routers.clear()
         self._active_services.clear()
@@ -112,6 +114,7 @@ class Configurator:
     def process_cfg_item(self, item: ConfigItem):
         mapping = {
             ConnectionConfig: self._connections,
+            SessionConfig: self._sessions,
             RouterConfig: self._routers,
             NodeConfig: self._nodes,
             InterfaceConfig: self._interfaces,
@@ -450,3 +453,14 @@ class Configurator:
                 self._refs[dst_config.interfaces[dst_port_id]].index = dst_port_id
             else:
                 self._refs[dst_config.interfaces[dst_port_id].ref].index = dst_port_id
+
+        # Sessions
+        for session_cfg in self._sessions:
+            self._platform.configuration.network.create_session(owner="__system",
+                                                                waypoints=session_cfg.waypoints,
+                                                                src_service=session_cfg.src_service,
+                                                                dst_service=session_cfg.dst_service,
+                                                                parent=None,
+                                                                defer=True,
+                                                                reverse=session_cfg.reverse,
+                                                                id=session_cfg.id)
