@@ -83,8 +83,18 @@ def _create_active_service(self: CYSTPlatform, type: str, owner: str, name: str,
     if not id:
         id = NodeImpl.cast_from(node).id + "." + name
 
+    # HACK: A bit of a hack to enable active services to get access to configuration-produced sessions
+    sessions = []
+
+    if not configuration:
+        configuration = {}
+    configuration["__sessions"] = sessions
+
     srv = self._infrastructure.service_store.create_active_service(type, owner, name, node, service_access_level, configuration, id)
     s = ServiceImpl(type, srv, name, owner, service_access_level, id)
+
+    s.sessions = sessions
+
     if s:
         self._general_configuration.add_object(id, s)
 

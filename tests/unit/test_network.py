@@ -6,14 +6,15 @@ from typing import Tuple
 
 from cyst.api.configuration import AuthenticationProviderConfig, PassiveServiceConfig, AccessSchemeConfig, \
     AuthorizationDomainConfig, AuthorizationDomainType, AuthorizationConfig, NodeConfig, InterfaceConfig, \
-    ActiveServiceConfig, RouterConfig, ConnectionConfig, FirewallConfig, FirewallChainConfig, FirewallChainType
+    ActiveServiceConfig, RouterConfig, ConnectionConfig, FirewallConfig, FirewallChainConfig, FirewallChainType, \
+    SessionConfig
 from cyst.api.configuration.network.elements import RouteConfig
 from cyst.api.environment.configuration import ServiceParameter
 from cyst.api.environment.environment import Environment
 from cyst.api.environment.message import StatusOrigin, StatusValue, Status, Message, Request
 from cyst.api.environment.messaging import EnvironmentMessaging
 from cyst.api.environment.resources import EnvironmentResources
-from cyst.api.host.service import Service
+from cyst.api.host.service import Service, ActiveService
 from cyst.api.logic.access import AccessLevel, AuthenticationProviderType, AuthenticationTokenType, \
     AuthenticationTokenSecurity
 from cyst.api.network.elements import Route
@@ -730,6 +731,114 @@ class TestSessions(unittest.TestCase):
         env.control.run()
         response = actor1.get_last_response()
         self.assertTrue(response.status == Status(StatusOrigin.SERVICE, StatusValue.SUCCESS), f"Selected session could not be used to connect the passive service. Reason: {str(response)}")
+
+        env.control.commit()
+
+    def test_0004_test_session_configuration(self):
+        active_node_1 = NodeConfig(
+            active_services=[
+                ActiveServiceConfig(
+                    type="scripted_actor",
+                    name="scripted_actor",
+                    owner="actor_1",
+                    access_level=AccessLevel.LIMITED,
+                )
+            ],
+            passive_services=[],
+            traffic_processors=[],
+            shell="",
+            interfaces=[
+                InterfaceConfig(IPAddress("192.168.0.2"), IPNetwork("192.168.0.2/24"))
+            ],
+            name="active_node_1"
+        )
+
+        passive_service = PassiveServiceConfig(
+            name="random_service",
+            owner="random_service",
+            version="1.2.3",
+            local=False,
+            access_level=AccessLevel.LIMITED
+        )
+
+        passive_node_1 = NodeConfig(
+            active_services=[],
+            passive_services=[passive_service()],
+            traffic_processors=[],
+            shell="",
+            interfaces=[
+                InterfaceConfig(IPAddress("192.168.1.2"), IPNetwork("192.168.1.2/24"))
+            ],
+            name="passive_node_1"
+        )
+
+        passive_node_2 = NodeConfig(
+            active_services=[],
+            passive_services=[passive_service()],
+            traffic_processors=[],
+            shell="",
+            interfaces=[
+                InterfaceConfig(IPAddress("192.168.1.3"), IPNetwork("192.168.1.3/24"))
+            ],
+            name="passive_node_2"
+        )
+
+        router = RouterConfig(
+            traffic_processors=[
+                FirewallConfig(
+                    default_policy=FirewallPolicy.DENY,
+                    chains=[
+                        FirewallChainConfig(
+                            type=FirewallChainType.FORWARD,
+                            policy=FirewallPolicy.DENY,
+                            rules=[
+                                # Inter-network connections
+                                FirewallRule(src_net=IPNetwork("192.168.0.1/24"), dst_net=IPNetwork("192.168.0.1/24"), service="*", policy=FirewallPolicy.ALLOW),
+                                FirewallRule(src_net=IPNetwork("192.168.1.1/24"), dst_net=IPNetwork("192.168.1.1/24"), service="*", policy=FirewallPolicy.ALLOW),
+                                # Connection from inside network outside
+                                FirewallRule(src_net=IPNetwork("192.168.1.1/24"), dst_net=IPNetwork("192.168.0.1/24"), service="*", policy=FirewallPolicy.ALLOW)
+                            ]
+                        )
+                    ]
+                )
+            ],
+            interfaces=[
+                InterfaceConfig(IPAddress("192.168.0.1"), IPNetwork("192.168.0.0/24"), index=0),
+                InterfaceConfig(IPAddress("192.168.1.1"), IPNetwork("192.168.1.0/24"), index=1),
+                InterfaceConfig(IPAddress("192.168.1.1"), IPNetwork("192.168.1.0/24"), index=2)
+            ],
+            routing_table=[],
+            name="router"
+        )
+
+        connections = [
+            ConnectionConfig(active_node_1, 0, router, 0),
+            ConnectionConfig(passive_node_1, 0, router, 1),
+            ConnectionConfig(passive_node_2, 0, router, 2)
+        ]
+
+        sessions = [
+            SessionConfig(src_service="scripted_actor", dst_service="random_service", waypoints=["active_node_1", "router", "passive_node_1"], reverse=True, id="session_1")
+        ]
+
+        all_config = [active_node_1, passive_node_1, passive_node_2, router, *connections, *sessions]
+
+        env = Environment.create().configure(*all_config)
+        env.control.init()
+
+        env.control.add_pause_on_response("active_node_1.scripted_actor")
+
+        actor1 = env.configuration.service.get_service_interface(
+            env.configuration.general.get_object_by_id("active_node_1.scripted_actor", ActiveService),
+            ScriptedActorControl)
+
+        actor1.execute_action("192.168.1.3", "random_service", env.resources.action_store.get("cyst:test:echo_success"), "session_1")
+        env.control.run()
+
+        response = actor1.get_last_response()
+
+        # TODO: So far, we are considering only the happy path
+        self.assertTrue(response.status == Status(StatusOrigin.SERVICE, StatusValue.SUCCESS))
 
         env.control.commit()
 

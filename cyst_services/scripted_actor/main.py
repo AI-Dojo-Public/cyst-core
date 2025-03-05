@@ -14,8 +14,13 @@ from cyst.api.host.service import ActiveService, ActiveServiceDescription, Servi
 
 
 class ScriptedActorControl(ABC):
+    @property
     @abstractmethod
-    def execute_action(self, target: str, service: str, action: Action, session: Session = None,
+    def sessions(self) -> Dict[str, Session]:
+        pass
+
+    @abstractmethod
+    def execute_action(self, target: str, service: str, action: Action, session: Session | str | None = None,
                        auth: Optional[Union[Authorization, AuthenticationToken]] = None) -> None:
         pass
 
@@ -61,6 +66,7 @@ class ScriptedActor(ActiveService, ScriptedActorControl):
         self._last_message_type = None
         self._log = logging.getLogger("services.scripted_actor")
         self._callbacks = {}
+        self._sessions = args.get("__sessions", {}) if args else {}
 
     # This Actor only runs given actions. No own initiative
     async def run(self):
@@ -68,8 +74,29 @@ class ScriptedActor(ActiveService, ScriptedActorControl):
         if self._run_callback:
             await self._run_callback(self._messaging, self._resources)
 
-    def execute_action(self, target: str, service: str, action: Action, session: Session = None,
+    @property
+    def sessions(self) -> Dict[str, Session]:
+        return self._sessions
+
+    def execute_action(self, target: str, service: str, action: Action, session: Session | str | None = None,
                        auth: Optional[Union[Authorization, AuthenticationToken]] = None) -> None:
+
+        if isinstance(session, str):
+            # We have to make a bit of a tomfoolery here, because sessions appear post-init but pre-run, and there is no
+            # entry-point for that.
+            if isinstance(self._sessions, List):
+                session_list: List[Session] = self._sessions
+                self._sessions: Dict[str, Session] = {}
+                for s in session_list:
+                    self._sessions[s.id] = s
+
+            s = self._sessions.get(session, None)
+            if not s:
+                self._log.error(f"Attempted to use a session with id '{session}'. Service does not have it.")
+                session = None
+            else:
+                session = s
+
         request = self._messaging.create_request(target, service, action, session=session, auth=auth)
         self._messaging.send_message(request)
 

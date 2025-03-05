@@ -19,7 +19,7 @@ from cyst.api.configuration.logic.access import AuthorizationConfig, Authenticat
     AuthorizationDomainConfig, FederatedAuthorizationConfig
 from cyst.api.configuration.logic.data import DataConfig
 from cyst.api.configuration.logic.exploit import VulnerableServiceConfig, ExploitParameterConfig, ExploitConfig
-from cyst.api.configuration.network.elements import PortConfig, InterfaceConfig, ConnectionConfig, RouteConfig
+from cyst.api.configuration.network.elements import PortConfig, InterfaceConfig, ConnectionConfig, RouteConfig, SessionConfig
 from cyst.api.configuration.network.firewall import FirewallChainConfig, FirewallConfig, FirewallPolicy, FirewallChainType
 from cyst.api.configuration.network.network import NetworkConfig
 from cyst.api.configuration.network.router import RouterConfig
@@ -32,6 +32,7 @@ class Configurator:
         self._env = environment
         self._refs: Dict[str, Any] = {}
         self._connections: List[ConnectionConfig] = []
+        self._sessions: List[SessionConfig] = []
         self._nodes: List[NodeConfig] = []
         self._routers: List[RouterConfig] = []
         self._active_services: List[ActiveServiceConfig] = []
@@ -59,6 +60,7 @@ class Configurator:
     def reset(self):
         self._refs.clear()
         self._connections.clear()
+        self._sessions.clear()
         self._nodes.clear()
         self._routers.clear()
         self._active_services.clear()
@@ -100,6 +102,11 @@ class Configurator:
 
     def _process_ConnectionConfig(self, cfg: ConnectionConfig) -> str:
         self._connections.append(cfg)
+        self._refs[cfg.ref] = cfg
+        return cfg.ref
+
+    def _process_SessionConfig(self, cfg: SessionConfig) -> str:
+        self._sessions.append(cfg)
         self._refs[cfg.ref] = cfg
         return cfg.ref
 
@@ -612,7 +619,7 @@ class Configurator:
         return item
 
     def get_configuration(self) -> List[ConfigItem]:
-        top_level = [*self._nodes, *self._routers, *self._connections, *self._exploits]
+        top_level = [*self._nodes, *self._routers, *self._connections, *self._exploits, *self._sessions]
         result = []
         for item in top_level:
             result.append(self._resolve_config_item(item))
