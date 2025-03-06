@@ -65,7 +65,7 @@ class ServiceConfigurationImpl(ServiceConfiguration):
     def private_authorizations(self, service: PassiveService) -> List[Authorization]:
         return PassiveServiceImpl.cast_from(service).private_authorizations
 
-    def sessions(self, service: PassiveService) -> List[Session]:
+    def sessions(self, service: PassiveService) -> Dict[str, Session]:
         return PassiveServiceImpl.cast_from(service).sessions
 
     def provides_auth(self, service: PassiveService, auth_provider: AuthenticationProvider) -> None:
@@ -84,7 +84,7 @@ def _create_active_service(self: CYSTPlatform, type: str, owner: str, name: str,
         id = NodeImpl.cast_from(node).id + "." + name
 
     # HACK: A bit of a hack to enable active services to get access to configuration-produced sessions
-    sessions = []
+    sessions: Dict[str, Session] = dict()
 
     if not configuration:
         configuration = {}

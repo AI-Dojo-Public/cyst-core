@@ -82,14 +82,6 @@ class ScriptedActor(ActiveService, ScriptedActorControl):
                        auth: Optional[Union[Authorization, AuthenticationToken]] = None) -> None:
 
         if isinstance(session, str):
-            # We have to make a bit of a tomfoolery here, because sessions appear post-init but pre-run, and there is no
-            # entry-point for that.
-            if isinstance(self._sessions, List):
-                session_list: List[Session] = self._sessions
-                self._sessions: Dict[str, Session] = {}
-                for s in session_list:
-                    self._sessions[s.id] = s
-
             s = self._sessions.get(session, None)
             if not s:
                 self._log.error(f"Attempted to use a session with id '{session}'. Service does not have it.")

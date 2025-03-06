@@ -87,8 +87,8 @@ class CYSTPlatform(Platform, EnvironmentConfiguration, Clock):
             src_service = ServiceImpl.cast_from(self._general_configuration.get_object_by_id(f"{s.startpoint.id}.{src_service}", Service))
             dst_service = ServiceImpl.cast_from(self._general_configuration.get_object_by_id(f"{s.endpoint.id}.{dst_service}", Service))
 
-            src_service.sessions.append(s)
-            dst_service.sessions.append(s)
+            src_service.sessions[s.id] = s
+            dst_service.sessions[s.id] = s
 
         self._init_time = time.time()
         return True
