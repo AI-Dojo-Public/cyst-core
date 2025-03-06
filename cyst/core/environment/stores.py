@@ -162,7 +162,10 @@ class ExploitStoreImpl(ExploitStore):
             candidate_sets.append(set(self._by_category.get(category, [])))
 
         if not candidate_sets:
-            return []
+            result = []
+            for exploit_list in self._by_id.values():
+                result.extend(exploit_list)
+            return result
         else:
             return list(set.intersection(*candidate_sets))
 
