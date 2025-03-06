@@ -1,5 +1,5 @@
 from semver import VersionInfo
-from typing import List, Set, Union, Tuple, Optional
+from typing import List, Set, Union, Tuple, Optional, Dict
 
 import cyst
 from cyst.api.host.service import Service, ActiveService, PassiveService, ServiceState
@@ -22,7 +22,7 @@ class ServiceImpl(Service):
         self._owner = owner
         self._sal = service_access_level
         self._node = None
-        self._sessions = []
+        self._sessions: Dict[str, Session] = dict()
         self._id = id
 
     @property
@@ -53,16 +53,16 @@ class ServiceImpl(Service):
         return isinstance(self._service, PassiveService)
 
     @property
-    def sessions(self) -> List[Session]:
+    def sessions(self) -> Dict[str, Session]:
         return self._sessions
 
     @sessions.setter
-    def sessions(self, value: List) -> None:
+    def sessions(self, value: Dict[str, Session]) -> None:
         self._sessions = value
 
     def add_session(self, session: Session) -> None:
-        if session not in self._sessions:
-            self._sessions.append(session)
+        if session.id not in self._sessions:
+            self._sessions[session.id] = session
 
     @property
     def passive_service(self) -> Optional[PassiveService]:

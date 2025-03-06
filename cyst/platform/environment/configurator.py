@@ -298,7 +298,7 @@ class Configurator:
                                                                                service_cfg.name, n, service_cfg.access_level,
                                                                                service_cfg.configuration,
                                                                                service_cfg.id)
-                self._platform.configuration.node.add_service(n, ServiceImpl(service_cfg.type, s.active_service, service_cfg.name, service_cfg.owner, service_cfg.access_level, service_cfg.id))
+                self._platform.configuration.node.add_service(n, s)
             
             for processor_cfg in node.traffic_processors:
                 if isinstance(processor_cfg, ActiveServiceConfig):
