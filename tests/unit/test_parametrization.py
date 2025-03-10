@@ -196,13 +196,9 @@ class TestParametrization(unittest.TestCase):
         ]
 
         self.parameters = {
-            "single_parameters": {
-                "my-custom-access-level": "test_access_level",
-                "my-custom-version": "1.4.62"
-            },
-            "group_parameters": {
-                "attacker-position": ["attacker_location_1"]
-            }
+            "my-custom-access-level": 1,
+            "my-custom-version": "1.4.62",
+            "attacker-position": ["attacker_location_1"]
         }
 
     def test_parameters_in_config_items(self):

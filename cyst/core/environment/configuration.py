@@ -367,21 +367,18 @@ class Configurator:
     # Parametrization
     def parse_parameters(self, parametrization_config: ConfigParametrization, parameters: dict[str, Any]):
         """
-        Parse user input parameters into a single dimensional dictionary for easier parametrization.
+        Parse parameters into the final form for easier parametrization and fill out the right type of value.
         """
         parsed_parameters = {}
-
-        single_parameters = parameters['single_parameters']
-        group_parameters = parameters['group_parameters']
 
         # Fill group parameters
         for parameter in parametrization_config.parameters:
             if isinstance(parameter, ConfigParameterGroup):
                 for group_entry in parameter.options:
-                    if group_entry.parameter_id in group_parameters[parameter.parameter_id]:
+                    if group_entry.parameter_id in parameters[parameter.parameter_id]:
                         parsed_parameters[group_entry.parameter_id] = self.get_config_parameter_value(group_entry.value, parameter.value_type)
             elif isinstance(parameter, ConfigParameterSingle):
-                parameter_value = single_parameters[parameter.parameter_id]
+                parameter_value = parameters[parameter.parameter_id]
                 parsed_parameters[parameter.parameter_id] = self.get_config_parameter_value(parameter_value,
                                                                                               parameter.value_type)
 
@@ -394,7 +391,7 @@ class Configurator:
         """
         # Initialize parameters as an empty dictionary if it is None
         if input_parameters is None:
-            input_parameters = {'single_parameters': {}, 'group_parameters': {}}
+            input_parameters = {}
 
         def validate_group_entries(group_param, frontend_value):
             if group_param.group_type == ConfigParameterGroupType.ONE:
@@ -407,12 +404,12 @@ class Configurator:
 
         for parameter in parametrization_config.parameters:
             if isinstance(parameter, ConfigParameterSingle):
-                if parameter.parameter_id not in input_parameters['single_parameters']:
-                    input_parameters['single_parameters'][parameter.parameter_id] = parameter.default
+                if parameter.parameter_id not in input_parameters:
+                    input_parameters[parameter.parameter_id] = parameter.default
             elif isinstance(parameter, ConfigParameterGroup):
-                if parameter.parameter_id not in input_parameters['group_parameters']:
-                    input_parameters['group_parameters'][parameter.parameter_id] = parameter.default
-                validate_group_entries(parameter, input_parameters['group_parameters'][parameter.parameter_id])
+                if parameter.parameter_id not in input_parameters:
+                    input_parameters[parameter.parameter_id] = parameter.default
+                validate_group_entries(parameter, input_parameters[parameter.parameter_id])
         return input_parameters
 
     def get_config_parameter_value(self, value: str, value_type: ConfigParameterValueType) -> str | None:
@@ -441,7 +438,7 @@ class Configurator:
         # check the correctness of group parameters and fill in the defaults if the parameters are missing
         parameters = self.check_and_default_parameters(self._config_parametrization, parameters)
 
-        # parse the parameters into single dimensional dict for easier config items parametrization
+        # parse parameters into the final form for easier parametrization and fill out the right type of value.
         parsed_parameters = self.parse_parameters(self._config_parametrization, parameters)
 
         def set_config_parameters(obj):
