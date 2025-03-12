@@ -351,7 +351,10 @@ class ExternalResourcesImpl(ExternalResources):
         for timeout, _, future_or_service, task, resource in self._finished:
             self._pending.remove(timeout)
             if isinstance(future_or_service, asyncio.Future):
-                future_or_service.set_result(task.result())
+                if task.exception():
+                    future_or_service.set_exception(task.exception())
+                else:
+                    future_or_service.set_result(task.result())
             else:
                 # This is handling the case when a service callback is not specified, because we don't care (SEND case)
                 if future_or_service:
