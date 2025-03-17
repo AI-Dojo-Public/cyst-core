@@ -1,8 +1,8 @@
 import jsonpickle
 import logging.config
 
-from dataclasses import dataclass, field
-from typing import Dict, List, Union, Any, Callable, Optional, Type
+from dataclasses import dataclass, field, fields, is_dataclass
+from typing import Dict, List, Union, Any, Callable, Optional, Type, Iterable
 from uuid import uuid4
 
 import netaddr
@@ -11,7 +11,8 @@ from cyst.api.configuration.infrastructure.physical import PhysicalLocationConfi
     PhysicalAccessConfig
 from cyst.api.environment.configuration import GeneralConfiguration, ObjectType, ConfigurationObjectType
 from cyst.api.environment.environment import Environment
-from cyst.api.configuration.configuration import ConfigItem
+from cyst.api.configuration.configuration import ConfigItem, ConfigParametrization, ConfigParameterSingle, \
+    ConfigParameterGroup, ConfigParameterGroupType, ConfigParameter, ConfigParameterValueType
 from cyst.api.configuration.host.service import ActiveServiceConfig, PassiveServiceConfig
 from cyst.api.configuration.infrastructure.infrastructure import InfrastructureConfig
 from cyst.api.configuration.infrastructure.log import LogConfig, LogSource, log_defaults
@@ -49,6 +50,7 @@ class Configurator:
         self._physical_access_config: List[PhysicalAccessConfig] = []
         self._physical_location_config: List[PhysicalLocationConfig] = []
         self._physical_connection_config: List[PhysicalConnectionConfig] = []
+        self._config_parametrization: ConfigParametrization | None = None
 
     def __getstate__(self):
         result = self.__dict__
@@ -343,8 +345,13 @@ class Configurator:
         self._physical_connection_config.append(cfg)
         return cfg.ref
 
+    def _process_ConfigParametrization(self, cfg: ConfigParametrization) -> str:
+        self._refs[cfg.ref] = cfg
+        self._config_parametrization = cfg
+        return cfg.ref
+
     def _process_default(self, cfg):
-        raise ValueError("Unknown config type provided")
+        raise ValueError(f"Unknown config type provided: {type(cfg)}")
 
     def _process_cfg_item(self, cfg: Any) -> str:
         if hasattr(cfg, "ref") and cfg.ref in self._refs:
@@ -357,7 +364,117 @@ class Configurator:
             return fn(cfg)
 
     # ------------------------------------------------------------------------------------------------------------------
+    # Parametrization
+    def parse_parameters(self, parametrization_config: ConfigParametrization, parameters: dict[str, Any]):
+        """
+        Parse parameters into the final form for easier parametrization and fill out the right type of value.
+        """
+        parsed_parameters = {}
+
+        # Fill group parameters
+        for parameter in parametrization_config.parameters:
+            if isinstance(parameter, ConfigParameterGroup):
+                for group_entry in parameter.options:
+                    if group_entry.parameter_id in parameters[parameter.parameter_id]:
+                        parsed_parameters[group_entry.parameter_id] = self.get_config_parameter_value(group_entry.value, parameter.value_type)
+            elif isinstance(parameter, ConfigParameterSingle):
+                parameter_value = parameters[parameter.parameter_id]
+                parsed_parameters[parameter.parameter_id] = self.get_config_parameter_value(parameter_value,
+                                                                                              parameter.value_type)
+
+        return parsed_parameters
+
+
+    def check_and_default_parameters(self, parametrization_config: ConfigParametrization, input_parameters: dict[str, Any] | None):
+        """
+        Check the correctness of group parameters and fill in the defaults if the parameters are missing.
+        """
+        # Initialize parameters as an empty dictionary if it is None
+        if input_parameters is None:
+            input_parameters = {}
+
+        def validate_group_entries(group_param, frontend_value):
+            if group_param.group_type == ConfigParameterGroupType.ONE:
+                if len(frontend_value) != 1:
+                    raise ValueError(f"Group '{group_param.parameter_id}' must have exactly one value")
+            elif group_param.group_type == ConfigParameterGroupType.ANY:
+                if len(frontend_value) < 1:
+                    raise ValueError(f"Group '{group_param.parameter_id}' must have at least one value")
+
+
+        for parameter in parametrization_config.parameters:
+            if isinstance(parameter, ConfigParameterSingle):
+                if parameter.parameter_id not in input_parameters:
+                    input_parameters[parameter.parameter_id] = parameter.default
+            elif isinstance(parameter, ConfigParameterGroup):
+                if parameter.parameter_id not in input_parameters:
+                    input_parameters[parameter.parameter_id] = parameter.default
+                validate_group_entries(parameter, input_parameters[parameter.parameter_id])
+        return input_parameters
+
+    def get_config_parameter_value(self, value: str, value_type: ConfigParameterValueType) -> str | None:
+        """
+        Get the value of a configuration parameter based on its type.
+        """
+        match value_type:
+            case ConfigParameterValueType.VALUE:
+                return value
+            case ConfigParameterValueType.REF:
+                if value not in self._refs:
+                    raise ValueError(f"Reference: '{value}' not found in configuration items")
+                return value
+            case ConfigParameterValueType.REF_COPY:
+                try:
+                    config_item_copy = self._refs[value]()
+                    self._process_cfg_item(config_item_copy)
+                    return config_item_copy.ref
+                except KeyError:
+                    raise ValueError(f"Reference: '{value}' not found in configuration items")
+
+    def combine_config_items_with_parameters(self, parameters: dict[str, Any] | None, config_items: Iterable[ConfigItem]):
+        """
+        Fill in the correct parameter values in place of ConfigParameter instances in the configuration items.
+        """
+        # check the correctness of group parameters and fill in the defaults if the parameters are missing
+        parameters = self.check_and_default_parameters(self._config_parametrization, parameters)
+
+        # parse parameters into the final form for easier parametrization and fill out the right type of value.
+        parsed_parameters = self.parse_parameters(self._config_parametrization, parameters)
+
+        def set_config_parameters(obj):
+
+            if isinstance(obj, ConfigParameter):
+                # If it's a ConfigParameter, replace it with the value from parameters if available
+                if (parameter_value := parsed_parameters.get(obj.id)) is not None:
+                    return parameter_value
+                else:
+                    return obj
+            elif isinstance(obj, dict):
+                # Recursively handle dictionary items
+                modified_dict = {key: set_config_parameters(value) for key, value in obj.items()}
+                # Remove ConfigParameter instances from the dictionary
+                return {k: v for k, v in modified_dict.items() if not isinstance(v, ConfigParameter)}
+            elif isinstance(obj, list):
+                # Recursively handle list elements
+                modified_list = [set_config_parameters(item) for item in obj]
+                # Remove ConfigParameter instances from the list
+                return [item for item in modified_list if not isinstance(item, ConfigParameter)]
+            elif is_dataclass(obj):
+                # Handle dataclass objects by iterating through their fields
+                for field in fields(obj):
+                    new_value = set_config_parameters(getattr(obj, field.name))
+                    if isinstance(new_value, ConfigParameter):
+                        raise ValueError(f"Parameter id of '{new_value.id}' is missing in parametrization configuration")
+                    setattr(obj, field.name, set_config_parameters(getattr(obj, field.name)))
+            return obj
+
+        # Apply the set_config_parameters function to each item in the configuration
+        for item in config_items:
+            set_config_parameters(item)
+    # --------------------------------------------------------------------------------------------------------------
+
     def preprocess(self,
+                   parameters: dict[str, Any],
                   *configs: Union[NetworkConfig, ConnectionConfig, RouterConfig, NodeConfig,
                                   InterfaceConfig, ActiveServiceConfig, PassiveServiceConfig,
                                   AuthorizationConfig, DataConfig, PhysicalAccessConfig, PhysicalLocationConfig,
@@ -367,6 +484,9 @@ class Configurator:
         # Process all provided items and do a complete id->cfg mapping
         for cfg in configs:
             self._process_cfg_item(cfg)
+
+        if self._config_parametrization:
+            self.combine_config_items_with_parameters(parameters, self._refs.values())
 
         # Create interface configurations for connections with one -1 port id
         for connection_cfg in self._connections:
@@ -633,8 +753,8 @@ class GeneralConfigurationImpl(GeneralConfiguration):
         self._configurator = Configurator(env)
         self._env = env
 
-    def preprocess(self, *config) -> None:
-        self._configurator.preprocess(*config)
+    def preprocess(self, parameters: dict[str, Any], *config) -> None:
+        self._configurator.preprocess(parameters, *config)
 
     def configure(self) -> None:
         self._configurator.configure()

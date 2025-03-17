@@ -1,6 +1,6 @@
 from abc import ABC, abstractmethod
 from enum import Enum, auto
-from typing import Optional, Union
+from typing import Optional, Union, Dict, Any
 
 from cyst.api.configuration.configuration import ConfigItem
 from cyst.api.environment.configuration import EnvironmentConfiguration
@@ -96,7 +96,7 @@ class Environment(ABC):
         """
 
     @abstractmethod
-    def configure(self, *config_item: ConfigItem) -> 'Environment':
+    def configure(self, *config_item: ConfigItem, parameters: Dict[str, Any] | None = None) -> 'Environment':
         """
         Configures the environment, according to provided configuration items. This function can be called repeatedly,
         however, each subsequent call replaces the previous configuration. Therefore, a configuration must be done
@@ -107,11 +107,15 @@ class Environment(ABC):
             order-dependent.
         :type config_item: ConfigItem
 
+        :param parameters: Name-value mapping for configuration that supports parametrization. If none is provided,
+            despite parameterizable configuration, default values are used.
+        :type parameters: Dict[str, Any] | None
+
         :return: The configured environment. Used this way for the shorthand form:
 
         .. code-block:: python
 
-            e = Environment.create().configure(*config)
+            e = Environment.create().configure(*config, parameters)
 
         """
 

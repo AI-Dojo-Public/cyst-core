@@ -350,9 +350,9 @@ class _Environment(Environment, PlatformInterface):
         if config_id:
             self._runtime_configuration.config_id = config_id
 
-    def configure(self, *config_item: ConfigItem) -> Environment:
+    def configure(self, *config_item: ConfigItem, parameters: dict[str, Any] | None = None) -> Environment:
         # Preprocess all configuration items for easier platform management
-        self._general_configuration.preprocess(*config_item)
+        self._general_configuration.preprocess(parameters, *config_item)
         # Configure general stuff
         self._general_configuration.configure()
         # Process the rest in platform
