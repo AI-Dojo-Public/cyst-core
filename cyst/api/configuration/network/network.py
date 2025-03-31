@@ -1,7 +1,7 @@
 from dataclasses import dataclass, field
 from typing import List, Union
 from uuid import uuid4
-from serde import serialize
+from serde import serialize, coerce
 
 from cyst.api.configuration.configuration import ConfigItem
 from cyst.api.configuration.network.elements import ConnectionConfig
@@ -9,7 +9,7 @@ from cyst.api.configuration.network.node import NodeConfig
 from cyst.api.configuration.network.router import RouterConfig
 
 # TODO: Useless - remove
-@serialize
+@serialize(type_check=coerce)
 @dataclass
 class NetworkConfig(ConfigItem):
     """ Configuration of a network.

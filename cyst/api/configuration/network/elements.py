@@ -3,13 +3,13 @@ from dataclasses import dataclass, field
 from netaddr import IPAddress, IPNetwork
 from typing import Union, Optional, List
 from uuid import uuid4
-from serde import serialize
+from serde import serialize, coerce
 from serde.compat import typename
 
 from cyst.api.configuration.configuration import ConfigItem
 
 
-@serialize
+@serialize(type_check=coerce)
 @dataclass
 class PortConfig(ConfigItem):
     """ Configuration of a network port.
@@ -41,7 +41,7 @@ class PortConfig(ConfigItem):
     id: str = ""
 
 
-@serialize
+@serialize(type_check=coerce)
 @dataclass
 class InterfaceConfig(ConfigItem):
     """ Configuration of a network interface.
@@ -71,7 +71,7 @@ class InterfaceConfig(ConfigItem):
     id: str = ""
 
 
-@serialize
+@serialize(type_check=coerce)
 @dataclass
 class ConnectionConfig(ConfigItem):
     """ Configuration of a network connection.
@@ -112,7 +112,7 @@ class ConnectionConfig(ConfigItem):
             raise RuntimeError(f"Connection configuration can't have an empty source or destination. Source: {self.src_ref}, Destination: {self.dst_ref}.")
 
 
-@serialize
+@serialize(type_check=coerce)
 @dataclass
 class RouteConfig(ConfigItem):
     """ Configuration of a network route.
@@ -139,7 +139,7 @@ class RouteConfig(ConfigItem):
     id: str = ""
 
 
-@serialize
+@serialize(type_check=coerce)
 @dataclass
 class SessionConfig(ConfigItem):
     """ Configuration of a session.

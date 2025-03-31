@@ -2,7 +2,7 @@ import dataclasses
 from dataclasses import dataclass, field
 from typing import List, Union, Optional
 from uuid import uuid4
-from serde import serialize
+from serde import serialize, coerce
 
 from cyst.api.configuration.configuration import ConfigItem
 from cyst.api.configuration.host.service import ActiveServiceConfig, PassiveServiceConfig
@@ -10,6 +10,7 @@ from cyst.api.configuration.network.elements import InterfaceConfig
 from cyst.api.configuration.network.firewall import FirewallConfig
 
 
+@serialize(type_check=coerce)
 @dataclass
 class NodeConfig(ConfigItem):
     """ Configuration for a network node

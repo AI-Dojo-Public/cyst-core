@@ -1,5 +1,5 @@
 from dataclasses import dataclass, field
-from serde import serialize
+from serde import serialize, coerce
 from typing import Optional, List
 from uuid import uuid4
 
@@ -7,7 +7,7 @@ from cyst.api.configuration.configuration import ConfigItem
 from cyst.api.configuration.infrastructure.log import LogConfig
 
 
-@serialize
+@serialize(type_check=coerce)
 @dataclass
 class InfrastructureConfig(ConfigItem):
     """

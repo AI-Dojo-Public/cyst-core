@@ -3,7 +3,7 @@ from flags import Flags
 from typing import Optional, Dict, Any, List, Union, Tuple
 from uuid import uuid4
 
-from serde import serialize
+from serde import serialize, coerce
 
 from cyst.api.configuration.configuration import ConfigItem
 from cyst.api.configuration.logic.access import AuthorizationConfig, AccessSchemeConfig, AuthenticationProviderConfig
@@ -27,7 +27,7 @@ class ServiceParameter(Flags):
     SESSION_ACCESS_LEVEL = ()
 
 
-@serialize
+@serialize(type_check=coerce)
 @dataclass
 class ActiveServiceConfig(ConfigItem):
     """ A configuration for an Active service.
@@ -65,7 +65,7 @@ class ActiveServiceConfig(ConfigItem):
     ref: str = field(default_factory=lambda: str(uuid4()))
 
 
-@serialize
+@serialize(type_check=coerce)
 @dataclass
 class PassiveServiceConfig(ConfigItem):
     """ A configuration for a Passive service.
