@@ -5,7 +5,7 @@ from typing import List, Optional, Union, Tuple
 from uuid import uuid4
 
 from netaddr import IPAddress
-from serde import serialize
+from serde import serialize, coerce
 from serde.compat import typename
 
 from cyst.api.configuration.configuration import ConfigItem
@@ -13,7 +13,7 @@ from cyst.api.logic.access import AccessLevel, AuthenticationTokenSecurity, Auth
                                   AuthenticationProviderType
 
 
-@serialize
+@serialize(type_check=coerce)
 @dataclass
 class AuthorizationConfig(ConfigItem):
     """ Configuration of a local authorization.
@@ -33,7 +33,7 @@ class AuthorizationConfig(ConfigItem):
     id: str = ""
 
 
-@serialize
+@serialize(type_check=coerce)
 @dataclass
 class FederatedAuthorizationConfig(ConfigItem):
     """ Configuration of a federated authorization.
@@ -73,7 +73,7 @@ class AuthorizationDomainType(IntEnum):
     FEDERATED = 1
 
 
-@serialize
+@serialize(type_check=coerce)
 @dataclass
 class AuthorizationDomainConfig(ConfigItem):
     """ Configuration of an authorization domain.
@@ -93,7 +93,7 @@ class AuthorizationDomainConfig(ConfigItem):
     id: str = ""
 
 
-@serialize
+@serialize(type_check=coerce)
 @dataclass
 class AuthenticationProviderConfig(ConfigItem):
     """ Configuration of an authentication provider
@@ -126,7 +126,7 @@ class AuthenticationProviderConfig(ConfigItem):
     id: str = ""
 
 
-@serialize
+@serialize(type_check=coerce)
 @dataclass
 class AccessSchemeConfig(ConfigItem):
     """ Configuration of an access scheme.

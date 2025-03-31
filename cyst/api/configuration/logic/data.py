@@ -1,11 +1,11 @@
 from dataclasses import dataclass, field
 from uuid import uuid4
-from serde import serialize
+from serde import serialize, coerce
 
 from cyst.api.configuration.configuration import ConfigItem
 
 
-@serialize
+@serialize(type_check=coerce)
 @dataclass
 class DataConfig(ConfigItem):
     """ Configuration of a data element.

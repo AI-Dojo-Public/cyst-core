@@ -4,7 +4,7 @@ from dataclasses import dataclass, field
 from enum import Enum, auto
 from uuid import uuid4
 
-from serde import serialize
+from serde import serialize, coerce
 
 from cyst.api.configuration.configuration import ConfigItem
 
@@ -25,7 +25,7 @@ class LogSource(Enum):
     MODEL = auto()
 
 
-@serialize
+@serialize(type_check=coerce)
 @dataclass
 class LogConfig(ConfigItem):
     """

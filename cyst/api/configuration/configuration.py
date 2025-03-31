@@ -6,7 +6,10 @@ from enum import Enum, auto
 from uuid import uuid4
 from typing import Self, Any, List, Union
 
-from serde import serialize
+import serde
+from serde import serialize, coerce
+
+import cyst.api.logic.access
 
 """
 Provides an API to configure all aspects of the simulation engine.
@@ -93,7 +96,8 @@ class ConfigItem:
 
         return new_one
 
-@serialize
+
+@serialize(type_check=coerce)
 @dataclass
 class ConfigParameter(Any, str):
     """
@@ -274,6 +278,7 @@ class ConfigParameterGroup:
     description: str
     default: list[str]
     options: List[ConfigParameterGroupEntry]
+
 
 @dataclass
 class ConfigParametrization(ConfigItem):
