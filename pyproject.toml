@@ -1,6 +1,6 @@
 [tool.poetry]
 name = "cyst-core"
-version = "0.6.0"
+version = "0.6.0a1"
 description = "API and runtime of the CYST framework"
 authors = ["Martin Drasar <drasar@ics.muni.cz>"]
 readme = "README.md"
@@ -40,16 +40,16 @@ packages = [
 ]
 
 [tool.poetry.dependencies]
-    python = "^3.11"
-    netaddr = "^0.9.0"
-    py-flags = "^1.1.4"
-    semver = "^3.0.2"
-    networkx = "^3.2.1"
-    cachetools = "^5.3.2"
-    pyserde = "^0.12.5"
-    importlib_metadata = "^6.8.0"
-    jsonpickle = "^3.0.2"
-    deprecated = "^1.2.14"
+    python = ">=3.11, <4.0.0"
+    netaddr = ">=0.9.0"
+    py-flags = ">=1.1.4"
+    semver = ">=3.0.2"
+    networkx = ">=3.2.1"
+    cachetools = ">=5.3.2"
+    pyserde = ">=0.12.5"
+    importlib_metadata = ">=6.8.0"
+    jsonpickle = ">=3.0.2"
+    deprecated = ">=1.2.14"
 
 [build-system]
     requires = ["poetry-core"]
