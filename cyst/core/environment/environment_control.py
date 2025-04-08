@@ -181,9 +181,6 @@ def _pause(self: _Environment) -> Tuple[bool, EnvironmentState]:
 
 def _terminate(self: _Environment) -> Tuple[bool, EnvironmentState]:
 
-    if self._state != EnvironmentState.RUNNING:
-        return False, self._state
-
     self._terminate = True
 
     if self._platform:
