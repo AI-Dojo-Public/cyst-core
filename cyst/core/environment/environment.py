@@ -599,7 +599,7 @@ class _Environment(Environment, PlatformInterface):
 
             if platform_description.specification in self._platforms:
                 print("Platform with specification {} already registered, skipping ...".format(
-                    platform_description.namespace))
+                    str(platform_description.specification)))
             else:
                 self._platforms[platform_description.specification] = platform_description
 
