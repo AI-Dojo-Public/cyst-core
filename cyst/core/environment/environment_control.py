@@ -133,15 +133,21 @@ def _run(self: _Environment) -> Tuple[bool, EnvironmentState]:
     # Run
     self._finish = False
 
+    service_run_tasks = set()
+    # As a first thing after init, we run all the services (and make sure we don't run it multiple times)
+    if self._state == EnvironmentState.INIT and len(service_run_tasks) == 0:
+        for service in self._service_store.get_active_services():
+            t = self._loop.create_task(service.run())
+            service_run_tasks.add(t)
+            t.add_done_callback(service_run_tasks.discard)
+
     while not (self._pause or self._finish or self._terminate):
-        # As a first thing after init, we run all the services
+        # Make sure to not terminate the pump before the run() methods finish
         if self._state == EnvironmentState.INIT:
+            if len(service_run_tasks) == 0:
+                self._state = EnvironmentState.RUNNING
 
-            for service in self._service_store.get_active_services():
-                self._loop.create_task(service.run())
-
-            self._state = EnvironmentState.RUNNING
-
+        # And now we are finally doing the ordinary stuff
         t = self._loop.create_task(self._process_async())
         self._loop.call_soon(self._loop.stop)
         self._loop.run_forever()

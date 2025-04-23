@@ -487,8 +487,11 @@ class _Environment(Environment, PlatformInterface):
 
         # Nothing pending in queues
         if not (have_something_to_do or platform_has_something_to_do or composite_actions_resolving or composite_actions_processing or ext.active()):
-            self._finish = True
-            return
+            # This is here to make it explicit - we do not want to finish if we are still in INIT, as this means we are
+            # still executing run() methods of active services.
+            if self._state != EnvironmentState.INIT:
+                self._finish = True
+                return
 
         # --------------------------------------------------------------------------------------------------------------
         # Task gathering
