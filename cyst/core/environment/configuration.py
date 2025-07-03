@@ -482,6 +482,8 @@ class Configurator:
 
         # --------------------------------------------------------------------------------------------------------------
         # Process all provided items and do a complete id->cfg mapping
+        if type(configs) == tuple and len(configs) == 1 and type(configs[0]) == list:
+            configs = configs[0]
         for cfg in configs:
             self._process_cfg_item(cfg)
 
