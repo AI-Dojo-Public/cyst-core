@@ -284,6 +284,11 @@ class _Environment(Environment, PlatformInterface):
                 data_backend_params = dict(tuple(x) for x in data_backend_params_serialized.split(',').islice(2))
         run_id = os.environ.get('CYST_RUN_ID')
         config_id = os.environ.get('CYST_CONFIG_ID')
+        max_running_time_s = os.environ.get("CYST_MAX_RUNNING_TIME")
+        if max_running_time_s:
+            max_running_time = float(max_running_time_s)
+        else:
+            max_running_time = 0.0
         config_filename = os.environ.get('CYST_CONFIG_FILENAME')
 
         # All the unknown, CYST-related params
@@ -306,6 +311,8 @@ class _Environment(Environment, PlatformInterface):
                                     help="A unique identifier of a simulation run. If not specified, a UUID will be generated instead.")
         cmdline_parser.add_argument("-i", "--config_id", type=str,
                                     help="A unique identifier of simulation run configuration, which can be obtained from the data store.")
+        cmdline_parser.add_argument("-t", "--max_running_time", type=float,
+                                    help="An upper limit on an execution time of a run. A platform time is considered, not the real time.")
         cmdline_parser.add_argument("-o", "--other_param", action="append", nargs=2, type=str, metavar=('NAME', 'VALUE'),
                                     help="Other parameters that are passed to CYST components, agents, etc.")
 
@@ -333,6 +340,9 @@ class _Environment(Environment, PlatformInterface):
         if args.config_id:
             config_id = args.config_id
 
+        if args.max_running_time:
+            max_running_time = args.max_running_time
+
         if args.other_param:
             for x in args.other_param:
                 name = x[0].lower()
@@ -349,6 +359,8 @@ class _Environment(Environment, PlatformInterface):
             self._runtime_configuration.run_id = run_id
         if config_id:
             self._runtime_configuration.config_id = config_id
+        if max_running_time:
+            self._runtime_configuration.max_running_time = max_running_time
 
     def configure(self, *config_item: ConfigItem, parameters: dict[str, Any] | None = None) -> Environment:
         # Preprocess all configuration items for easier platform management
@@ -439,6 +451,12 @@ class _Environment(Environment, PlatformInterface):
         # Execution of behavioral models, composite actions and external resources are handled by the environment
         current_time = self._platform.clock.current_time()
         time_jump = 0
+
+        # Set the flag to finish if we exceed the max running time.
+        if self._runtime_configuration.max_running_time != 0.0:
+            if current_time > self._runtime_configuration.max_running_time:
+                self._finish = True
+                return
 
         have_something_to_do = bool(self._executables) or bool(self._executed)
 
