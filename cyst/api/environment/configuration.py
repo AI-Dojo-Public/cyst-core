@@ -1574,6 +1574,11 @@ class RuntimeConfiguration:
     :param config_filename: A path to a file where a configuration for the current run is present.
     :type config_filename: str
 
+    :param max_running_time: An upper limit on an execution time of a run. A platform time is considered, not the real
+        time. The run is not guaranteed to finish at exactly the specified time, rather it will gracefully finish if the
+        running time is exceeded.
+    :type max_running_time: float
+
     :param other_params: A dictionary of parameters that are not directly consumed by the environment but are passed to
         the other components, agents, etc.
     :type other_params: Dict[str, str]
@@ -1583,4 +1588,5 @@ class RuntimeConfiguration:
     run_id: str = field(default_factory=lambda: str(uuid.uuid4()))
     config_id: str = ""
     config_filename: str = ""
+    max_running_time: float = 0.0
     other_params: Dict[str, str] = field(default_factory=lambda: {})
