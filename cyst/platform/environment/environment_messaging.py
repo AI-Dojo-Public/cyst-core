@@ -156,7 +156,7 @@ async def _message_hop(self: CYSTPlatform, message: Message) -> None:
     # Special processing on the first hop
     if not message.sent:
         message.sent = True
-        self._message_log.debug(f"[time: {self._time}] Sending a message: {str(message)}")
+        self._message_log.debug(f"Sending a message: {str(message)}")
 
     # shortcut for wakeup messages
     # TODO: Commented out (origin may be problematic if not via send_message)
@@ -257,7 +257,7 @@ async def _message_process(self: CYSTPlatform, message: Message) -> None:
     message_type = str(message.type.name).lower()
     current_node: NodeImpl = self._network.get_node_by_id(message.current.id)  # MYPY: Get node can return None
 
-    self._message_log.debug(f"[time: {self._time}] Processing a {message_type} on a node {current_node.id}. {message}")
+    self._message_log.debug(f"Processing a {message_type} on a node {current_node.id}. {message}")
 
     # Before a message reaches to services within, it is evaluated by all traffic processors
     # While they are returning true, everything is ok. Once they return false, the message processing stops

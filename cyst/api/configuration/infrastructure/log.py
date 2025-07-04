@@ -25,6 +25,18 @@ class LogSource(Enum):
     MODEL = auto()
 
 
+class LogType(Enum):
+    """
+    Log entries structure.
+
+    Possible values:
+        :TEXT: Log entries are plain texts. One entry per line.
+        :JSON: Log entries are JSON. The whole log is not JSON-compliant, because of missing top-level object.
+    """
+    TEXT = auto()
+    JSON = auto()
+
+
 @serialize(type_check=coerce)
 @dataclass
 class LogConfig(ConfigItem):
@@ -44,6 +56,9 @@ class LogConfig(ConfigItem):
         one of logging.(CRITICAL, ERROR, WARNING, INFO, DEBUG).
     :type log_level: int
 
+    :param log_type: A type of logging to use. Mainly depends on whether you want a machine to process it or not.
+    :type log_type: LogType
+
     :param log_console: Enable or disable logging to console.
     :type log_console: bool
 
@@ -57,6 +72,7 @@ class LogConfig(ConfigItem):
     """
     source: LogSource
     log_level: int
+    log_type: LogType
     log_console: bool
     log_file: bool
     file_path: str = ""
@@ -69,6 +85,7 @@ log_defaults = [
     LogConfig(
         source=LogSource.SYSTEM,
         log_level=logging.INFO,
+        log_type=LogType.TEXT,
         log_console=True,
         log_file=True,
         file_path="cyst_system.log"
@@ -76,6 +93,7 @@ log_defaults = [
     LogConfig(
         source=LogSource.MESSAGING,
         log_level=logging.DEBUG,
+        log_type=LogType.TEXT,
         log_console=True,
         log_file=True,
         file_path="cyst_messages.log"
@@ -83,12 +101,14 @@ log_defaults = [
     LogConfig(
         source=LogSource.SERVICE,
         log_level=logging.DEBUG,
+        log_type=LogType.TEXT,
         log_console=True,
         log_file=False
     ),
     LogConfig(
         source=LogSource.MODEL,
         log_level=logging.INFO,
+        log_type=LogType.TEXT,
         log_console=True,
         log_file=False
     )
