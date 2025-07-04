@@ -7,6 +7,8 @@ from uuid import uuid4
 
 import netaddr
 
+import cyst.core.environment.log
+from cyst.api.configuration.infrastructure.log import LogType
 from cyst.api.configuration.infrastructure.physical import PhysicalLocationConfig, PhysicalConnectionConfig, \
     PhysicalAccessConfig
 from cyst.api.environment.configuration import GeneralConfiguration, ObjectType, ConfigurationObjectType
@@ -635,10 +637,23 @@ class Configurator:
         for cfg in self._logs:
             log_configs[cfg.source] = cfg
 
+        default_fields = {
+            "virtual_time": self._env.resources.clock.current_time,
+            "run_id": self._env.infrastructure.statistics.run_id
+        }
+
         formatters = {
-            '__default': {
-                'format': "[%(asctime)s] :: %(name)s — %(levelname)s :: %(message)s"
-            }
+            '__text': {
+                'format': "Real time: [%(asctime)s], Virtual time: [%(virtual_time).2f] :: %(name)s — %(levelname)s :: %(message)s",
+                'class': 'cyst.core.environment.log.CYSTFormatter',
+                'defaults': default_fields
+            },
+            '__json': {
+                'format': '{"run_id": "%(run_id)s", "log_time": "%(asctime)s", "log_level": "%(levelname)s", '
+                          '"virtual_time": "%(virtual_time).2f", "component": "%(name)s", "message": "%(message)s"}',
+                'class': 'cyst.core.environment.log.CYSTFormatter',
+                'defaults': default_fields
+            },
         }
 
         handlers = {}
@@ -661,7 +676,7 @@ class Configurator:
             if cfg.log_console:
                 handler_console = {
                     'class': 'logging.StreamHandler',
-                    'formatter': '__default',
+                    'formatter': '__text' if cfg.log_type == LogType.TEXT else '__json',
                     'level': cfg.log_level,
                     'stream': 'ext://sys.stdout'
                 }
@@ -669,7 +684,7 @@ class Configurator:
             if cfg.log_file and cfg.file_path:
                 handler_file = {
                     'class': 'logging.FileHandler',
-                    'formatter': '__default',
+                    'formatter': '__text' if cfg.log_type == LogType.TEXT else '__json',
                     'level': cfg.log_level,
                     'filename': cfg.file_path
                 }
