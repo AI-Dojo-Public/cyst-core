@@ -66,7 +66,10 @@ def _send_message(self: _Environment, message: Message, delay: int = 0) -> None:
         caller = caller_frame.f_locals["self"]
 
         if caller and isinstance(caller, ActiveService):
-            message.platform_specific["caller_id"] = self._service_store.get_active_service_id(id(caller))
+            caller_id = self._service_store.get_active_service_id(id(caller))
+            message.platform_specific["caller_id"] = caller_id
+            if not caller_id in self._action_counts:
+                self._action_counts[caller_id] = 0
 
     # I would much rather check by the MessageType, but then the type inspection would not work down the line :-/
     if isinstance(message, Request) or isinstance(message, Response):
@@ -83,6 +86,14 @@ def _send_message(self: _Environment, message: Message, delay: int = 0) -> None:
             # Responses are processed outside the messaging interface and within the main loop
             if message.type == MessageType.REQUEST:
                 self._cam.execute_request(message, delay)
+                # Top-level composite actions counts towards the action limit
+                caller_id = message.platform_specific["caller_id"]
+                action_count = self._action_counts[caller_id] + 1
+                self._action_counts[caller_id] = action_count
+
+                if action_count > self._highest_action_count:
+                    self._highest_action_count = action_count
+                    self._highest_action_actor = caller_id
             else:
                 # Send it to the platform.
                 self._platform.messaging.send_message(message, delay)
@@ -90,6 +101,16 @@ def _send_message(self: _Environment, message: Message, delay: int = 0) -> None:
         # ------------------------------------------------------------------------------------------------------------------
         # Direct actions
         elif action_type == ActionType.DIRECT:
+            # Only non-composite-related messages count towards the action limit
+            if message.type == MessageType.REQUEST and not self._cam.is_composite(message.id):
+                caller_id = message.platform_specific["caller_id"]
+                action_count = self._action_counts[caller_id] + 1
+                self._action_counts[caller_id] = action_count
+
+                if action_count > self._highest_action_count:
+                    self._highest_action_count = action_count
+                    self._highest_action_actor = caller_id
+
             # --------------------------------------------------------------------------------------------------------------
             # Call the behavioral model to add components to direct actions
             # We ignore actions without behavioral models, such as direct agent-agent actions.

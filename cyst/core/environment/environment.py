@@ -79,6 +79,10 @@ class _Environment(Environment, PlatformInterface):
         self._pause_on_request: List[str] = []
         self._pause_on_response: List[str] = []
 
+        self._action_counts: Dict[str, int] = {}
+        self._highest_action_count = 0
+        self._highest_action_actor = ""
+
         # Interface implementations
         self._environment_control = EnvironmentControlImpl(self)
         self._environment_messaging = EnvironmentMessagingImpl(self)
@@ -284,11 +288,19 @@ class _Environment(Environment, PlatformInterface):
                 data_backend_params = dict(tuple(x) for x in data_backend_params_serialized.split(',').islice(2))
         run_id = os.environ.get('CYST_RUN_ID')
         config_id = os.environ.get('CYST_CONFIG_ID')
+
         max_running_time_s = os.environ.get("CYST_MAX_RUNNING_TIME")
         if max_running_time_s:
             max_running_time = float(max_running_time_s)
         else:
             max_running_time = 0.0
+
+        max_action_count_s = os.environ.get("CYST_MAX_ACTION_COUNT")
+        if max_action_count_s:
+            max_action_count = int(max_action_count_s)
+        else:
+            max_action_count = 0
+
         config_filename = os.environ.get('CYST_CONFIG_FILENAME')
 
         # All the unknown, CYST-related params
@@ -313,6 +325,8 @@ class _Environment(Environment, PlatformInterface):
                                     help="A unique identifier of simulation run configuration, which can be obtained from the data store.")
         cmdline_parser.add_argument("-t", "--max_running_time", type=float,
                                     help="An upper limit on an execution time of a run. A platform time is considered, not the real time.")
+        cmdline_parser.add_argument("-a", "--max_action_count", type=int,
+                                    help="An upper limit on the number of executed actions by any actor. When this count is reached, the run terminates.")
         cmdline_parser.add_argument("-o", "--other_param", action="append", nargs=2, type=str, metavar=('NAME', 'VALUE'),
                                     help="Other parameters that are passed to CYST components, agents, etc.")
 
@@ -343,6 +357,9 @@ class _Environment(Environment, PlatformInterface):
         if args.max_running_time:
             max_running_time = args.max_running_time
 
+        if args.max_action_count:
+            max_action_count = args.max_action_count
+
         if args.other_param:
             for x in args.other_param:
                 name = x[0].lower()
@@ -361,6 +378,8 @@ class _Environment(Environment, PlatformInterface):
             self._runtime_configuration.config_id = config_id
         if max_running_time:
             self._runtime_configuration.max_running_time = max_running_time
+        if max_action_count:
+            self._runtime_configuration.max_action_count = max_action_count
 
     def configure(self, *config_item: ConfigItem, parameters: dict[str, Any] | None = None) -> Environment:
         # Preprocess all configuration items for easier platform management
@@ -453,9 +472,17 @@ class _Environment(Environment, PlatformInterface):
         time_jump = 0
 
         # Set the flag to finish if we exceed the max running time.
-        if self._runtime_configuration.max_running_time != 0.0:
+        if self._runtime_configuration.max_running_time > 0.0 and not self._finish:
             if current_time > self._runtime_configuration.max_running_time:
                 self._finish = True
+                self._system_log.info(f"Terminating run because we ran over the time limit of {self._runtime_configuration.max_running_time} virtual seconds.")
+                return
+
+        # Set the flag to finish if we exceed the max action count from one source.
+        if self._runtime_configuration.max_action_count > 0 and not self._finish:
+            if self._highest_action_count > self._runtime_configuration.max_action_count:
+                self._finish = True
+                self._system_log.info(f"Terminating run because the actor '{self._highest_action_actor}' crossed the action limit of {self._runtime_configuration.max_action_count}.")
                 return
 
         have_something_to_do = bool(self._executables) or bool(self._executed)
