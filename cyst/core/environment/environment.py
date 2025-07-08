@@ -168,7 +168,7 @@ class _Environment(Environment, PlatformInterface):
 
         if not self._runtime_configuration.data_backend in self._data_stores:
             raise ValueError(f"Required data store backend '{self._runtime_configuration.data_backend}' not installed. Cannot continue.")
-        self._data_store = self._data_stores[self._runtime_configuration.data_backend].creation_fn(self._runtime_configuration.data_backend_params)
+        self._data_store = self._data_stores[self._runtime_configuration.data_backend].creation_fn(self._statistics.run_id, self._runtime_configuration.data_backend_params)
 
         self._cam = CompositeActionManagerImpl(self._loop, self._behavioral_models, self._environment_messaging,
                                                self._environment_resources, self._general_configuration,

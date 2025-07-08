@@ -4,6 +4,9 @@ from typing import List
 from cyst.api.environment.message import Status, Request, Response
 
 
+# ----------------------------------------------------------------------------------------------------------------------
+# Actions
+# Action model combines a request and related responses
 @dataclass
 class ActionParameterModel:
     name: str
@@ -13,7 +16,6 @@ class ActionParameterModel:
 @dataclass
 class ActionModel:
     # Request part
-    run_id: str
     message_id: int
     action_id: str
     caller_id: str
@@ -41,7 +43,6 @@ class ActionModel:
             ))
 
         return cls(
-            run_id=run_id,
             message_id=request.id,
             action_id=request.action.id,
             caller_id=request.platform_specific["caller_id"],

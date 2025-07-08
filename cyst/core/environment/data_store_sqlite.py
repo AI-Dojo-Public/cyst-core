@@ -46,7 +46,8 @@ class DBActionParameter(Base):
     action: Mapped['DBAction'] = relationship(back_populates="parameters")
 
 class DataStoreSQLite(DataStore):
-    def __init__(self, params: Dict[str, str]):
+    def __init__(self, run_id: str, params: Dict[str, str]):
+        self._run_id = run_id
         self._db_path = "cyst.db"
         if "path" in params:
             self._db_path = params["path"]
@@ -58,7 +59,7 @@ class DataStoreSQLite(DataStore):
         with Session(self._db) as session:
             db_action = DBAction(
                 message_id=action.message_id,
-                run_id=action.run_id,
+                run_id=self._run_id,
                 action_id=action.action_id,
                 caller_id=action.caller_id,
                 src_ip=action.src_ip,
@@ -87,8 +88,8 @@ class DataStoreSQLite(DataStore):
             session.commit()
 
 
-def create_data_store_sqlite(params: Dict[str, str]) -> DataStore:
-    return DataStoreSQLite(params)
+def create_data_store_sqlite(run_id: str, params: Dict[str, str]) -> DataStore:
+    return DataStoreSQLite(run_id, params)
 
 
 data_store_sqlite_description = DataStoreDescription(

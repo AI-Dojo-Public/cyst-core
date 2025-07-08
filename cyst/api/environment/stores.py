@@ -183,9 +183,10 @@ class DataStoreDescription:
     :param description: A textual description of the data store backend.
     :type description: str
 
-    :param creation_fn: A factory function that can create the data store backend.
-    :type creation_fn: Callable[[Dict[str, str]], DataStore]
+    :param creation_fn: A factory function that can create the data store backend. Its parameters are the run_id and
+        backend-specific key-value pairs.
+    :type creation_fn: Callable[[str, Dict[str, str]], DataStore]
     """
     backend: str
     description: str
-    creation_fn: Callable[[Dict[str, str]], DataStore]
+    creation_fn: Callable[[str, Dict[str, str]], DataStore]

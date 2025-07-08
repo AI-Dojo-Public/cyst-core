@@ -5,15 +5,16 @@ from cyst.api.environment.stores import DataStore, DataStoreDescription
 
 
 class DataStoreMemory(DataStore):
-    def __init__(self, params: Dict[str, str]):
+    def __init__(self, run_id: str, params: Dict[str, str]):
+        self._run_id = run_id
         self._memory = {"actions": []}
 
     def add_action(self, action: ActionModel) -> None:
         self._memory["actions"].append(action)
 
 
-def create_data_store_memory(params: Dict[str, str]) -> DataStore:
-    return DataStoreMemory(params)
+def create_data_store_memory(run_id: str, params: Dict[str, str]) -> DataStore:
+    return DataStoreMemory(run_id, params)
 
 
 data_store_memory_description = DataStoreDescription(

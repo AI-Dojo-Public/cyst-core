@@ -1589,7 +1589,7 @@ class RuntimeConfiguration:
         the other components, agents, etc.
     :type other_params: Dict[str, str]
     """
-    data_backend: str = "MEMORY"
+    data_backend: str = "memory"
     data_backend_params: Dict[str, str] = field(default_factory=lambda: {})
     run_id: str = field(default_factory=lambda: str(uuid.uuid4()))
     config_id: str = ""
