@@ -150,7 +150,13 @@ class _Environment(Environment, PlatformInterface):
         self._environment_resources = EnvironmentResourcesImpl(self, self._platform_spec)
         self._service_store = ServiceStoreImpl(self._environment_messaging, self._environment_resources, self._runtime_configuration)
         self._statistics = StatisticsImpl()
-        self._infrastructure = EnvironmentInfrastructureImpl(self._runtime_configuration, self._service_store, self._statistics)
+
+        if not self._runtime_configuration.data_backend in self._data_stores:
+            raise ValueError(f"Required data store backend '{self._runtime_configuration.data_backend}' not installed. Cannot continue.")
+        self._data_store = self._data_stores[self._runtime_configuration.data_backend].creation_fn(self._statistics.run_id, self._runtime_configuration.data_backend_params)
+
+        self._infrastructure = EnvironmentInfrastructureImpl(self._runtime_configuration, self._data_store,
+                                                             self._service_store, self._statistics)
 
         self._platform = self._create_platform(self._platform_spec)
 
@@ -161,14 +167,6 @@ class _Environment(Environment, PlatformInterface):
         self._environment_configuration = EnvironmentConfigurationImpl(self._general_configuration, self._platform.configuration,
                                                                        self._action_configuration, self._exploit_configuration,
                                                                        self._physical_configuration)
-
-        # Initialize stores in a platform-dependent manner
-
-        signal.signal(signal.SIGINT, self._signal_handler)
-
-        if not self._runtime_configuration.data_backend in self._data_stores:
-            raise ValueError(f"Required data store backend '{self._runtime_configuration.data_backend}' not installed. Cannot continue.")
-        self._data_store = self._data_stores[self._runtime_configuration.data_backend].creation_fn(self._statistics.run_id, self._runtime_configuration.data_backend_params)
 
         self._cam = CompositeActionManagerImpl(self._loop, self._behavioral_models, self._environment_messaging,
                                                self._environment_resources, self._general_configuration,
@@ -183,6 +181,7 @@ class _Environment(Environment, PlatformInterface):
         self._message_log = logging.getLogger("messaging")
         self._system_log = logging.getLogger("system")
 
+        signal.signal(signal.SIGINT, self._signal_handler)
         atexit.register(self.cleanup)
 
     def cleanup(self):
