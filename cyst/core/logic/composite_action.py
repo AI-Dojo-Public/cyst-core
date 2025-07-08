@@ -119,13 +119,13 @@ class CompositeActionManagerImpl(CompositeActionManager):
         self._incoming_queue.add(message)
 
     async def send_request(self, request: Request):
-        self._log.debug(f"[time: {self._res.clock.current_time()}][start] Composite action: sending message with id {request.id}")
+        self._log.debug(f"[start] Composite action: sending message with id {request.id}")
         self._messages.add(request.id)
         self._msg.send_message(request)
-        self._log.debug(f"[time: {self._res.clock.current_time()}][ end ] Composite action: sending message with id {request.id}")
+        self._log.debug(f"[ end ] Composite action: sending message with id {request.id}")
 
     async def process_composite(self, request) -> None:
-        self._log.debug(f"[time: {self._res.clock.current_time()}][start] Composite action: processing request from composite queue: {request}")
+        self._log.debug(f"[start] Composite action: processing request from composite queue: {request}")
 
         task_name = asyncio.current_task().get_name()
         self._subordinate_action_counts[task_name] = 0
@@ -142,10 +142,10 @@ class CompositeActionManagerImpl(CompositeActionManager):
             await service.process_message(response)
 
         self._composites_processing -= 1
-        self._log.debug(f"[time: {self._res.clock.current_time()}][ end ] Composite action: processing request from composite queue. Got this response: {response}")
+        self._log.debug(f"[ end ] Composite action: processing request from composite queue. Got this response: {response}")
         del self._subordinate_action_counts[asyncio.current_task().get_name()]
 
-    async def process(self) -> [bool, bool, bool]:
+    async def process(self) -> Tuple[bool, bool, bool]:
         while self._composite_queue:
             request = self._composite_queue.pop()
             self._loop.create_task(self.process_composite(request))
@@ -153,15 +153,15 @@ class CompositeActionManagerImpl(CompositeActionManager):
 
         while self._outgoing_queue:
             request = self._outgoing_queue.pop()
-            self._log.debug(f"[time: {self._res.clock.current_time()}][start] Composite action: processing request from outgoing queue: {request}")
+            self._log.debug(f"[start] Composite action: processing request from outgoing queue: {request}")
             await self._loop.create_task(self.send_request(request))
-            self._log.debug(f"[time: {self._res.clock.current_time()}][ end ] Composite action: processing request from outgoing queue: {request}")
+            self._log.debug(f"[ end ] Composite action: processing request from outgoing queue: {request}")
 
         while self._incoming_queue:
             response = self._incoming_queue.pop()
-            self._log.debug(f"[time: {self._res.clock.current_time()}][start] Composite queue: processing response from incoming queue: {response}")
+            self._log.debug(f"[start] Composite queue: processing response from incoming queue: {response}")
             self._futures[response.id].set_result(response)
-            self._log.debug(f"[time: {self._res.clock.current_time()}][ end ] Composite queue: processing response from incoming queue: {response}")
+            self._log.debug(f"[ end ] Composite queue: processing response from incoming queue: {response}")
 
         # This is more important than it looks!
         if self._composites_processing > 0:

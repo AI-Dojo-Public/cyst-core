@@ -1579,6 +1579,12 @@ class RuntimeConfiguration:
         running time is exceeded.
     :type max_running_time: float
 
+    :param max_action_count: An upper limit on the number of executed actions by any actor. When this count is reached,
+        the run terminates. Only the top-level actions (i.e., not actions executed within composite actions) are counted
+        and the run is not guaranteed to finish at exactly the specified action count. Rather, it will gracefully finish
+        if the action count is exceeded.
+    :type max_action_count: int
+
     :param other_params: A dictionary of parameters that are not directly consumed by the environment but are passed to
         the other components, agents, etc.
     :type other_params: Dict[str, str]
@@ -1589,4 +1595,5 @@ class RuntimeConfiguration:
     config_id: str = ""
     config_filename: str = ""
     max_running_time: float = 0.0
+    max_action_count: int = 0
     other_params: Dict[str, str] = field(default_factory=lambda: {})
