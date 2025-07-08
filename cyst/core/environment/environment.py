@@ -21,6 +21,7 @@ from threading import Condition
 from cyst.api.environment.environment import Environment
 from cyst.api.environment.control import EnvironmentState, EnvironmentControl
 from cyst.api.environment.configuration import EnvironmentConfiguration, GeneralConfiguration, RuntimeConfiguration
+from cyst.api.environment.data_model import ActionModel
 from cyst.api.environment.infrastructure import EnvironmentInfrastructure
 from cyst.api.environment.interpreter import ActionInterpreterDescription
 from cyst.api.environment.messaging import EnvironmentMessaging
@@ -29,6 +30,7 @@ from cyst.api.environment.platform import Platform, PlatformDescription
 from cyst.api.environment.platform_interface import PlatformInterface
 from cyst.api.environment.platform_specification import PlatformSpecification, PlatformType
 from cyst.api.environment.resources import EnvironmentResources
+from cyst.api.environment.stores import DataStoreDescription, DataStore
 from cyst.api.environment.message import Message, MessageType, Request, Response
 from cyst.api.logic.behavioral_model import BehavioralModelDescription, BehavioralModel
 from cyst.api.network.node import Node
@@ -45,7 +47,6 @@ from cyst.core.environment.environment_configuration import EnvironmentConfigura
 from cyst.core.environment.environment_control import EnvironmentControlImpl
 from cyst.core.environment.environment_messaging import EnvironmentMessagingImpl
 from cyst.core.environment.environment_resources import EnvironmentResourcesImpl
-from cyst.core.environment.data_store import DataStore
 from cyst.core.environment.infrastructure import EnvironmentInfrastructureImpl
 from cyst.core.environment.stats import StatisticsImpl
 
@@ -82,6 +83,7 @@ class _Environment(Environment, PlatformInterface):
         self._action_counts: Dict[str, int] = {}
         self._highest_action_count = 0
         self._highest_action_actor = ""
+        self._active_actions: Dict[int, ActionModel] = {}
 
         # Interface implementations
         self._environment_control = EnvironmentControlImpl(self)
@@ -92,6 +94,7 @@ class _Environment(Environment, PlatformInterface):
         # TODO currently, there can be only on metadata provider for one namespace
         self._metadata_providers: Dict[str, MetadataProvider] = {}
         self._platforms: Dict[PlatformSpecification, PlatformDescription] = {}
+        self._data_stores: Dict[str, DataStoreDescription] = {}
 
         self._general_configuration = GeneralConfigurationImpl(self)
         self._action_configuration = ActionConfigurationImpl()
@@ -106,6 +109,7 @@ class _Environment(Environment, PlatformInterface):
         self._configure_runtime()
         self._register_metadata_providers()
         self._register_platforms()
+        self._register_data_stores()
 
         # set a platform if it is requested
         if platform:
@@ -162,15 +166,18 @@ class _Environment(Environment, PlatformInterface):
 
         signal.signal(signal.SIGINT, self._signal_handler)
 
-        self._cam = CompositeActionManagerImpl(self._loop, self._behavioral_models, self._environment_messaging, self._environment_resources, self._general_configuration)
+        if not self._runtime_configuration.data_backend in self._data_stores:
+            raise ValueError(f"Required data store backend '{self._runtime_configuration.data_backend}' not installed. Cannot continue.")
+        self._data_store = self._data_stores[self._runtime_configuration.data_backend].creation_fn(self._runtime_configuration.data_backend_params)
+
+        self._cam = CompositeActionManagerImpl(self._loop, self._behavioral_models, self._environment_messaging,
+                                               self._environment_resources, self._general_configuration,
+                                               self._data_store, self._active_actions)
 
         # Services and actions depend on platform being initialized
         self._register_services()
         self._register_actions()
         self._register_metadata_providers()
-
-        self._data_store = DataStore(self._runtime_configuration.data_backend,
-                                     self._runtime_configuration.data_backend_params)
 
         # Logs
         self._message_log = logging.getLogger("messaging")
@@ -462,8 +469,15 @@ class _Environment(Environment, PlatformInterface):
         # success, delay = task.result()
         self._executed.remove(task)
 
-        if message.type == MessageType.RESPONSE and caller_id in self._pause_on_response:
-            self._pause = True
+        if message.type == MessageType.RESPONSE:
+            if message.id in self._active_actions:
+                active_action = self._active_actions[message.id]
+                active_action.set_response(message)
+                self._data_store.add_action(active_action)
+                del self._active_actions[message.id]
+
+            if caller_id in self._pause_on_response:
+                self._pause = True
 
     async def _process_async(self) -> None:
         # Message sending tasks are delegated to platforms
@@ -650,6 +664,17 @@ class _Environment(Environment, PlatformInterface):
                     str(platform_description.specification)))
             else:
                 self._platforms[platform_description.specification] = platform_description
+
+    def _register_data_stores(self) -> None:
+
+        plugin_providers = entry_points(group="cyst.data_stores")
+        for s in plugin_providers:
+            data_store_description = s.load()
+
+            if data_store_description.backend in self._data_stores:
+                print(f"Data store with backend {data_store_description.backend} already registered, skipping ...")
+            else:
+                self._data_stores[data_store_description.backend] = data_store_description
 
     def _create_platform(self, specification: PlatformSpecification) -> Platform:
         if specification not in self._platforms:
