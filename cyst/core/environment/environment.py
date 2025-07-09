@@ -291,7 +291,9 @@ class _Environment(Environment, PlatformInterface):
             data_backend_params_serialized = os.environ.get('CYST_DATA_BACKEND_PARAMS')
             # we expect parameters to be given in the form "param1_name","param1_value","param2_name","param2_value",...
             if data_backend_params_serialized:
-                data_backend_params = dict(tuple(x) for x in data_backend_params_serialized.split(',').islice(2))
+                data_backend_params_list = [x.strip() for x in data_backend_params_serialized.split(",")]
+                data_backend_params = dict([(data_backend_params_list[i], data_backend_params_list[i+1]) for i in range(0, len(data_backend_params_list), 2)])
+
         run_id = os.environ.get('CYST_RUN_ID')
         config_id = os.environ.get('CYST_CONFIG_ID')
 
