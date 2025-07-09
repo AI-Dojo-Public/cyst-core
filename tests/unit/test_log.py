@@ -24,10 +24,13 @@ class TestLog(unittest.TestCase):
 
     # Default init is only specific in that it creates a message file
     def test_0000_default_init(self) -> None:
-        message_log = Path("cyst_messages.log")
-        message_log.unlink(missing_ok=True)
-
         env = Environment.create().configure()
+
+        if env.infrastructure.runtime_configuration.run_id_log_suffix:
+            message_log = Path(f"log/cyst_messages-{env.infrastructure.runtime_configuration.run_id}.log")
+        else:
+            message_log = Path("log/cyst_messages.log")
+
         env.control.commit()
 
         self.assertTrue(message_log.exists(), "cyst_messages.log created")
@@ -36,12 +39,14 @@ class TestLog(unittest.TestCase):
 
         logger.debug("Test message to write")
 
-        self.assertGreater(os.path.getsize("cyst_messages.log"), 0, "Message successfully written.")
+        self.assertGreater(message_log.stat().st_size, 0, "Message successfully written.")
 
         for handler in logger.handlers:
             if isinstance(handler, logging.FileHandler):
                 handler.close()
 
+        # Without suffix, this unlinks all logs. So, if you want to inspect test logs, you have to use log suffixes or
+        # comment out the following line.
         message_log.unlink(missing_ok=True)
 
     def test_0001_disable_all_logs(self) -> None:
