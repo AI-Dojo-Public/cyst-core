@@ -5,6 +5,7 @@ from typing import List, Optional, Tuple, Union, Dict, Any, Callable
 
 from cyst.api.environment.data_model import ActionModel
 from cyst.api.environment.message import Message
+from cyst.api.environment.stats import Statistics
 from cyst.api.host.service import ActiveService
 from cyst.api.logic.access import AccessLevel
 from cyst.api.logic.action import Action, ActionDescription
@@ -182,6 +183,16 @@ class DataStore(ABC):
         :param message: The message to store
 
         :return: None
+        """
+
+    @abstractmethod
+    def add_statistics(self, statistics: Statistics) -> None:
+        """
+        Store statistics related to one run.
+
+        :param statistics: The statistics to store.
+
+        :return: none
         """
 
 

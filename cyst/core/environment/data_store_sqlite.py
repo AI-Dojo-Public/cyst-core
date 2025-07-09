@@ -3,6 +3,7 @@ from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column, MappedAsDatac
 from typing import Dict, List
 
 from cyst.api.environment.data_model import ActionModel
+from cyst.api.environment.stats import Statistics
 from cyst.api.environment.stores import DataStore, DataStoreDescription
 from cyst.api.environment.message import Status, Message, Request, Response
 
@@ -93,6 +94,17 @@ class DBMessagePlatformSpecific(Base):
 
     message_id: Mapped[int] = mapped_column(ForeignKey("message.id"))
     message: Mapped[DBMessage] = relationship(back_populates="platform_specific")
+
+
+class DBStatistics(Base):
+    __tablename__ = "statistics"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    run_id: Mapped[str] = mapped_column()
+    configuration_id: Mapped[str] = mapped_column()
+    start_time_real: Mapped[float] = mapped_column()
+    end_time_real: Mapped[float] = mapped_column()
+    end_time_virtual: Mapped[float] = mapped_column()
 
 
 class DataStoreSQLite(DataStore):
@@ -188,6 +200,17 @@ class DataStoreSQLite(DataStore):
                     message_id=db_message.id
                 ))
 
+            session.commit()
+
+    def add_statistics(self, statistics: Statistics) -> None:
+        with Session(self._db) as session:
+            session.add(DBStatistics(
+                run_id=statistics.run_id,
+                configuration_id=statistics.configuration_id,
+                start_time_real=statistics.start_time_real,
+                end_time_real=statistics.end_time_real,
+                end_time_virtual=statistics.end_time_virtual
+            ))
             session.commit()
 
 

@@ -200,7 +200,7 @@ def _commit(self: _Environment) -> None:
     s.end_time_real = time.time()
     s.end_time_virtual = self._time
 
-    self._data_store.set(self._run_id, self.infrastructure.statistics, Statistics)
+    self._data_store.add_statistics(self.infrastructure.statistics)
 
     # TODO: What?
     if self._platform:
