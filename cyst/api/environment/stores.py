@@ -170,6 +170,20 @@ class DataStore(ABC):
         :return: None
         """
 
+    @abstractmethod
+    def add_message(self, message: Message) -> None:
+        """
+        Store information about a message. While in general, the message information is available only at the point of
+        dispatching the message, platforms that have more control over the message passing process (e.g., simulation
+        platform of CYST) may report the same message multiple times during the message passing. Additional information
+        shall then be passed through the .platform_specific attributed, which gets erased before entering user-facing
+        side of the code.
+
+        :param message: The message to store
+
+        :return: None
+        """
+
 
 @versionadded(version="0.6.0")
 @dataclass

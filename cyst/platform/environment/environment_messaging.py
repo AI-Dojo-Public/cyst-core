@@ -175,8 +175,13 @@ async def _message_hop(self: CYSTPlatform, message: Message) -> None:
                     return
 
     # Store it into the history
-    # TODO: Commented out
-    # self._data_store.set(self._run_id, message, Message)
+    # Move platform-specific-and-data-store-worthy information into the platform_specific attribute
+    message.platform_specific["current_hop_ip"] = str(message.current.ip)
+    message.platform_specific["current_hop_id"] = message.current.id
+    message.platform_specific["next_hop_ip"] = str(message.next_hop.ip)
+    message.platform_specific["next_hop_id"] = message.next_hop.id
+
+    self._infrastructure.data_store.add_message(message)
 
     # Move message to a next hop
     message.hop()
