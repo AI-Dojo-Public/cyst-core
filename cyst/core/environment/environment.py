@@ -303,6 +303,10 @@ class _Environment(Environment, PlatformInterface):
         else:
             max_running_time = 0.0
 
+        run_id_log_suffix = False
+        if "CYST_RUN_ID_LOG_SUFFIX" in os.environ:
+            run_id_log_suffix = True
+
         max_action_count_s = os.environ.get("CYST_MAX_ACTION_COUNT")
         if max_action_count_s:
             max_action_count = int(max_action_count_s)
@@ -335,6 +339,8 @@ class _Environment(Environment, PlatformInterface):
                                     help="An upper limit on an execution time of a run. A platform time is considered, not the real time.")
         cmdline_parser.add_argument("-a", "--max_action_count", type=int,
                                     help="An upper limit on the number of executed actions by any actor. When this count is reached, the run terminates.")
+        cmdline_parser.add_argument("-s", "--run_id_log_suffix", type=bool,
+                                    help="Set to true if you want log file names to have the run id as a suffix.")
         cmdline_parser.add_argument("-o", "--other_param", action="append", nargs=2, type=str, metavar=('NAME', 'VALUE'),
                                     help="Other parameters that are passed to CYST components, agents, etc.")
 
@@ -368,6 +374,9 @@ class _Environment(Environment, PlatformInterface):
         if args.max_action_count:
             max_action_count = args.max_action_count
 
+        if args.run_id_log_suffix:
+            run_id_log_suffix = args.run_id_log_suffix
+
         if args.other_param:
             for x in args.other_param:
                 name = x[0].lower()
@@ -388,6 +397,7 @@ class _Environment(Environment, PlatformInterface):
             self._runtime_configuration.max_running_time = max_running_time
         if max_action_count:
             self._runtime_configuration.max_action_count = max_action_count
+        self._runtime_configuration.run_id_log_suffix = run_id_log_suffix
 
     def configure(self, *config_item: ConfigItem, parameters: dict[str, Any] | None = None) -> Environment:
         # Preprocess all configuration items for easier platform management

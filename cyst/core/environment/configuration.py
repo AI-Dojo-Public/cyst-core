@@ -2,6 +2,7 @@ import jsonpickle
 import logging.config
 
 from dataclasses import dataclass, field, fields, is_dataclass
+from pathlib import Path
 from typing import Dict, List, Union, Any, Callable, Optional, Type, Iterable
 from uuid import uuid4
 
@@ -682,12 +683,21 @@ class Configurator:
                 }
 
             if cfg.log_file and cfg.file_path:
+                if self._env.infrastructure.runtime_configuration.run_id_log_suffix:
+                    p = Path(cfg.file_path)
+                    path = p.parent / Path(f"{p.stem}-{self._env.infrastructure.runtime_configuration.run_id}{p.suffix}")
+                else:
+                    path = Path(cfg.file_path)
+
+                path.parent.mkdir(parents=True, exist_ok=True)
+
                 handler_file = {
                     'class': 'logging.FileHandler',
                     'formatter': '__text' if cfg.log_type == LogType.TEXT else '__json',
                     'level': cfg.log_level,
-                    'filename': cfg.file_path
+                    'filename': path
                 }
+
 
             if handler_console or handler_file:
                 handler_list = []

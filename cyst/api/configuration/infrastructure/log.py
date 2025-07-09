@@ -88,7 +88,7 @@ log_defaults = [
         log_type=LogType.TEXT,
         log_console=True,
         log_file=True,
-        file_path="cyst_system.log"
+        file_path="log/cyst_system.log"
     ),
     LogConfig(
         source=LogSource.MESSAGING,
@@ -96,7 +96,7 @@ log_defaults = [
         log_type=LogType.TEXT,
         log_console=True,
         log_file=True,
-        file_path="cyst_messages.log"
+        file_path="log/cyst_messages.log"
     ),
     LogConfig(
         source=LogSource.SERVICE,
