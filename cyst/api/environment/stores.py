@@ -1,8 +1,11 @@
 from abc import ABC, abstractmethod
+from dataclasses import dataclass
 from deprecated.sphinx import versionchanged, versionadded
-from typing import List, Optional, Tuple, Union, Dict, Any
+from typing import List, Optional, Tuple, Union, Dict, Any, Callable
 
+from cyst.api.environment.data_model import ActionModel
 from cyst.api.environment.message import Message
+from cyst.api.environment.stats import Statistics
 from cyst.api.host.service import ActiveService
 from cyst.api.logic.access import AccessLevel
 from cyst.api.logic.action import Action, ActionDescription
@@ -153,3 +156,62 @@ class ServiceStore(ABC):
         :param id:
         :return:
         """
+
+
+@versionadded(version="0.6.0")
+class DataStore(ABC):
+
+    @abstractmethod
+    def add_action(self, action: ActionModel) -> None:
+        """
+        Store information about a resolved action, i.e., after completing the request-response cycle.
+
+        :param action: An action description
+
+        :return: None
+        """
+
+    @abstractmethod
+    def add_message(self, message: Message) -> None:
+        """
+        Store information about a message. While in general, the message information is available only at the point of
+        dispatching the message, platforms that have more control over the message passing process (e.g., simulation
+        platform of CYST) may report the same message multiple times during the message passing. Additional information
+        shall then be passed through the .platform_specific attributed, which gets erased before entering user-facing
+        side of the code.
+
+        :param message: The message to store
+
+        :return: None
+        """
+
+    @abstractmethod
+    def add_statistics(self, statistics: Statistics) -> None:
+        """
+        Store statistics related to one run.
+
+        :param statistics: The statistics to store.
+
+        :return: none
+        """
+
+
+@versionadded(version="0.6.0")
+@dataclass
+class DataStoreDescription:
+    """
+    Entry point for an implementation of a data store backend.
+
+    :param backend: The name of the backend the data store uses. This name has to be unique within the system.
+    :type backend: str
+
+    :param description: A textual description of the data store backend.
+    :type description: str
+
+    :param creation_fn: A factory function that can create the data store backend. Its parameters are the run_id and
+        backend-specific key-value pairs.
+    :type creation_fn: Callable[[str, Dict[str, str]], DataStore]
+    """
+    backend: str
+    description: str
+    creation_fn: Callable[[str, Dict[str, str]], DataStore]

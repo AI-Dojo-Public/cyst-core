@@ -4,6 +4,8 @@ import logging
 from typing import Dict, Tuple
 from uuid import uuid4
 
+from cyst.api.environment.data_model import ActionModel
+from cyst.api.environment.stores import DataStore
 from cyst.api.environment.message import Request, Response, Message, Timeout
 from cyst.api.environment.configuration import GeneralConfiguration
 from cyst.api.host.service import ActiveService, Service
@@ -15,7 +17,9 @@ from cyst.core.logic.action import ActionImpl, ActionType
 
 
 class CompositeActionManagerImpl(CompositeActionManager):
-    def __init__(self, loop: asyncio.AbstractEventLoop, behavioral_models: Dict[str, BehavioralModel], messaging: EnvironmentMessagingImpl, resources: EnvironmentResources, general: GeneralConfiguration):
+    def __init__(self, loop: asyncio.AbstractEventLoop, behavioral_models: Dict[str, BehavioralModel],
+                 messaging: EnvironmentMessagingImpl, resources: EnvironmentResources, general: GeneralConfiguration,
+                 data_store: DataStore, active_actions: Dict[str, ActionModel]):
         self._loop = loop
         self._futures = {}
         self._incoming_queue = set()
@@ -35,6 +39,8 @@ class CompositeActionManagerImpl(CompositeActionManager):
         self._subordinate_action_counts = {}
         self._task_parents = {}
         self._composites_processing = 0
+        self._data_store = data_store
+        self._active_actions = active_actions
 
         self._loop.set_task_factory(self.task_factory)
 
@@ -140,6 +146,11 @@ class CompositeActionManagerImpl(CompositeActionManager):
             caller_id = request.platform_specific["caller_id"]
             service = self._general.get_object_by_id(caller_id, ActiveService)
             await service.process_message(response)
+            if response.id in self._active_actions:
+                active_action = self._active_actions[response.id]
+                active_action.set_response(response)
+                self._data_store.add_action(active_action)
+                del self._active_actions[response.id]
 
         self._composites_processing -= 1
         self._log.debug(f"[ end ] Composite action: processing request from composite queue. Got this response: {response}")

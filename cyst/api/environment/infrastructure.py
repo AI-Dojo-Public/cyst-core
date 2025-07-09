@@ -2,7 +2,8 @@ from abc import ABC, abstractmethod
 
 from cyst.api.environment.configuration import RuntimeConfiguration
 from cyst.api.environment.stats import Statistics
-from cyst.api.environment.stores import ServiceStore
+from cyst.api.environment.stores import ServiceStore, DataStore
+
 
 class EnvironmentInfrastructure(ABC):
     """
@@ -17,6 +18,15 @@ class EnvironmentInfrastructure(ABC):
         Statistics track basic information about the simulation runs.
 
         :rtype: Statistics
+        """
+
+    @property
+    @abstractmethod
+    def data_store(self) -> DataStore:
+        """
+        Data store provides access to storing run-related data for later analysis.
+
+        :rtype: DataStore
         """
 
     @property

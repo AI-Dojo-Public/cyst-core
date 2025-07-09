@@ -8,11 +8,13 @@ from heapq import heappush
 from netaddr import IPAddress
 from typing import TYPE_CHECKING, Optional, Any, Union, Dict, List
 
+from cyst.api.environment.data_model import ActionModel
 from cyst.api.environment.message import Request, Response, Status, Message, MessageType, StatusValue, StatusOrigin
 from cyst.api.environment.messaging import EnvironmentMessaging
 from cyst.api.logic.access import Authorization, AuthenticationTarget, AuthenticationToken
 from cyst.api.logic.action import Action, ActionType
 from cyst.api.logic.metadata import Metadata
+from cyst.api.network.node import Node
 from cyst.api.network.session import Session
 from cyst.api.host.service import ActiveService
 from cyst.api.utils.counter import Counter
@@ -71,6 +73,8 @@ def _send_message(self: _Environment, message: Message, delay: int = 0) -> None:
             if not caller_id in self._action_counts:
                 self._action_counts[caller_id] = 0
 
+    self._data_store.add_message(message)
+
     # I would much rather check by the MessageType, but then the type inspection would not work down the line :-/
     if isinstance(message, Request) or isinstance(message, Response):
 
@@ -94,6 +98,15 @@ def _send_message(self: _Environment, message: Message, delay: int = 0) -> None:
                 if action_count > self._highest_action_count:
                     self._highest_action_count = action_count
                     self._highest_action_actor = caller_id
+
+                action_record = ActionModel.from_request(self.infrastructure.statistics.run_id, message)
+                # Composite messages do not have an assigned IP, because they are (in theory) executed locally. So, we
+                # select one "random" IP from nodes IP list and use it as a source IP.
+                node_id, _ = caller_id.split(".")
+                node: Node = self._general_configuration.get_object_by_id(node_id, Node)
+                if node.ips:
+                    action_record.src_ip = str(node.ips[0])
+                self._active_actions[message.id] = action_record
             else:
                 # Send it to the platform.
                 self._platform.messaging.send_message(message, delay)
@@ -110,6 +123,9 @@ def _send_message(self: _Environment, message: Message, delay: int = 0) -> None:
                 if action_count > self._highest_action_count:
                     self._highest_action_count = action_count
                     self._highest_action_actor = caller_id
+
+                self._active_actions[message.id] = ActionModel.from_request(self.infrastructure.statistics.run_id,
+                                                                            message)
 
             # --------------------------------------------------------------------------------------------------------------
             # Call the behavioral model to add components to direct actions

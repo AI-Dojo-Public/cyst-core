@@ -40,7 +40,7 @@ packages = [
 ]
 
 [tool.poetry.dependencies]
-    python = ">=3.11, <4.0.0"
+    python = ">=3.11, <=3.12.10"
     netaddr = ">=0.9.0"
     py-flags = ">=1.1.4"
     semver = ">=3.0.2"
@@ -49,7 +49,8 @@ packages = [
     pyserde = ">=0.12.5"
     importlib_metadata = ">=6.8.0"
     jsonpickle = ">=3.0.2"
-    deprecated = ">=1.2.14"
+    deprecated = "^1.2.18"
+    sqlalchemy = "^2.0.41"
 
 [build-system]
     requires = ["poetry-core"]
@@ -73,3 +74,7 @@ packages = [
 [tool.poetry.plugins."cyst.platforms"]
     cyst_simulated_time="cyst.platform.main:simulated_time_platform_description"
     cyst_real_time="cyst.platform.main:real_time_platform_description"
+
+[tool.poetry.plugins."cyst.data_stores"]
+    data_store_memory="cyst.core.environment.data_store_memory:data_store_memory_description"
+    data_store_sqlite="cyst.core.environment.data_store_sqlite:data_store_sqlite_description"

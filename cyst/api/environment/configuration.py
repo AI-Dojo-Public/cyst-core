@@ -1556,8 +1556,8 @@ class RuntimeConfiguration:
     Runtime configuration represents parametrization of running core instances. This configuration can come from
     multiple sources, e.g., environment variables, files, or command line parameters.
 
-    :param data_backend: Specification of the backend for the data store. Currently, the only one working is the MEMORY
-        backed.
+    :param data_backend: Specification of the backend for the data store. CYST by default provides two data store
+        backends - 'memory' and 'sqlite'.
     :type data_backend: str
 
     :param data_backend_params: Parametrization of the data backend. Once something else than parameter-less memory
@@ -1589,7 +1589,7 @@ class RuntimeConfiguration:
         the other components, agents, etc.
     :type other_params: Dict[str, str]
     """
-    data_backend: str = "MEMORY"
+    data_backend: str = "memory"
     data_backend_params: Dict[str, str] = field(default_factory=lambda: {})
     run_id: str = field(default_factory=lambda: str(uuid.uuid4()))
     config_id: str = ""
