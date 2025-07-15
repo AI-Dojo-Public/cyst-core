@@ -16,7 +16,7 @@ from cyst.api.network.session import Session
 from cyst.api.utils.counter import Counter
 from cyst.api.utils.duration import msecs
 
-from cyst.platform.environment.message import RequestImpl, ResponseImpl, MessageImpl, MessageType
+from cyst.platform.environment.message import RequestImpl, ResponseImpl, MessageImpl, MessageType, SignalImpl
 from cyst.platform.host.service import ServiceImpl
 # from cyst.platform.logic.action import ActionImpl
 from cyst.platform.network.elements import Endpoint, InterfaceImpl
@@ -60,9 +60,7 @@ class EnvironmentMessagingImpl(EnvironmentMessaging):
     def create_signal(self, signal_origin: str, state: ComponentState, effect_origin: str,
                       effect_message: Optional[int] = None, effect_description: str = "",
                       effect_parameters: Optional[Dict[str, Any]] = None) -> Signal:
-        # There is no reason to not use CYST's machinery
-        return self._platform.messaging.create_signal(signal_origin, state, effect_origin, effect_message,
-                                                      effect_description, effect_parameters)
+        return SignalImpl(signal_origin, state, effect_origin, effect_message, effect_description, effect_parameters)
 
     def open_session(self, request: Request, reverse_direction: bool = False) -> Session:
         return _open_session(self._platform, request, reverse_direction)
