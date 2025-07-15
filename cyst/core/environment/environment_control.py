@@ -4,9 +4,11 @@ import asyncio
 import uuid
 import time
 
+from contextlib import suppress
 from typing import Tuple, TYPE_CHECKING
 
 from cyst.api.environment.control import EnvironmentState, EnvironmentControl
+from cyst.api.environment.message import ComponentState
 from cyst.api.environment.platform_specification import PlatformType
 from cyst.api.environment.stats import Statistics
 from cyst.api.host.service import ServiceState
@@ -153,6 +155,14 @@ def _run(self: _Environment) -> Tuple[bool, EnvironmentState]:
     if self._pause:
         self._state = EnvironmentState.PAUSED
     else:
+        # Send a notification to all active services that we had to terminate
+        end_signal = self.messaging.create_signal(signal_origin="__environment",
+                                                  state=ComponentState.TERMINATED if self._terminate else ComponentState.FINISHED,
+                                                  effect_origin="__environment")
+
+        for service in self._service_store.get_active_services():
+            self._loop.create_task(service.process_message(end_signal))
+
         # Realistically, we need some more loop steps to serve the awaits when all futures are set
         # The number 4 was chosen because it works and gives also a hefty margin. As far as I checked, 1 is enough.
         for _ in range(4):
@@ -168,6 +178,14 @@ def _run(self: _Environment) -> Tuple[bool, EnvironmentState]:
 
         else:
             self._state = EnvironmentState.FINISHED
+
+        # Clear the loop if there are any outstanding tasks
+        pending = asyncio.all_tasks(self._loop)
+        for task in pending:
+            task.cancel()
+
+            with suppress(asyncio.CancelledError):
+                self._loop.run_until_complete(task)
 
     return True, self._state
 
