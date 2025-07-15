@@ -98,7 +98,8 @@ class ScriptedActor(ActiveService, ScriptedActorControl):
         type_map = {
             MessageType.REQUEST: "request",
             MessageType.RESPONSE: "response",
-            MessageType.RESOURCE: "resource"
+            MessageType.RESOURCE: "resource",
+            MessageType.SIGNAL: "signal"
         }
 
         message_type = type_map[message.type]
