@@ -2,6 +2,7 @@ from abc import ABC, abstractmethod
 from dataclasses import dataclass
 from deprecated.sphinx import versionadded
 from enum import Enum, auto
+from flags import Flags
 from netaddr import IPAddress
 from typing import Any, Optional, Union, TypeVar, Type, Dict
 
@@ -20,12 +21,14 @@ class MessageType(Enum):
         :REQUEST: The message is a request.
         :RESPONSE: The message is a response.
         :RESOURCE: The message carries a resource.
+        :SIGNAL: The message is a signaling between the environment and components
 
     """
     TIMEOUT = 0
     REQUEST = 1
     RESPONSE = 2
     RESOURCE = 3
+    SIGNAL = 4
 
 
 class StatusOrigin(Enum):
@@ -434,4 +437,125 @@ class Resource(Message, ABC):
         error), the return is set to None.
 
         :rtype: Optional[str]
+        """
+
+
+class ComponentState(Flags):
+    """
+    Component state represents an abstract state of a particular component within simulation. The state is expressed
+    as a flag, so, multiple states can be expressed at once.
+
+    States related to the component lifetime:
+        :CREATED: A component was just created.
+        :INIT: A component was successfully initialized.
+        :RUNNING: A component is running in a nominal fashion.
+        :PAUSED: An execution of component's functions was paused.
+        :STOPPED: An execution of component's functions was stopped.
+        :FINISHED: A component stopped its operation in a normal way.
+        :TERMINATED: A component stopped its operation through some external factor.
+
+    States related to action effects:
+        :UNDER_ATTACK: A component is a subject to hostile activity. Note that there is no state indicating that attack has ended.
+        :UNDER_CONTROL: A component was subject to hostile activity that resulted in access or control from the origin of activity.
+        :RESTORED: A component is no longer UNDER_CONTROL.
+
+    States related to goal pursuit:
+        :GOAL_REACHED: A component reached its stated goal.
+        :GOAL_UNREACHABLE: A component is unable to reach its goal.
+
+    An example of a state evolution of a service under a successful attack:
+
+        ComponentState.UNDER_ATTACK
+        ComponentState.UNDER_CONTROL
+        ComponentState.TERMINATED
+
+    An example of a state evolution of a service that was attacked and cleaned afterward:
+
+        ComponentState.UNDER_ATTACK
+        ComponentState.UNDER_CONTROL
+        ComponentState.STOPPED
+        ComponentState.RUNNING | ComponentState.RESTORED
+
+    An attacker signalling that it reached its goal and do not wish to continue the run:
+
+        ComponentState.FINISHED | ComponentState.GOAL_REACHED
+
+    """
+    CREATED = ()
+    INIT = ()
+    RUNNING = ()
+    PAUSED = ()
+    STOPPED = ()
+    FINISHED = ()
+    TERMINATED = ()
+    # Action-related state
+    UNDER_ATTACK = ()
+    UNDER_CONTROL = ()
+    RESTORED = ()
+    # Goal-related state
+    GOAL_REACHED =()
+    GOAL_UNREACHABLE = ()
+
+
+class Signal(Message, ABC):
+    """
+    Signal is a message specialization that is used for communicating state changes between the environment and
+    simulation components.
+    """
+    @property
+    @abstractmethod
+    def signal_origin(self) -> str:
+        """
+        An identification of a source of the signal. This will usually be the ID of a component, or "__environment" if
+        the signal is coming from within CYST.
+
+        :rtype: str
+        """
+
+    @property
+    @abstractmethod
+    def state(self) -> ComponentState:
+        """
+        A new state that the component entered.
+
+        :rtype: ComponentState
+        """
+
+    @property
+    @abstractmethod
+    def effect_origin(self) -> str:
+        """
+        An identification of a source of the state change that prompted the signal emission.
+
+        :rtype: str
+        """
+
+    @property
+    @abstractmethod
+    def effect_message(self) -> Optional[int]:
+        """
+        An ID of a message that caused the state change. In case of environment signals, there does not have to be any
+        related message (such as the environment termination).
+
+        :rtype: Optional[int]
+        """
+
+    @property
+    @abstractmethod
+    def effect_description(self) -> str:
+        """
+        A description of an effect used mainly for later analysis. For example "Maximum number of actions reached",
+        or "Successful execution of an action x:y". This is not expected to be machine-processable .
+
+        :rtype: str
+        """
+
+    @property
+    @abstractmethod
+    def effect_parameters(self) -> Dict[str, Any]:
+        """
+        Additional information related to the state change. For example, an agent may use this to signal its perceived
+        reward, or some important training/execution parameters.
+
+        :rtype: Dict[str, Any]
         """

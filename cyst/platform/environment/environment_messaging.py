@@ -4,7 +4,8 @@ from heapq import heappush
 from netaddr import IPAddress
 from typing import TYPE_CHECKING, Optional, Any, Union, Dict, List
 
-from cyst.api.environment.message import Request, Response, Status, Message, StatusValue, StatusOrigin
+from cyst.api.environment.message import Request, Response, Status, Message, StatusValue, StatusOrigin, ComponentState, \
+    Signal
 from cyst.api.environment.messaging import EnvironmentMessaging
 from cyst.api.host.service import ServiceState
 from cyst.api.logic.access import Authorization, AuthenticationTarget, AuthenticationToken
@@ -55,6 +56,13 @@ class EnvironmentMessagingImpl(EnvironmentMessaging):
             return response
         else:
             raise ValueError("Malformed request passed to create a response from")
+
+    def create_signal(self, signal_origin: str, state: ComponentState, effect_origin: str,
+                      effect_message: Optional[int] = None, effect_description: str = "",
+                      effect_parameters: Optional[Dict[str, Any]] = None) -> Signal:
+        # There is no reason to not use CYST's machinery
+        return self._platform.messaging.create_signal(signal_origin, state, effect_origin, effect_message,
+                                                      effect_description, effect_parameters)
 
     def open_session(self, request: Request, reverse_direction: bool = False) -> Session:
         return _open_session(self._platform, request, reverse_direction)

@@ -1,9 +1,9 @@
 from abc import ABC, abstractmethod
-from deprecated.sphinx import versionchanged
+from deprecated.sphinx import versionchanged, versionadded
 from netaddr import IPAddress
-from typing import Any, Optional, Union
+from typing import Any, Optional, Union, Dict
 
-from cyst.api.environment.message import Message, Request, Response, Status
+from cyst.api.environment.message import Message, Request, Response, Status, Signal, ComponentState
 from cyst.api.logic.action import Action
 from cyst.api.logic.access import Authorization, AuthenticationTarget, AuthenticationToken
 from cyst.api.network.session import Session
@@ -102,6 +102,33 @@ class EnvironmentMessaging(ABC):
         :type original_response: Response
 
         :return: A response to be sent.
+        """
+
+    @abstractmethod
+    @versionadded(version="0.6.0")
+    def create_signal(self, signal_origin: str, state: ComponentState, effect_origin: str,
+                      effect_message: Optional[int] = None, effect_description: str = "",
+                      effect_parameters: Optional[Dict[str, Any]] = None) -> Signal:
+        """
+        Creates a message of type SIGNAL.
+
+        :param signal_origin: An identification of a source of the signal. Usually an ID of your component.
+        :type signal_origin: str
+
+        :param state: A new state that the component entered.
+        :type state: ComponentState
+
+        :param effect_origin: An identification of a source of the state change that prompted the signal emission.
+        :type effect_origin: str
+
+        :param effect_message: An ID of a message that caused the state change.
+        :type effect_message: Optional[int]
+
+        :param effect_description: A description of an effect used mainly for later analysis.
+        :type effect_description: str
+
+        :param effect_parameters: Additional information related to the state change.
+        :type effect_parameters: Optional[Dict[str, Any]]
         """
 
     @abstractmethod
