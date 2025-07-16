@@ -68,8 +68,10 @@ class _Environment(Environment, PlatformInterface):
         self._executed: Set[asyncio.Task] = set()
         self._pause = False
         self._terminate = False
+        self._terminate_reason = ""
         self._initialized = False
         self._finish = False
+        self._finish_reason = ""
         self._state = EnvironmentState.CREATED
 
         self._loop = asyncio.new_event_loop()
@@ -193,6 +195,7 @@ class _Environment(Environment, PlatformInterface):
 
     def _signal_handler(self, *args):
         self._terminate = True
+        self._terminate_reason = "Received a SIGINT signal to terminate."
 
     def loop_exception_handler(self, loop: asyncio.AbstractEventLoop, context: Dict[str, Any]) -> None:
         exception_text = str(context['exception']) + "\nCall stack: \n"
@@ -204,8 +207,10 @@ class _Environment(Environment, PlatformInterface):
             for frame in trace:
                 exception_text += f"{frame.filename}:{frame.line} :: {frame.name}\n"
 
-        print(f"Unhandled exception in event loop. Exception: {exception_text}.")
+        error = f"Unhandled exception in event loop. Exception: {exception_text}."
+        print(error)
         self._terminate = True
+        self._terminate_reason = error
 
     def __getstate__(self) -> dict:
         return {
@@ -471,6 +476,7 @@ class _Environment(Environment, PlatformInterface):
                 call_stack += f"{frame.f_code.co_filename}:{frame.f_lineno} :: {frame.f_code.co_qualname}\n"
             self._system_log.log(logging.ERROR, f"There was an exception when running a task: {repr(task.exception())}.\nCall stack:\n{call_stack}")
             self._terminate = True
+            self._terminate_reason = f"There was an exception when running a task: {repr(task.exception())}."
             return
 
         # TODO: Leaving this here, until Duration is everywhere
@@ -504,6 +510,7 @@ class _Environment(Environment, PlatformInterface):
         if self._runtime_configuration.max_running_time > 0.0 and not self._finish:
             if current_time > self._runtime_configuration.max_running_time:
                 self._finish = True
+                self._finish_reason = f"Exceeded the time limit of {self._runtime_configuration.max_running_time} virtual seconds "
                 self._system_log.info(f"Terminating run because we ran over the time limit of {self._runtime_configuration.max_running_time} virtual seconds.")
                 return
 
@@ -511,6 +518,7 @@ class _Environment(Environment, PlatformInterface):
         if self._runtime_configuration.max_action_count > 0 and not self._finish:
             if self._highest_action_count > self._runtime_configuration.max_action_count:
                 self._finish = True
+                self._finish_reason = f"The actor '{self._highest_action_actor}' crossed the action limit of {self._runtime_configuration.max_action_count}."
                 self._system_log.info(f"Terminating run because the actor '{self._highest_action_actor}' crossed the action limit of {self._runtime_configuration.max_action_count}.")
                 return
 
@@ -565,6 +573,7 @@ class _Environment(Environment, PlatformInterface):
             # still executing run() methods of active services.
             if self._state != EnvironmentState.INIT:
                 self._finish = True
+                self._finish_reason = "No activity pending in the run."
                 return
 
         # --------------------------------------------------------------------------------------------------------------

@@ -1,7 +1,7 @@
 from typing import Dict, Union, List
 
 from cyst.api.environment.data_model import ActionModel
-from cyst.api.environment.message import Message
+from cyst.api.environment.message import Message, Signal
 from cyst.api.environment.stats import Statistics
 from cyst.api.environment.stores import DataStore, DataStoreDescription
 
@@ -12,7 +12,8 @@ class DataStoreMemory(DataStore):
         self._memory: Dict[str, Union[None, List, Statistics]] = {
             "actions": [],
             "messages": [],
-            "statistics": None
+            "statistics": None,
+            "signals": []
         }
 
     def add_action(self, action: ActionModel) -> None:
@@ -24,6 +25,8 @@ class DataStoreMemory(DataStore):
     def add_statistics(self, statistics: Statistics) -> None:
         self._memory["statistics"] = statistics
 
+    def add_signal(self, signal: Signal) -> None:
+        self._memory["signals"].append(signal)
 
 def create_data_store_memory(run_id: str, params: Dict[str, str]) -> DataStore:
     return DataStoreMemory(run_id, params)
