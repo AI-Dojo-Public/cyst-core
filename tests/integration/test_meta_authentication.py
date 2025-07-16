@@ -220,6 +220,10 @@ class TestMetaAuth(unittest.TestCase):
 
         cls._env.control.add_pause_on_response("attacker_node.scripted_attacker")
 
+    @classmethod
+    def tearDownClass(cls) -> None:
+        cls._env.control.commit()
+
     def test_000_no_token_provided(self):
 
         action = self._actions["meta:authenticate"].copy()

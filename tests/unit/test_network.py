@@ -30,6 +30,7 @@ class TestInterface(unittest.TestCase):
 
     def test_0000_Interface(self):
         env = Environment.create()
+        env.control.init()
 
         # Function aliases to make it more readable
         create_iface = env.configuration.node.create_interface
@@ -70,21 +71,27 @@ class TestInterface(unittest.TestCase):
 
         self.assertEqual(i5.gateway, IPAddress("10.0.1.1"), "Gateway recomputed")
 
+        env.control.commit()
+
     def test_0001_Port(self):
         # Ports are used under the hood for the interfaces as well, so all the tests above are valid for port as
         # well. The only thing that needs to be tested is the actual code path to create the port through configuration
         # interface.
         env = Environment.create()
+        env.control.init()
 
         port = env.configuration.node.create_port(index=-1)
 
         self.assertIsNotNone(port, "Port created through configuration interface")
+
+        env.control.commit()
 
 
 class TestSessions(unittest.TestCase):
 
     def test_0000_single_session(self):
         env = Environment.create()
+        env.control.init()
 
         # Function aliases to make it more readable
         create_node = env.configuration.node.create_node
@@ -123,8 +130,11 @@ class TestSessions(unittest.TestCase):
         with self.assertRaises(StopIteration):
             next(it)
 
+        env.control.commit()
+
     def test_0001_multiple_sessions(self):
         env = Environment.create()
+        env.control.init()
 
         # Function aliases to make it more readable
         create_node = env.configuration.node.create_node
@@ -201,6 +211,8 @@ class TestSessions(unittest.TestCase):
         self.assertFalse(it2.has_next(), "Reverse iterator has no elements left")
         with self.assertRaises(StopIteration):
             next(it2)
+
+        env.control.commit()
 
     def test_0002_message_traversal(self):
         # Scenario: we have an attacker node, two routers and three targets linked in this fashion: A-S1-S2-T1

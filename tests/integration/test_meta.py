@@ -125,6 +125,10 @@ class TestMETAIntegration(unittest.TestCase):
         cls._ssh_token = AuthenticationTokenImpl(AuthenticationTokenType.PASSWORD,
                                                  AuthenticationTokenSecurity.OPEN, "root", True)._set_content(uuid.uuid4())
 
+    @classmethod
+    def tearDownClass(cls) -> None:
+        cls._env.control.commit()
+
     def test_0000_inspect_node(self) -> None:
 
         # Local inspection

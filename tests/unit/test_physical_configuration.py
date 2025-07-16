@@ -75,7 +75,9 @@ physical_connection = PhysicalConnectionConfig(origin=location_1_id, destination
 class TestPhysicalConfigurationImpl(unittest.TestCase):
 
     def setUp(self) -> None:
-        self.config = Environment.create().configuration.physical
+        self.env = Environment.create()
+        self.env.control.init()
+        self.config = self.env.configuration.physical
         self.location_1_id = "location_1"
         self.location_2_id = "location_2"
         self.user_1_id = "user_1"
@@ -83,6 +85,9 @@ class TestPhysicalConfigurationImpl(unittest.TestCase):
         self.node_2_id = "node_2"
         self.config.create_physical_location(self.location_1_id)
         self.config.create_physical_location(self.location_2_id)
+
+    def tearDown(self) -> None:
+        self.env.control.commit()
 
     def test_0000_create_physical_location_creates_location_with_assets_and_access(self) -> None:
         location = self.config.create_physical_location(None)
@@ -415,6 +420,9 @@ class TestPhysicalConfiguration(unittest.TestCase):
     def setUp(self) -> None:
         self.env = Environment.create().configure(node_1, node_2, router, *connections_cfg, location_1_cfg, location_2_cfg, physical_connection)
         self.env.control.init()
+
+    def tearDown(self) -> None:
+        self.env.control.commit()
 
     def test_0001_physical_configuration_was_set_up_correctly(self) -> None:
         location_1 = self.env.configuration.physical.get_physical_location(location_1_id)

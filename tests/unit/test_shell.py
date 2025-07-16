@@ -108,6 +108,10 @@ class TestForwardShell(unittest.TestCase):
 
         cls.actions = {a.id: a for a in cls.env.resources.action_store.get_prefixed("cyst")}
 
+    @classmethod
+    def tearDownClass(cls) -> None:
+        cls.env.control.commit()
+
     def test_0000_init(self) -> None:
         self.assertEqual(self.env.control.state, EnvironmentState.INIT,
                          "Environment not instantiated")
