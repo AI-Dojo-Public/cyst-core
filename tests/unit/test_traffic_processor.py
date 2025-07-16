@@ -8,9 +8,8 @@ from cyst_services.scripted_actor.main import ScriptedActorControl
 
 class ActionTests(unittest.TestCase):
 
+    @unittest.skip("This test does not work correctly as it depends on IDS implementation")
     def test_0000_blocking(self) -> None:
-        return  # This test does not work correctly as it depends on IDS implementation (TODO remove)
-
         env = Environment.create()
 
         # Function aliases to make it more readable

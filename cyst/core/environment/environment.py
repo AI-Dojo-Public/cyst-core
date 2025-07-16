@@ -60,7 +60,7 @@ from cyst.core.logic.composite_action import CompositeActionManagerImpl
 # it being private if instantiated otherwise than via the create_environment()
 class _Environment(Environment, PlatformInterface):
 
-    def __init__(self, platform: Optional[Union[str, PlatformSpecification]]) -> None:
+    def __init__(self, platform: Optional[Union[str, PlatformSpecification]] = None, run_id: str = "") -> None:
         self._time = 0
         self._start_time = localtime()
         self._message_queue: List[Tuple[int, int, Message]] = []
@@ -75,7 +75,7 @@ class _Environment(Environment, PlatformInterface):
         self._loop = asyncio.new_event_loop()
         self._loop.set_exception_handler(self.loop_exception_handler)
 
-        self._run_id = ""
+        self._run_id = run_id
 
         self._pause_on_request: List[str] = []
         self._pause_on_response: List[str] = []
@@ -107,6 +107,10 @@ class _Environment(Environment, PlatformInterface):
         self._platform_notifier = Condition()
 
         self._configure_runtime()
+        # Runtime configuration always has some value for run_id, so the run_id passed in the initializer takes a
+        # precedence, if there is any
+        self._run_id = self._runtime_configuration.run_id if not self._run_id else self._run_id
+
         self._register_metadata_providers()
         self._register_platforms()
         self._register_data_stores()
@@ -149,11 +153,11 @@ class _Environment(Environment, PlatformInterface):
         # components the platform depends on
         self._environment_resources = EnvironmentResourcesImpl(self, self._platform_spec)
         self._service_store = ServiceStoreImpl(self._environment_messaging, self._environment_resources, self._runtime_configuration)
-        self._statistics = StatisticsImpl()
+        self._statistics = StatisticsImpl(self._run_id)
 
         if not self._runtime_configuration.data_backend in self._data_stores:
             raise ValueError(f"Required data store backend '{self._runtime_configuration.data_backend}' not installed. Cannot continue.")
-        self._data_store = self._data_stores[self._runtime_configuration.data_backend].creation_fn(self._statistics.run_id, self._runtime_configuration.data_backend_params)
+        self._data_store = self._data_stores[self._runtime_configuration.data_backend].creation_fn(self._run_id, self._runtime_configuration.data_backend_params)
 
         self._infrastructure = EnvironmentInfrastructureImpl(self._runtime_configuration, self._data_store,
                                                              self._service_store, self._statistics)
@@ -697,6 +701,6 @@ class _Environment(Environment, PlatformInterface):
                                                           self._infrastructure)
 
 
-def create_environment(platform: Optional[Union[str, PlatformSpecification]]) -> Environment:
-    e = _Environment(platform)
+def create_environment(platform: Optional[Union[str, PlatformSpecification]] = None, run_id: str = "") -> Environment:
+    e = _Environment(platform, run_id)
     return e

@@ -25,6 +25,7 @@ class TestLog(unittest.TestCase):
     # Default init is only specific in that it creates a message file
     def test_0000_default_init(self) -> None:
         env = Environment.create().configure()
+        env.control.init()
 
         if env.infrastructure.runtime_configuration.run_id_log_suffix:
             message_log = Path(f"log/cyst_messages-{env.infrastructure.runtime_configuration.run_id}.log")
@@ -56,6 +57,9 @@ class TestLog(unittest.TestCase):
             log.log_file = False
 
         env = Environment.create().configure(InfrastructureConfig(log=defaults))
+        env.control.init()
 
         logger = logging.getLogger("system")
         logger.info("If you see this, something is wrong")
+
+        env.control.commit()

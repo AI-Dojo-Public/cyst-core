@@ -9,6 +9,8 @@ class ActionTests(unittest.TestCase):
     def test_0000_parameter_domains(self) -> None:
         env = Environment.create()
 
+        env.control.init()
+
         # Domain 'ANY' means that the value can be arbitrary, therefore you can't get reasonable values from it
         domain_any = env.configuration.action.create_action_parameter_domain_any()
 
@@ -42,3 +44,5 @@ class ActionTests(unittest.TestCase):
         self.assertEqual(len(domain_options), 4, "Correct number of elements")
         self.assertEqual(domain_options[2], 7, "Correct element selection")
         self.assertTrue(domain_range.validate(random.choice(domain_range)), "Everything works")
+
+        env.control.commit()

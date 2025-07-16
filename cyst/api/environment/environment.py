@@ -120,10 +120,19 @@ class Environment(ABC):
         """
 
     @classmethod
-    def create(cls, platform: Optional[Union[str, PlatformSpecification]] = None) -> 'Environment':
+    def create(cls, platform: Optional[Union[str, PlatformSpecification]] = None, run_id: str = "") -> 'Environment':
         """
         Creates a new instance of the environment. A program using CYST can use multiple environments, however, each
         simulation run happens only in the context of one environment.
+
+        :param platform: A specification of a platform to use as a backend for CYST run. By default, a CYST simulation
+            using a simulated time is used.
+        :type platform: Optional[Union[str, PlatformSpecification]
+
+        :param run_id: The unique id of the current run. If a non-unique id is selected, it may produce unwanted
+            results when saving the data to a data store.
+        :type run_id: str
+
 
         :return: An environment instance.
         """

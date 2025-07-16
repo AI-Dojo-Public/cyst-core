@@ -156,6 +156,7 @@ class AuthenticationProcessTestSSH(unittest.TestCase):
     @classmethod
     def setUpClass(cls) -> None:
         cls.env = Environment.create().configure(email_server, sso_server, target, router1, *connections)
+        cls.env.control.init()
 
         node = cls.env.configuration.general.get_object_by_id("target_node", Node)
         service = next(filter(lambda x: x.name == "ssh", node.services.values()))
@@ -170,6 +171,10 @@ class AuthenticationProcessTestSSH(unittest.TestCase):
         cls.node = node
         cls.service = service
         cls.token = token
+
+    @classmethod
+    def tearDownClass(cls) -> None:
+        cls.env.control.commit()
 
     def test_000_invalid_token(self):
         result = self.env.configuration.access.evaluate_token_for_service(self.service,  # the method is not in the Environment API, so we need to know we are dealing with an _Environment, is that ok?
@@ -203,6 +208,7 @@ class AuthenticationProcessTestCustomService(unittest.TestCase):
     @classmethod
     def setUpClass(cls) -> None:
         cls.env = Environment.create().configure(email_server, sso_server, target, router1, *connections)
+        cls.env.control.init()
 
         node = cls.env.configuration.general.get_object_by_id("target_node", Node)
         service = next(filter(lambda x: x.name == "my_custom_service", node.services.values()))
@@ -219,6 +225,10 @@ class AuthenticationProcessTestCustomService(unittest.TestCase):
         cls.node = node
         cls.service = service
         cls.token = token
+
+    @classmethod
+    def tearDownClass(cls) -> None:
+        cls.env.control.commit()
 
     def test_000_valid_token_get_next_target(self):
         result = self.env.configuration.access.evaluate_token_for_service(self.service,
@@ -254,6 +264,7 @@ class AuthenticationAccessManipulationTest(unittest.TestCase):
     @classmethod
     def setUpClass(cls) -> None:
         cls.env = Environment.create().configure(email_server, sso_server, target, router1, *connections)
+        cls.env.control.init()
 
         node = cls.env.configuration.general.get_object_by_id("target_node", Node)
 
@@ -275,6 +286,10 @@ class AuthenticationAccessManipulationTest(unittest.TestCase):
         # improve readability
         cls.create_service_access = cls.env.configuration.access.create_service_access
         cls.modify_existing_access = cls.env.configuration.access.modify_existing_access
+
+    @classmethod
+    def tearDownClass(cls) -> None:
+        cls.env.control.commit()
 
     def test_000_add_account(self) -> None:
         identity = "intruder1"
