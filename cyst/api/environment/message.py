@@ -70,7 +70,7 @@ class StatusValue(Enum):
     PARTIAL = 3
 
 
-class StatusDetail(Enum):
+class StatusDetail(Flags):
     """ Status detail provides another introspection mechanism to active services into the nature of failures and
     errors. Status detail follows unified naming convention WHAT_WHY, where WHY is one of the following:
 
@@ -120,38 +120,38 @@ class StatusDetail(Enum):
         :ACTION_NOT_EXISTING: There is no interpreter able to interpret the given action.
 
     """
-    UNKNOWN = 0
+    UNKNOWN = ()
     # NODE.FAILURE
-    PRIVILEGES_NOT_APPLICABLE = auto()
+    PRIVILEGES_NOT_APPLICABLE = ()
 
     # NODE.ERROR
-    SERVICE_NOT_PROVIDED = auto()
-    SERVICE_NOT_EXISTING = auto()
-    SESSION_NOT_PROVIDED = auto()
-    SESSION_NOT_APPLICABLE = auto()
+    SERVICE_NOT_PROVIDED = ()
+    SERVICE_NOT_EXISTING = ()
+    SESSION_NOT_PROVIDED = ()
+    SESSION_NOT_APPLICABLE = ()
 
     # SERVICE.FAILURE
-    SESSION_CREATION_NOT_SUPPORTED = auto()
-    EXPLOIT_NOT_PROVIDED = auto()
-    EXPLOIT_NOT_APPLICABLE = auto()
-    EXPLOIT_CATEGORY_NOT_APPLICABLE = auto()
-    EXPLOIT_LOCALITY_NOT_APPLICABLE = auto()
-    EXPLOIT_PARAMETER_NOT_PROVIDED = auto()
-    EXPLOIT_PARAMETER_NOT_APPLICABLE = auto()
-    AUTHORIZATION_NOT_PROVIDED = auto()
-    AUTHORIZATION_NOT_APPLICABLE = auto()
-    AUTHENTICATION_NOT_PROVIDED = auto()
-    AUTHENTICATION_NOT_APPLICABLE = auto()
-    AUTHENTICATION_NEXT = auto()
-    ACTION_PARAMETER_NOT_PROVIDED = auto()
-    ACTION_PARAMETER_NOT_APPLICABLE = auto()
+    SESSION_CREATION_NOT_SUPPORTED = ()
+    EXPLOIT_NOT_PROVIDED = ()
+    EXPLOIT_NOT_APPLICABLE = ()
+    EXPLOIT_CATEGORY_NOT_APPLICABLE = ()
+    EXPLOIT_LOCALITY_NOT_APPLICABLE = ()
+    EXPLOIT_PARAMETER_NOT_PROVIDED = ()
+    EXPLOIT_PARAMETER_NOT_APPLICABLE = ()
+    AUTHORIZATION_NOT_PROVIDED = ()
+    AUTHORIZATION_NOT_APPLICABLE = ()
+    AUTHENTICATION_NOT_PROVIDED = ()
+    AUTHENTICATION_NOT_APPLICABLE = ()
+    AUTHENTICATION_NEXT = ()
+    ACTION_PARAMETER_NOT_PROVIDED = ()
+    ACTION_PARAMETER_NOT_APPLICABLE = ()
 
     # SERVICE.ERROR
 
     # SYSTEM.FAILURE
 
     # SYSTEM.ERROR
-    ACTION_NOT_EXISTING = auto()
+    ACTION_NOT_EXISTING = ()
 
 
 @dataclass
