@@ -26,8 +26,8 @@ class EnvironmentControlImpl(EnvironmentControl):
     def state(self) -> EnvironmentState:
         return _state(self._env)
 
-    def init(self, run_id: str = str(uuid.uuid4())) -> Tuple[bool, EnvironmentState]:
-        return _init(self._env, run_id)
+    def init(self) -> Tuple[bool, EnvironmentState]:
+        return _init(self._env)
 
     def commit(self) -> None:
         return _commit(self._env)
@@ -79,7 +79,7 @@ def _state(self: _Environment) -> EnvironmentState:
     return self._state
 
 
-def _init(self: _Environment, run_id: str = str(uuid.uuid4())) -> Tuple[bool, EnvironmentState]:
+def _init(self: _Environment) -> Tuple[bool, EnvironmentState]:
     if self._initialized:
         return True, self._state
 
@@ -89,11 +89,9 @@ def _init(self: _Environment, run_id: str = str(uuid.uuid4())) -> Tuple[bool, En
     self._pause = False
     self._terminate = False
     self._state = EnvironmentState.INIT
-    self._run_id = run_id
 
     # Set basic statistics
     s = StatisticsImpl.cast_from(self.infrastructure.statistics)
-    s.run_id = self._runtime_configuration.run_id if self._runtime_configuration.run_id else self._run_id
     s.configuration_id = self._runtime_configuration.config_id
     s.start_time_real = time.time()
 

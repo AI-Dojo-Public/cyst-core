@@ -63,13 +63,9 @@ class EnvironmentControl(ABC):
         """
 
     @abstractmethod
-    def init(self, run_id: str = str(uuid.uuid4())) -> Tuple[bool, EnvironmentState]:
+    def init(self) -> Tuple[bool, EnvironmentState]:
         """ Initializes the environment for the first time. The environment must be in the CREATED state.
         The following invocations do nothing and silently return true.
-
-        :param run_id: The unique id of the current run. If a non-unique id is selected, it may produced unwanted
-            results when saving the data to a data store.
-        :type run_id: str
 
         :return: A tuple indicating, whether the operation was successful and which state the environment ended in.
         """
