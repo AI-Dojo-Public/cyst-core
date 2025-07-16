@@ -30,7 +30,6 @@ class EnvironmentResourcesImpl(EnvironmentResources):
         self._action_store = ActionStoreImpl(platform)
         self._exploit_store = ExploitStoreImpl()
         self._clock = None
-        self._statistics = StatisticsImpl()
         self._external_resources = None
 
     def init_resources(self, loop: asyncio.AbstractEventLoop, clock: Clock):
@@ -48,10 +47,6 @@ class EnvironmentResourcesImpl(EnvironmentResources):
     @property
     def clock(self) -> Clock:
         return self._clock
-
-    @property
-    def statistics(self) -> Statistics:
-        return self._statistics
 
     @property
     def external(self) -> ExternalResources:
