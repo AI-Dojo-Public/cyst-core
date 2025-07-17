@@ -223,7 +223,7 @@ class Configurator:
                     raise RuntimeError("Wrong object type provided instead of (Federated)AuthorizationConfig")
 
         for data in self._data:
-            d = self._platform.configuration.service.create_data(data.id, data.owner, data.description)
+            d = self._platform.configuration.service.create_data(data.id, data.owner, data.path, data.description)
 
         for exploit in self._exploits:
             params = []
