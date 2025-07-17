@@ -79,7 +79,10 @@ def _send_message(self: _Environment, message: Message, delay: int = 0) -> None:
             if not caller_id in self._action_counts:
                 self._action_counts[caller_id] = 0
 
-    self._data_store.add_message(message)
+    if message.type == MessageType.REQUEST or message.type == MessageType.RESPONSE:
+        self._data_store.add_message(message)
+    elif message.type == MessageType.SIGNAL:
+        self._data_store.add_signal(message)
 
     # I would much rather check by the MessageType, but then the type inspection would not work down the line :-/
     if isinstance(message, Request) or isinstance(message, Response):
