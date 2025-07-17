@@ -6,7 +6,7 @@ from cyst.api.logic.data import Data
 
 
 class DataImpl(Data):
-    def __init__(self, id: Optional[str], owner: str, path: str, description: str = ""):
+    def __init__(self, id: Optional[str], owner: str, path: str = "", description: str = ""):
         if id:
             self._id = id
         else:
