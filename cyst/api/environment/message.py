@@ -2,6 +2,7 @@ from abc import ABC, abstractmethod
 from dataclasses import dataclass
 from deprecated.sphinx import versionadded
 from enum import Enum, auto
+from flags import Flags
 from netaddr import IPAddress
 from typing import Any, Optional, Union, TypeVar, Type, Dict
 
@@ -20,12 +21,14 @@ class MessageType(Enum):
         :REQUEST: The message is a request.
         :RESPONSE: The message is a response.
         :RESOURCE: The message carries a resource.
+        :SIGNAL: The message is a signaling between the environment and components
 
     """
     TIMEOUT = 0
     REQUEST = 1
     RESPONSE = 2
     RESOURCE = 3
+    SIGNAL = 4
 
 
 class StatusOrigin(Enum):
@@ -67,7 +70,7 @@ class StatusValue(Enum):
     PARTIAL = 3
 
 
-class StatusDetail(Enum):
+class StatusDetail(Flags):
     """ Status detail provides another introspection mechanism to active services into the nature of failures and
     errors. Status detail follows unified naming convention WHAT_WHY, where WHY is one of the following:
 
@@ -117,38 +120,38 @@ class StatusDetail(Enum):
         :ACTION_NOT_EXISTING: There is no interpreter able to interpret the given action.
 
     """
-    UNKNOWN = 0
+    UNKNOWN = ()
     # NODE.FAILURE
-    PRIVILEGES_NOT_APPLICABLE = auto()
+    PRIVILEGES_NOT_APPLICABLE = ()
 
     # NODE.ERROR
-    SERVICE_NOT_PROVIDED = auto()
-    SERVICE_NOT_EXISTING = auto()
-    SESSION_NOT_PROVIDED = auto()
-    SESSION_NOT_APPLICABLE = auto()
+    SERVICE_NOT_PROVIDED = ()
+    SERVICE_NOT_EXISTING = ()
+    SESSION_NOT_PROVIDED = ()
+    SESSION_NOT_APPLICABLE = ()
 
     # SERVICE.FAILURE
-    SESSION_CREATION_NOT_SUPPORTED = auto()
-    EXPLOIT_NOT_PROVIDED = auto()
-    EXPLOIT_NOT_APPLICABLE = auto()
-    EXPLOIT_CATEGORY_NOT_APPLICABLE = auto()
-    EXPLOIT_LOCALITY_NOT_APPLICABLE = auto()
-    EXPLOIT_PARAMETER_NOT_PROVIDED = auto()
-    EXPLOIT_PARAMETER_NOT_APPLICABLE = auto()
-    AUTHORIZATION_NOT_PROVIDED = auto()
-    AUTHORIZATION_NOT_APPLICABLE = auto()
-    AUTHENTICATION_NOT_PROVIDED = auto()
-    AUTHENTICATION_NOT_APPLICABLE = auto()
-    AUTHENTICATION_NEXT = auto()
-    ACTION_PARAMETER_NOT_PROVIDED = auto()
-    ACTION_PARAMETER_NOT_APPLICABLE = auto()
+    SESSION_CREATION_NOT_SUPPORTED = ()
+    EXPLOIT_NOT_PROVIDED = ()
+    EXPLOIT_NOT_APPLICABLE = ()
+    EXPLOIT_CATEGORY_NOT_APPLICABLE = ()
+    EXPLOIT_LOCALITY_NOT_APPLICABLE = ()
+    EXPLOIT_PARAMETER_NOT_PROVIDED = ()
+    EXPLOIT_PARAMETER_NOT_APPLICABLE = ()
+    AUTHORIZATION_NOT_PROVIDED = ()
+    AUTHORIZATION_NOT_APPLICABLE = ()
+    AUTHENTICATION_NOT_PROVIDED = ()
+    AUTHENTICATION_NOT_APPLICABLE = ()
+    AUTHENTICATION_NEXT = ()
+    ACTION_PARAMETER_NOT_PROVIDED = ()
+    ACTION_PARAMETER_NOT_APPLICABLE = ()
 
     # SERVICE.ERROR
 
     # SYSTEM.FAILURE
 
     # SYSTEM.ERROR
-    ACTION_NOT_EXISTING = auto()
+    ACTION_NOT_EXISTING = ()
 
 
 @dataclass
@@ -434,4 +437,125 @@ class Resource(Message, ABC):
         error), the return is set to None.
 
         :rtype: Optional[str]
+        """
+
+
+class ComponentState(Flags):
+    """
+    Component state represents an abstract state of a particular component within simulation. The state is expressed
+    as a flag, so, multiple states can be expressed at once.
+
+    States related to the component lifetime:
+        :CREATED: A component was just created.
+        :INIT: A component was successfully initialized.
+        :RUNNING: A component is running in a nominal fashion.
+        :PAUSED: An execution of component's functions was paused.
+        :STOPPED: An execution of component's functions was stopped.
+        :FINISHED: A component stopped its operation in a normal way.
+        :TERMINATED: A component stopped its operation through some external factor.
+
+    States related to action effects:
+        :UNDER_ATTACK: A component is a subject to hostile activity. Note that there is no state indicating that attack has ended.
+        :UNDER_CONTROL: A component was subject to hostile activity that resulted in access or control from the origin of activity.
+        :RESTORED: A component is no longer UNDER_CONTROL.
+
+    States related to goal pursuit:
+        :GOAL_REACHED: A component reached its stated goal.
+        :GOAL_UNREACHABLE: A component is unable to reach its goal.
+
+    An example of a state evolution of a service under a successful attack:
+
+        ComponentState.UNDER_ATTACK
+        ComponentState.UNDER_CONTROL
+        ComponentState.TERMINATED
+
+    An example of a state evolution of a service that was attacked and cleaned afterward:
+
+        ComponentState.UNDER_ATTACK
+        ComponentState.UNDER_CONTROL
+        ComponentState.STOPPED
+        ComponentState.RUNNING | ComponentState.RESTORED
+
+    An attacker signalling that it reached its goal and do not wish to continue the run:
+
+        ComponentState.FINISHED | ComponentState.GOAL_REACHED
+
+    """
+    CREATED = ()
+    INIT = ()
+    RUNNING = ()
+    PAUSED = ()
+    STOPPED = ()
+    FINISHED = ()
+    TERMINATED = ()
+    # Action-related state
+    UNDER_ATTACK = ()
+    UNDER_CONTROL = ()
+    RESTORED = ()
+    # Goal-related state
+    GOAL_REACHED =()
+    GOAL_UNREACHABLE = ()
+
+
+class Signal(Message, ABC):
+    """
+    Signal is a message specialization that is used for communicating state changes between the environment and
+    simulation components.
+    """
+    @property
+    @abstractmethod
+    def signal_origin(self) -> str:
+        """
+        An identification of a source of the signal. This will usually be the ID of a component, or "__environment" if
+        the signal is coming from within CYST.
+
+        :rtype: str
+        """
+
+    @property
+    @abstractmethod
+    def state(self) -> ComponentState:
+        """
+        A new state that the component entered.
+
+        :rtype: ComponentState
+        """
+
+    @property
+    @abstractmethod
+    def effect_origin(self) -> str:
+        """
+        An identification of a source of the state change that prompted the signal emission.
+
+        :rtype: str
+        """
+
+    @property
+    @abstractmethod
+    def effect_message(self) -> Optional[int]:
+        """
+        An ID of a message that caused the state change. In case of environment signals, there does not have to be any
+        related message (such as the environment termination).
+
+        :rtype: Optional[int]
+        """
+
+    @property
+    @abstractmethod
+    def effect_description(self) -> str:
+        """
+        A description of an effect used mainly for later analysis. For example "Maximum number of actions reached",
+        or "Successful execution of an action x:y". This is not expected to be machine-processable .
+
+        :rtype: str
+        """
+
+    @property
+    @abstractmethod
+    def effect_parameters(self) -> Dict[str, Any]:
+        """
+        Additional information related to the state change. For example, an agent may use this to signal its perceived
+        reward, or some important training/execution parameters.
+
+        :rtype: Dict[str, Any]
         """

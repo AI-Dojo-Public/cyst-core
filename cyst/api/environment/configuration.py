@@ -608,9 +608,9 @@ class ServiceConfiguration(ABC):
         """
 
     @abstractmethod
-    def create_data(self, id: Optional[str], owner: str, description: str) -> Data:
+    def create_data(self, id: Optional[str], owner: str, path: str, description: str) -> Data:
         """
-        Creates a data. Currently this is a very rudimentary approach and future updates are expected to provide more
+        Creates a data. Currently, this is a very rudimentary approach and future updates are expected to provide more
         sophisticated mechanisms for data description and manipulation.
 
         :param id: An optional identification of the data.
@@ -621,6 +621,9 @@ class ServiceConfiguration(ABC):
             checked against the name in the authentication token, which has to be the same as the owner. [That "should"
             here means that it is dependent on the implementation of behavioral models.]
         :type owner: str
+
+        :param path: A path to the data, which should be unique among all data within one service.
+        :type path: str
 
         :param description: A textual description of the data, which currently enables differentiation between data
             instances.

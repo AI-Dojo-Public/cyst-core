@@ -1,7 +1,7 @@
 from typing import Any, List, Optional, Union, Type, Dict, Callable, Tuple
 from netaddr import *
 
-from cyst.api.environment.message import MessageType, Message, Request, Response, Status, Timeout, T, Resource
+from cyst.api.environment.message import MessageType, Message, Request, Response, Status, Timeout, T, Resource, Signal, ComponentState
 from cyst.api.host.service import ActiveService
 from cyst.api.logic.access import Authorization, AuthenticationToken, AuthenticationTarget
 from cyst.api.logic.action import Action
@@ -428,3 +428,91 @@ class ResourceMessageImpl(MessageImpl, Resource):
     @property
     def data(self) -> Optional[str]:
         return self._data
+
+
+class SignalImpl(Signal):
+    def __init__(self, signal_origin: str, state: ComponentState, effect_origin: str, effect_message: Optional[int],
+                 effect_description: str, effect_parameters: Optional[Dict[str, Any]]):
+        self._signal_origin = signal_origin
+        self._state = state
+        self._effect_origin = effect_origin
+        self._effect_message = effect_message if effect_message else -1
+        self._effect_description = effect_description
+        self._effect_parameters = effect_parameters if effect_parameters else {}
+        self._id = Counter().get("message")
+        self._local_ip = IPAddress("127.0.0.1")
+        self._metadata = Metadata()
+
+    @property
+    def signal_origin(self) -> str:
+        return self._signal_origin
+
+    @property
+    def state(self) -> ComponentState:
+        return self._state
+
+    @property
+    def effect_origin(self) -> str:
+        return self._effect_origin
+
+    @property
+    def effect_message(self) -> Optional[int]:
+        return self._effect_message
+
+    @property
+    def effect_description(self) -> str:
+        return self._effect_description
+
+    @property
+    def effect_parameters(self) -> Dict[str, Any]:
+        return self._effect_parameters
+
+    @property
+    def id(self) -> int:
+        return self._id
+
+    @property
+    def type(self) -> MessageType:
+        return MessageType.SIGNAL
+
+    @property
+    def src_ip(self) -> Optional[IPAddress]:
+        return self._local_ip
+
+    @property
+    def dst_ip(self) -> Optional[IPAddress]:
+        return self._local_ip
+
+    @property
+    def src_service(self) -> Optional[str]:
+        return ""
+
+    @property
+    def dst_service(self) -> str:
+        return ""
+
+    @property
+    def session(self) -> Optional[Session]:
+        return None
+
+    @property
+    def auth(self) -> Optional[Union[Authorization, AuthenticationToken, AuthenticationTarget]]:
+        return None
+
+    @property
+    def ttl(self) -> int:
+        return 0
+
+    @property
+    def metadata(self) -> Metadata:
+        return self._metadata
+
+    def set_metadata(self, metadata: Metadata) -> None:
+        return
+
+    @property
+    def platform_specific(self) -> Dict[str, Any]:
+        return {}
+
+    def cast_to(self, type: Type[T]) -> T:
+        raise ValueError("Cannot cast a signal to a message of a different type")

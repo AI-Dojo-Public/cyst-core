@@ -9,7 +9,8 @@ from netaddr import IPAddress
 from typing import TYPE_CHECKING, Optional, Any, Union, Dict, List
 
 from cyst.api.environment.data_model import ActionModel
-from cyst.api.environment.message import Request, Response, Status, Message, MessageType, StatusValue, StatusOrigin
+from cyst.api.environment.message import Request, Response, Status, Message, MessageType, StatusValue, StatusOrigin, \
+    ComponentState, Signal
 from cyst.api.environment.messaging import EnvironmentMessaging
 from cyst.api.logic.access import Authorization, AuthenticationTarget, AuthenticationToken
 from cyst.api.logic.action import Action, ActionType
@@ -17,7 +18,6 @@ from cyst.api.logic.metadata import Metadata
 from cyst.api.network.node import Node
 from cyst.api.network.session import Session
 from cyst.api.host.service import ActiveService
-from cyst.api.utils.counter import Counter
 
 from cyst.core.logic.action import ActionImpl
 
@@ -43,6 +43,12 @@ class EnvironmentMessagingImpl(EnvironmentMessaging):
                         auth: Optional[Union[Authorization, AuthenticationTarget]] = None,
                         original_response: Optional[Response] = None):
         return self._env.platform.messaging.create_response(request, status, content, session, auth, original_response)
+
+    def create_signal(self, signal_origin: str, state: ComponentState, effect_origin: str,
+                      effect_message: Optional[int] = None, effect_description: str = "",
+                      effect_parameters: Optional[Dict[str, Any]] = None) -> Signal:
+        return self._env.platform.messaging.create_signal(signal_origin, state, effect_origin, effect_message,
+                                                          effect_description, effect_parameters)
 
     def open_session(self, request: Request, reverse_direction: bool = False) -> Session:
         return self._env.platform.messaging.open_session(request, reverse_direction)
@@ -73,7 +79,10 @@ def _send_message(self: _Environment, message: Message, delay: int = 0) -> None:
             if not caller_id in self._action_counts:
                 self._action_counts[caller_id] = 0
 
-    self._data_store.add_message(message)
+    if message.type == MessageType.REQUEST or message.type == MessageType.RESPONSE:
+        self._data_store.add_message(message)
+    elif message.type == MessageType.SIGNAL:
+        self._data_store.add_signal(message)
 
     # I would much rather check by the MessageType, but then the type inspection would not work down the line :-/
     if isinstance(message, Request) or isinstance(message, Response):

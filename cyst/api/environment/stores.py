@@ -4,7 +4,7 @@ from deprecated.sphinx import versionchanged, versionadded
 from typing import List, Optional, Tuple, Union, Dict, Any, Callable
 
 from cyst.api.environment.data_model import ActionModel
-from cyst.api.environment.message import Message
+from cyst.api.environment.message import Message, Signal
 from cyst.api.environment.stats import Statistics
 from cyst.api.host.service import ActiveService
 from cyst.api.logic.access import AccessLevel
@@ -192,7 +192,17 @@ class DataStore(ABC):
 
         :param statistics: The statistics to store.
 
-        :return: none
+        :return: None
+        """
+
+    @abstractmethod
+    def add_signal(self, signal: Signal) -> None:
+        """
+        Store a signal.
+
+        :param signal: THe signal to store.
+
+        :return: None
         """
 
 

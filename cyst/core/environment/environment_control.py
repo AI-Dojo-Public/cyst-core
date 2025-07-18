@@ -4,9 +4,11 @@ import asyncio
 import uuid
 import time
 
+from contextlib import suppress
 from typing import Tuple, TYPE_CHECKING
 
 from cyst.api.environment.control import EnvironmentState, EnvironmentControl
+from cyst.api.environment.message import ComponentState
 from cyst.api.environment.platform_specification import PlatformType
 from cyst.api.environment.stats import Statistics
 from cyst.api.host.service import ServiceState
@@ -153,6 +155,24 @@ def _run(self: _Environment) -> Tuple[bool, EnvironmentState]:
     if self._pause:
         self._state = EnvironmentState.PAUSED
     else:
+        # Send a notification to all active services that we had to terminate
+        effect_description = ""
+        # Terminate description has a priority
+        if self._terminate and self._terminate_reason:
+            effect_description = self._terminate_reason
+        if not effect_description and self._finish and self._finish_reason:
+            effect_description = self._finish_reason
+
+        end_signal = self.messaging.create_signal(signal_origin="__environment",
+                                                  state=ComponentState.TERMINATED if self._terminate else ComponentState.FINISHED,
+                                                  effect_origin="__environment",
+                                                  effect_description=effect_description)
+
+        for service in self._service_store.get_active_services():
+            self._loop.create_task(service.process_message(end_signal))
+
+        self._data_store.add_signal(end_signal)
+
         # Realistically, we need some more loop steps to serve the awaits when all futures are set
         # The number 4 was chosen because it works and gives also a hefty margin. As far as I checked, 1 is enough.
         for _ in range(4):
@@ -168,6 +188,14 @@ def _run(self: _Environment) -> Tuple[bool, EnvironmentState]:
 
         else:
             self._state = EnvironmentState.FINISHED
+
+        # Clear the loop if there are any outstanding tasks
+        pending = asyncio.all_tasks(self._loop)
+        for task in pending:
+            task.cancel()
+
+            with suppress(asyncio.CancelledError):
+                self._loop.run_until_complete(task)
 
     return True, self._state
 
@@ -186,6 +214,7 @@ def _pause(self: _Environment) -> Tuple[bool, EnvironmentState]:
 def _terminate(self: _Environment) -> Tuple[bool, EnvironmentState]:
 
     self._terminate = True
+    self._terminate_reason = "Direct call to environment terminate method."
 
     if self._platform:
         self._platform.terminate()

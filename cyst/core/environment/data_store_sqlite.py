@@ -5,7 +5,7 @@ from typing import Dict, List
 from cyst.api.environment.data_model import ActionModel
 from cyst.api.environment.stats import Statistics
 from cyst.api.environment.stores import DataStore, DataStoreDescription
-from cyst.api.environment.message import Status, Message, Request, Response
+from cyst.api.environment.message import Status, Message, Request, Response, Signal
 
 
 class Base(DeclarativeBase):
@@ -105,6 +105,33 @@ class DBStatistics(Base):
     start_time_real: Mapped[float] = mapped_column()
     end_time_real: Mapped[float] = mapped_column()
     end_time_virtual: Mapped[float] = mapped_column()
+
+
+class DBSignal(Base):
+    __tablename__ = "signal"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    run_id: Mapped[str] = mapped_column()
+    signal_origin: Mapped[str] = mapped_column()
+    state: Mapped[str] = mapped_column()
+    effect_origin: Mapped[str] = mapped_column()
+    effect_message: Mapped[int] = mapped_column()
+    effect_description: Mapped[str] = mapped_column()
+
+    effect_parameters: Mapped[List['DBEffectParameter']] = relationship("DBEffectParameter",
+                                                                        back_populates="signal",
+                                                                        cascade="all, delete")
+
+
+class DBEffectParameter(Base):
+    __tablename__ = "effect_parameter"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    name: Mapped[str] = mapped_column()
+    value: Mapped[str] = mapped_column()
+
+    signal_id: Mapped[int] = mapped_column(ForeignKey("signal.id"))
+    signal: Mapped[DBSignal] = relationship(back_populates="effect_parameters")
 
 
 class DataStoreSQLite(DataStore):
@@ -213,6 +240,28 @@ class DataStoreSQLite(DataStore):
             ))
             session.commit()
 
+    def add_signal(self, signal: Signal) -> None:
+        with Session(self._db) as session:
+            db_signal = DBSignal(
+                run_id=self._run_id,
+                signal_origin=signal.signal_origin,
+                state=str(signal.state),
+                effect_origin=signal.effect_origin,
+                effect_message=signal.effect_message,
+                effect_description=signal.effect_description,
+                effect_parameters=[]
+            )
+            session.add(db_signal)
+            session.flush()
+
+            for k, v in signal.effect_parameters.items():
+                session.add(DBEffectParameter(
+                    name=k,
+                    value=str(v),
+                    signal_id=db_signal.id
+                ))
+
+            session.commit()
 
 def create_data_store_sqlite(run_id: str, params: Dict[str, str]) -> DataStore:
     return DataStoreSQLite(run_id, params)
