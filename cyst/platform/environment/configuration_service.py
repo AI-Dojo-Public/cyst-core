@@ -50,8 +50,8 @@ class ServiceConfigurationImpl(ServiceConfiguration):
         elif parameter == ServiceParameter.SESSION_ACCESS_LEVEL:
             service.set_session_access_level(value)
 
-    def create_data(self, id: Optional[str], owner: str, description: str) -> Data:
-        return _create_data(self._platform, id, owner, description)
+    def create_data(self, id: Optional[str], owner: str, path: str, description: str) -> Data:
+        return _create_data(self._platform, id, owner, path, description)
 
     def public_data(self, service: PassiveService) -> List[Data]:
         return PassiveServiceImpl.cast_from(service).public_data
@@ -111,9 +111,9 @@ def _create_passive_service(self: CYSTPlatform, type: str, owner: str, version: 
     return p
 
 
-def _create_data(self: CYSTPlatform, id: Optional[str], owner: str, description: str) -> Data:
+def _create_data(self: CYSTPlatform, id: Optional[str], owner: str, path: str, description: str) -> Data:
     if not id:
         id = str(uuid.uuid4())
-    d = DataImpl(id, owner, description)
+    d = DataImpl(id, owner, path, description)
     self._general_configuration.add_object(id, d)
     return d
