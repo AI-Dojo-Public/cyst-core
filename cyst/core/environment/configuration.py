@@ -663,8 +663,8 @@ class Configurator:
         log_source_map = {
             LogSource.SYSTEM: 'system',
             LogSource.MESSAGING: 'messaging',
-            LogSource.MODEL: 'model.',
-            LogSource.SERVICE: 'service.'
+            LogSource.MODEL: 'model',
+            LogSource.SERVICE: 'service'
         }
 
         for cfg in log_configs.values():
@@ -702,11 +702,11 @@ class Configurator:
             if handler_console or handler_file:
                 handler_list = []
                 if handler_console:
-                    id = "__console_" + log_source_map[cfg.source]
+                    id = "__console__" + log_source_map[cfg.source]
                     handlers[id] = handler_console
                     handler_list.append(id)
                 if handler_file:
-                    id = "__file_" + log_source_map[cfg.source]
+                    id = "__file__" + log_source_map[cfg.source]
                     handlers[id] = handler_file
                     handler_list.append(id)
 
