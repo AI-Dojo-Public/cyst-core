@@ -103,7 +103,8 @@ log_defaults = [
         log_level=logging.DEBUG,
         log_type=LogType.TEXT,
         log_console=True,
-        log_file=False
+        log_file=True,
+        file_path="log/cyst_service.log"
     ),
     LogConfig(
         source=LogSource.MODEL,
