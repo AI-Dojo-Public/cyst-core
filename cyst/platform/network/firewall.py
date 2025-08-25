@@ -2,7 +2,7 @@ from typing import Any, Dict, List, NamedTuple, Optional, Tuple
 from netaddr import IPAddress, IPNetwork
 
 from cyst.api.host.service import ActiveService, ActiveServiceDescription
-from cyst.api.environment.message import Message, Request, Status, StatusValue, StatusOrigin
+from cyst.api.environment.message import Message, Request, Status, StatusValue, StatusOrigin, Signal
 from cyst.api.environment.resources import EnvironmentResources
 from cyst.api.environment.messaging import EnvironmentMessaging
 from cyst.api.network.firewall import Firewall, FirewallChainType, FirewallRule, FirewallPolicy
@@ -109,6 +109,10 @@ class FirewallImpl(ActiveService, Firewall):
         return self._chains[chain].evaluate(src_ip, dst_ip, dst_service)
 
     async def process_message(self, message: Message) -> Tuple[bool, int]:
+        # Firewalls are active services, so they receive signals as well. We just ignore them.
+        if isinstance(message, Signal):
+            return True, 0
+
         result, processing_time = self.evaluate(message.src_ip, message.dst_ip, message.dst_service)
 
         # Sending a response that the message did not arrive
