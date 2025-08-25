@@ -327,7 +327,9 @@ class _Environment(Environment, PlatformInterface):
         # All the unknown, CYST-related params
         # TODO: Where to document this?
         for k, v in os.environ.items():
-            if k.startswith("CYST_"):
+            if k.startswith("CYST_") and k not in ["CYST_DATA_BACKEND", "CYST_DATA_BACKEND_PARAMS", "CYST_RUN_ID",
+                                                   "CYST_CONFIG_ID", "CYST_MAX_RUNNING_TIME", "CYST_RUN_ID_LOG_SUFFIX",
+                                                   "CYST_MAX_ACTION_COUNT", "CYST_CONFIG_FILENAME"]:
                 name = k[5:].lower()
                 self._runtime_configuration.other_params[name] = v
 
