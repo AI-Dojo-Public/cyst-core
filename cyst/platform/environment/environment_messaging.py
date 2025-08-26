@@ -187,7 +187,8 @@ async def _message_hop(self: CYSTPlatform, message: Message) -> None:
     message.platform_specific["next_hop_ip"] = str(message.next_hop.ip)
     message.platform_specific["next_hop_id"] = message.next_hop.id
 
-    self._infrastructure.data_store.add_message(message)
+    if self._message_storage:
+        self._infrastructure.data_store.add_message(message)
 
     # Move message to a next hop
     message.hop()

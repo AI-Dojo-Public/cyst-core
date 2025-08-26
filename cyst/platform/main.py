@@ -59,6 +59,9 @@ class CYSTPlatform(Platform, EnvironmentConfiguration, Clock):
         self._execute_queue: List[Tuple[int, int, Message]] = []
 
         self._messages_processing = 0
+        self._message_storage = True
+        if "platform_disable_message_storage" in self._infrastructure.runtime_configuration.other_params:
+            self._message_storage = False
 
         self._general_configuration = GeneralConfigurationImpl(self, general_configuration)
         self._access_configuration = AccessConfigurationImpl(self)
