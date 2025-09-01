@@ -144,88 +144,91 @@ class DataStoreSQLite(DataStore):
         self._db = create_engine(f"sqlite+pysqlite:///{self._db_path}")
         Base.metadata.create_all(self._db)
 
-    def add_action(self, action: ActionModel) -> None:
+    def add_action(self, *action: ActionModel) -> None:
         with Session(self._db) as session:
-            db_action = DBAction(
-                message_id=action.message_id,
-                run_id=self._run_id,
-                action_id=action.action_id,
-                caller_id=action.caller_id,
-                src_ip=action.src_ip,
-                dst_ip=action.dst_ip,
-                dst_service=action.dst_service,
-                status_origin=action.status_origin,
-                status_value=action.status_value,
-                status_detail=action.status_detail,
-                response=action.response,
-                session_in=action.session_in,
-                session_out=action.session_out,
-                auth_in=action.auth_in,
-                auth_out=action.auth_out
-            )
-            session.add(db_action)
-            session.flush()
-
-            for param in action.parameters:
-                p = DBActionParameter(
-                    name=param.name,
-                    value=param.value,
-                    action_id=db_action.id
+            for a in action:
+                db_action = DBAction(
+                    message_id=a.message_id,
+                    run_id=self._run_id,
+                    action_id=a.action_id,
+                    caller_id=a.caller_id,
+                    src_ip=a.src_ip,
+                    dst_ip=a.dst_ip,
+                    dst_service=a.dst_service,
+                    status_origin=a.status_origin,
+                    status_value=a.status_value,
+                    status_detail=a.status_detail,
+                    response=a.response,
+                    session_in=a.session_in,
+                    session_out=a.session_out,
+                    auth_in=a.auth_in,
+                    auth_out=a.auth_out
                 )
-                session.add(p)
+                session.add(db_action)
+                session.flush()
+
+                for param in a.parameters:
+                    p = DBActionParameter(
+                        name=param.name,
+                        value=param.value,
+                        action_id=db_action.id
+                    )
+                    session.add(p)
 
             session.commit()
 
-    def add_message(self, message: Message) -> None:
-        if isinstance(message, Request):
-            action_id = message.action.id
-            status_origin = ""
-            status_value = ""
-            status_detail = ""
-            response = ""
-        elif isinstance(message, Response):
-            action_id = message.action.id
-            status_origin = str(message.status.origin)
-            status_value = str(message.status.value)
-            status_detail = str(message.status.detail)
-            response = str(message.content)
-        else:
-            action_id = ""
-            status_origin = ""
-            status_value = ""
-            status_detail = ""
-            response = ""
-
+    def add_message(self, *message: Message) -> None:
         with Session(self._db) as session:
-            db_message = DBMessage(
-                message_id=message.id,
-                type=str(message.type),
-                run_id=self._run_id,
-                action_id=action_id,
-                caller_id=message.platform_specific["caller_id"],
-                src_ip=str(message.src_ip),
-                dst_ip=str(message.dst_ip),
-                dst_service=message.dst_service,
-                ttl=message.ttl,
-                status_origin=status_origin,
-                status_value=status_value,
-                status_detail=status_detail,
-                session=str(message.session.id) if message.session else "",
-                auth="",
-                response=response
-            )
-            session.add(db_message)
-            session.flush()
+            for m in message:
+                if isinstance(m, Request):
+                    action_id = m.action.id
+                    status_origin = ""
+                    status_value = ""
+                    status_detail = ""
+                    response = ""
+                elif isinstance(m, Response):
+                    action_id = m.action.id
+                    status_origin = str(m.status.origin)
+                    status_value = str(m.status.value)
+                    status_detail = str(m.status.detail)
+                    response = str(m.content)
+                else:
+                    action_id = ""
+                    status_origin = ""
+                    status_value = ""
+                    status_detail = ""
+                    response = ""
 
-            for k, v in message.platform_specific.items():
-                if k == "caller_id":
-                    continue
 
-                session.add(DBMessagePlatformSpecific(
-                    name=k,
-                    value=str(v),
-                    message_id=db_message.id
-                ))
+                db_message = DBMessage(
+                    message_id=m.id,
+                    type=str(m.type),
+                    run_id=self._run_id,
+                    action_id=action_id,
+                    caller_id=m.platform_specific["caller_id"],
+                    src_ip=str(m.src_ip),
+                    dst_ip=str(m.dst_ip),
+                    dst_service=m.dst_service,
+                    ttl=m.ttl,
+                    status_origin=status_origin,
+                    status_value=status_value,
+                    status_detail=status_detail,
+                    session=str(m.session.id) if m.session else "",
+                    auth="",
+                    response=response
+                )
+                session.add(db_message)
+                session.flush()
+
+                for k, v in m.platform_specific.items():
+                    if k == "caller_id":
+                        continue
+
+                    session.add(DBMessagePlatformSpecific(
+                        name=k,
+                        value=str(v),
+                        message_id=db_message.id
+                    ))
 
             session.commit()
 
@@ -240,26 +243,27 @@ class DataStoreSQLite(DataStore):
             ))
             session.commit()
 
-    def add_signal(self, signal: Signal) -> None:
+    def add_signal(self, *signal: Signal) -> None:
         with Session(self._db) as session:
-            db_signal = DBSignal(
-                run_id=self._run_id,
-                signal_origin=signal.signal_origin,
-                state=str(signal.state),
-                effect_origin=signal.effect_origin,
-                effect_message=signal.effect_message,
-                effect_description=signal.effect_description,
-                effect_parameters=[]
-            )
-            session.add(db_signal)
-            session.flush()
+            for s in signal:
+                db_signal = DBSignal(
+                    run_id=self._run_id,
+                    signal_origin=s.signal_origin,
+                    state=str(s.state),
+                    effect_origin=s.effect_origin,
+                    effect_message=s.effect_message,
+                    effect_description=s.effect_description,
+                    effect_parameters=[]
+                )
+                session.add(db_signal)
+                session.flush()
 
-            for k, v in signal.effect_parameters.items():
-                session.add(DBEffectParameter(
-                    name=k,
-                    value=str(v),
-                    signal_id=db_signal.id
-                ))
+                for k, v in s.effect_parameters.items():
+                    session.add(DBEffectParameter(
+                        name=k,
+                        value=str(v),
+                        signal_id=db_signal.id
+                    ))
 
             session.commit()
 

@@ -1,3 +1,4 @@
+from copy import deepcopy
 from typing import Dict, Union, List
 
 from cyst.api.environment.data_model import ActionModel
@@ -16,17 +17,24 @@ class DataStoreMemory(DataStore):
             "signals": []
         }
 
-    def add_action(self, action: ActionModel) -> None:
-        self._memory["actions"].append(action)
+    def add_action(self, *action: ActionModel) -> None:
+        for a in action:
+            self._memory["actions"].append(deepcopy(a))
 
-    def add_message(self, message: Message) -> None:
-        self._memory["messages"].append(message)
+    def add_message(self, *message: Message) -> None:
+        for m in message:
+            self._memory["messages"].append(deepcopy(m))
 
     def add_statistics(self, statistics: Statistics) -> None:
         self._memory["statistics"] = statistics
 
-    def add_signal(self, signal: Signal) -> None:
-        self._memory["signals"].append(signal)
+    def add_signal(self, *signal: Signal) -> None:
+        for s in signal:
+            self._memory["signals"].append(deepcopy(s))
+
+    @property
+    def memory(self) -> Dict[str, Union[None, List, Statistics]]:
+        return self._memory
 
 def create_data_store_memory(run_id: str, params: Dict[str, str]) -> DataStore:
     return DataStoreMemory(run_id, params)

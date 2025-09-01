@@ -159,7 +159,10 @@ class _Environment(Environment, PlatformInterface):
 
         if not self._runtime_configuration.data_backend in self._data_stores:
             raise ValueError(f"Required data store backend '{self._runtime_configuration.data_backend}' not installed. Cannot continue.")
-        self._data_store = self._data_stores[self._runtime_configuration.data_backend].creation_fn(self._run_id, self._runtime_configuration.data_backend_params)
+
+        if self._runtime_configuration.data_batch_storage and self._runtime_configuration.data_backend != "memory":
+            self._data_store_batch = self._data_stores[self._runtime_configuration.data_backend].creation_fn(self._run_id, self._runtime_configuration.data_backend_params)
+        self._data_store = self._data_stores["memory"].creation_fn(self._run_id, {})
 
         self._infrastructure = EnvironmentInfrastructureImpl(self._runtime_configuration, self._data_store,
                                                              self._service_store, self._statistics)
@@ -234,7 +237,6 @@ class _Environment(Environment, PlatformInterface):
             "_service_store": self._service_store,
             "_environment_resources": self._environment_resources,
             "_metadata_providers": self._metadata_providers,
-            "_network": self._network,
             "_general_configuration": self._general_configuration
 
             # Ignored members
@@ -261,7 +263,6 @@ class _Environment(Environment, PlatformInterface):
         self._service_store = state["_service_store"]
         self._environment_resources = state["_environment_resources"]
         self._metadata_providers = state["_metadata_providers"]
-        self._network = state["_network"]
         self._general_configuration = state["_general_configuration"]
 
         self._environment_control = EnvironmentControlImpl(self)
@@ -286,7 +287,6 @@ class _Environment(Environment, PlatformInterface):
         self._service_store = env._service_store
         self._environment_resources = env._environment_resources
         self._metadata_providers = env._metadata_providers
-        self._network = env._network
         self._general_configuration = env._general_configuration
 
     # Runtime parameters can be passed via command-line, configuration file, or through environment variables
@@ -302,6 +302,10 @@ class _Environment(Environment, PlatformInterface):
             if data_backend_params_serialized:
                 data_backend_params_list = [x.strip() for x in data_backend_params_serialized.split(",")]
                 data_backend_params = dict([(data_backend_params_list[i], data_backend_params_list[i+1]) for i in range(0, len(data_backend_params_list), 2)])
+
+        data_batch_storage = False
+        if "CYST_DATA_BATCH_STORAGE" in os.environ:
+            data_batch_storage = True
 
         run_id = os.environ.get('CYST_RUN_ID')
         config_id = os.environ.get('CYST_CONFIG_ID')
@@ -329,7 +333,7 @@ class _Environment(Environment, PlatformInterface):
         for k, v in os.environ.items():
             if k.startswith("CYST_") and k not in ["CYST_DATA_BACKEND", "CYST_DATA_BACKEND_PARAMS", "CYST_RUN_ID",
                                                    "CYST_CONFIG_ID", "CYST_MAX_RUNNING_TIME", "CYST_RUN_ID_LOG_SUFFIX",
-                                                   "CYST_MAX_ACTION_COUNT", "CYST_CONFIG_FILENAME"]:
+                                                   "CYST_MAX_ACTION_COUNT", "CYST_CONFIG_FILENAME", "CYST_DATA_BATCH_STORAGE"]:
                 name = k[5:].lower()
                 self._runtime_configuration.other_params[name] = v
 
@@ -339,9 +343,11 @@ class _Environment(Environment, PlatformInterface):
         cmdline_parser.add_argument("-c", "--config_file", type=str,
                                     help="Path to a file storing the configuration. Commandline overrides the items in configuration file.")
         cmdline_parser.add_argument("-b", "--data_backend", type=str,
-                                    help="The type of a backend to use. Currently supported are: MEMORY")
+                                    help="The type of a backend to use. Currently supported are: memory, sqlite")
         cmdline_parser.add_argument("-p", "--data_backend_parameter", action="append", nargs=2, type=str,
                                     metavar=('NAME', 'VALUE'), help="Parameters to be passed to data backend.")
+        cmdline_parser.add_argument("-g", "--data_batch_storage", type=bool,
+                                    help="Store data in memory and move them to other backend on termination.")
         cmdline_parser.add_argument("-r", "--run_id", type=str,
                                     help="A unique identifier of a simulation run. If not specified, a UUID will be generated instead.")
         cmdline_parser.add_argument("-i", "--config_id", type=str,
@@ -373,6 +379,9 @@ class _Environment(Environment, PlatformInterface):
             # Convert from list of lists into a list of tuples
             data_backend_params = dict(tuple(x) for x in args.data_backend_parameter) #MYPY: typehinting lambda not really possible this way, better to ignore?
 
+        if args.data_batch_storage:
+            data_batch_storage = args.data_batch_storage
+
         if args.run_id:
             run_id = args.run_id
 
@@ -398,6 +407,7 @@ class _Environment(Environment, PlatformInterface):
             self._runtime_configuration.data_backend = data_backend
         if data_backend_params:
             self._runtime_configuration.data_backend_params = data_backend_params
+        self._runtime_configuration.data_batch_storage = data_batch_storage
         if config_filename:
             self._runtime_configuration.config_filename = config_filename
         if run_id:
