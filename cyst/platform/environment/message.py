@@ -1,3 +1,4 @@
+from copy import deepcopy
 from typing import Any, List, Optional, Union, Type, Dict, Callable, Tuple
 from netaddr import *
 
@@ -366,6 +367,16 @@ class ResponseImpl(MessageImpl, Response):
         else:
             raise ValueError("Malformed underlying object passed with the Response interface")
 
+    def __deepcopy__(self, memodict):
+        cls = self.__class__
+        result = cls.__new__(cls)
+        memodict[id(self)] = result
+        for k, v in self.__dict__.items():
+            if k == "_content":
+                setattr(result, "_content", str(v))
+            else:
+                setattr(result, k, deepcopy(v, memodict))
+        return result
 
 class TimeoutImpl(MessageImpl, Timeout):
 
