@@ -162,17 +162,17 @@ class ServiceStore(ABC):
 class DataStore(ABC):
 
     @abstractmethod
-    def add_action(self, action: ActionModel) -> None:
+    def add_action(self, *action: ActionModel) -> None:
         """
         Store information about a resolved action, i.e., after completing the request-response cycle.
 
-        :param action: An action description
+        :param action: An action(s) description
 
         :return: None
         """
 
     @abstractmethod
-    def add_message(self, message: Message) -> None:
+    def add_message(self, *message: Message) -> None:
         """
         Store information about a message. While in general, the message information is available only at the point of
         dispatching the message, platforms that have more control over the message passing process (e.g., simulation
@@ -180,7 +180,7 @@ class DataStore(ABC):
         shall then be passed through the .platform_specific attributed, which gets erased before entering user-facing
         side of the code.
 
-        :param message: The message to store
+        :param message: The message(s) to store
 
         :return: None
         """
@@ -196,11 +196,11 @@ class DataStore(ABC):
         """
 
     @abstractmethod
-    def add_signal(self, signal: Signal) -> None:
+    def add_signal(self, *signal: Signal) -> None:
         """
         Store a signal.
 
-        :param signal: THe signal to store.
+        :param signal: The signal(s) to store.
 
         :return: None
         """

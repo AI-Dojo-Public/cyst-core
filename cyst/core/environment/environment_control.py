@@ -233,6 +233,14 @@ def _commit(self: _Environment) -> None:
     if self._platform:
         self._platform.terminate()
 
+    if self._runtime_configuration.data_batch_storage and self._runtime_configuration.data_backend != "memory":
+        memory = self._data_store.memory
+
+        self._data_store_batch.add_signal(*memory["signals"])
+        self._data_store_batch.add_statistics(memory["statistics"])
+        self._data_store_batch.add_action(*memory["actions"])
+        self._data_store_batch.add_message(*memory["messages"])
+
 
 def _add_pause_on_request(self: _Environment, id: str) -> None:
     self._pause_on_request.append(id)
