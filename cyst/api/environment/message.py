@@ -458,10 +458,17 @@ class ComponentState(Flags):
         :UNDER_ATTACK: A component is a subject to hostile activity. Note that there is no state indicating that attack has ended.
         :UNDER_CONTROL: A component was subject to hostile activity that resulted in access or control from the origin of activity.
         :RESTORED: A component is no longer UNDER_CONTROL.
+        :DETECTED: A component was marked as doing malicious activities.
+        :BLOCKED: A component was blocked by a prevention system.
+        :UNBLOCKED: A component is no longer blocked.
 
     States related to goal pursuit:
         :GOAL_REACHED: A component reached its stated goal.
         :GOAL_UNREACHABLE: A component is unable to reach its goal.
+
+    States related to the iteration or repeated state occurrence:
+        :FIRST_OCCURRENCE: The state appeared for the first time (can also be the first occurRence after some major change)
+        :REPEATED_OCCURRENCE: The state apeeared multiple times (details can be provided by Signal.effect_parameters)
 
     An example of a state evolution of a service under a successful attack:
 
@@ -475,6 +482,17 @@ class ComponentState(Flags):
         ComponentState.UNDER_CONTROL
         ComponentState.STOPPED
         ComponentState.RUNNING | ComponentState.RESTORED
+
+    An example of a attacker being detected and blocked (the state is reported by IPS, not the agent):
+
+        ComponentState.DETECTED
+        ComponentState.BLOCKED | ComponentState.FIRST_OCCURRENCE
+        ... attacker continues with attack
+        ComponentState.BLOCKED | ComponentState.REPEATED_OCCURRENCE
+        ... attacker stops with an attack
+        ComponentState.UNBLOCKED
+        ... attacker attacks again
+        ComponentState.BLOCKED | ComponentState.FIRST_OCCURRENCE
 
     An attacker signalling that it reached its goal and do not wish to continue the run:
 
@@ -492,6 +510,12 @@ class ComponentState(Flags):
     UNDER_ATTACK = ()
     UNDER_CONTROL = ()
     RESTORED = ()
+    DETECTED = ()
+    BLOCKED = ()
+    UNBLOCKED = ()
+    # Occurence
+    FIRST_OCCURRENCE = ()
+    REPEATED_OCCURRENCE = ()
     # Goal-related state
     GOAL_REACHED =()
     GOAL_UNREACHABLE = ()
