@@ -1,6 +1,6 @@
 # Because we are operating on dataclasses, the initialization order precludes us from having some default initialized
 # value, which is a real shame (though understandable)
-from copy import copy
+from copy import copy, deepcopy
 from dataclasses import dataclass, field
 from enum import Enum, auto
 from uuid import uuid4
@@ -82,7 +82,7 @@ class ConfigItem:
         :return: A copy of a config item.
 
         """
-        new_one = copy(self)
+        new_one = deepcopy(self)
         if ref:
             new_one.ref = ref
         else:
