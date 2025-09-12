@@ -17,7 +17,6 @@ from cyst.api.environment.messaging import EnvironmentMessaging
 from cyst.api.environment.platform import Platform, PlatformDescription
 from cyst.api.environment.platform_interface import PlatformInterface
 from cyst.api.environment.platform_specification import PlatformSpecification, PlatformType
-from cyst.api.environment.policy import EnvironmentPolicy
 from cyst.api.environment.resources import EnvironmentResources
 from cyst.api.host.service import ActiveService
 from cyst.api.network.node import Node
@@ -87,8 +86,19 @@ class CYSTPlatform(Platform, EnvironmentConfiguration, Clock):
             s: SessionImpl = SessionImpl.cast_from(self._network.create_session(owner, waypoints, src_service, dst_service, parent, reverse, id))
 
             # Add sessions to services
-            src_service = ServiceImpl.cast_from(self._general_configuration.get_object_by_id(f"{s.startpoint.id}.{src_service}", Service))
-            dst_service = ServiceImpl.cast_from(self._general_configuration.get_object_by_id(f"{s.endpoint.id}.{dst_service}", Service))
+            # If there is a dot in the service name, we assume it is a fully qualified name
+            if "." in src_service:
+                src_service_id = src_service
+            else:
+                src_service_id = f"{s.startpoint.id}.{src_service}"
+
+            if "." in dst_service:
+                dst_service_id = dst_service
+            else:
+                dst_service_id = f"{s.endpoint.id}.{dst_service}"
+
+            src_service = ServiceImpl.cast_from(self._general_configuration.get_object_by_id(src_service_id, Service))
+            dst_service = ServiceImpl.cast_from(self._general_configuration.get_object_by_id(dst_service_id, Service))
 
             src_service.sessions[s.id] = s
             dst_service.sessions[s.id] = s
@@ -146,10 +156,6 @@ class CYSTPlatform(Platform, EnvironmentConfiguration, Clock):
     @property
     def messaging(self) -> EnvironmentMessaging:
         return self._environment_messaging
-
-    @property
-    def policy(self) -> EnvironmentPolicy:
-        pass
 
     @property
     def clock(self) -> Clock:

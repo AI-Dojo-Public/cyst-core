@@ -1,6 +1,6 @@
 [tool.poetry]
 name = "cyst-core"
-version = "0.6.3"
+version = "0.6.5"
 description = "API and runtime of the CYST framework"
 authors = ["Martin Drasar <drasar@ics.muni.cz>"]
 readme = "README.md"

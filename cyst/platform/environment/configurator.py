@@ -7,6 +7,7 @@ from typing import List, Union, Optional, Dict, Any, Type, Tuple, Callable
 
 import jsonpickle
 
+from cyst.api.configuration import AuthenticationTokenConfig
 from cyst.api.environment.configuration import GeneralConfiguration, ObjectType, ConfigurationObjectType
 from cyst.api.environment.messaging import EnvironmentMessaging
 from cyst.api.environment.platform import Platform
@@ -26,6 +27,7 @@ from cyst.api.configuration.network.router import RouterConfig
 from cyst.api.configuration.network.node import NodeConfig
 from cyst.api.environment.environment import Environment
 from cyst.api.host.service import AccessLevel
+from cyst.api.logic.access import AuthenticationTokenSecurity
 from cyst.api.network.node import Node
 
 from cyst.platform.network.firewall import FirewallImpl
@@ -54,6 +56,7 @@ class Configurator:
         self._data: List[DataConfig] = []
         self._exploits: List[ExploitConfig] = []
         self._authentication_providers: List[AuthenticationProviderConfig] = []
+        self._authentication_tokens: List[AuthenticationTokenConfig] = []
         self._access_schemes: List[AccessSchemeConfig] = []
         self._authorization_domains: List[AuthorizationDomainConfig] = []
 
@@ -79,6 +82,7 @@ class Configurator:
         self._data.clear()
         self._exploits.clear()
         self._authentication_providers.clear()
+        self._authentication_tokens.clear()
         self._access_schemes.clear()
         self._authorization_domains.clear()
 
@@ -127,7 +131,8 @@ class Configurator:
             AuthenticationProviderConfig: self._authentication_providers,
             AccessSchemeConfig: self._access_schemes,
             AuthorizationDomainConfig: self._authorization_domains,
-            FederatedAuthorizationConfig: self._authorizations
+            FederatedAuthorizationConfig: self._authorizations,
+            AuthenticationTokenConfig: self._authentication_tokens
         }
 
         for key, value in item.__dict__.items():
@@ -221,6 +226,25 @@ class Configurator:
                     self._platform.configuration.access.add_authorization_to_scheme(authorization, scheme_instance)
                 else:
                     raise RuntimeError("Wrong object type provided instead of (Federated)AuthorizationConfig")
+
+        # Also add separately defined authentication tokens
+        # Currently, we only consider local tokens
+        for token_cfg in self._authentication_tokens:
+            token = None
+            for provider_ref in token_cfg.providers:
+                provider_conf: AuthenticationProviderConfig = self._refs[provider_ref]
+
+                if not token:
+                    token = self._platform.configuration.access.create_authentication_token(type=provider_conf.token_type,
+                                                                                            security=AuthenticationTokenSecurity.OPEN,
+                                                                                            identity=token_cfg.identity,
+                                                                                            is_local=True)
+                    self._obj_refs[token_cfg.id] = token
+                else:
+                    if provider_conf.token_type != token.type:
+                        raise RuntimeError(f"Attempting to bind a token of type {token.type} to a authentication provider of type {provider_conf.token_type}.")
+
+                self._platform.configuration.access.register_authentication_token(self._obj_refs[provider_conf.id], token)
 
         for data in self._data:
             d = self._platform.configuration.service.create_data(data.id, data.owner, data.path, data.description)
@@ -456,10 +480,30 @@ class Configurator:
 
         # Sessions
         for session_cfg in self._sessions:
+            # Check if the waypoints and services are given in terms of IDs or in terms of configuration refs. If the
+            # latter, resolve it to IDs.
+            waypoints = []
+            for waypoint in session_cfg.waypoints:
+                if isinstance(waypoint, str) and waypoint in self._refs:
+                    waypoints.append(self._refs[waypoint].id)
+                elif isinstance(waypoint, NodeConfig) or isinstance(waypoint, RouterConfig):
+                    waypoints.append(waypoint.id)
+                else:
+                    waypoints.append(waypoint)
+
+            services = []
+            for service in [session_cfg.src_service, session_cfg.dst_service]:
+                if isinstance(service, str) and service in self._refs:
+                    services.append(self._refs[service].id.split(".")[-1])
+                elif isinstance(service, PassiveServiceConfig):
+                    services.append(service.id.split(".")[-1])
+                else:
+                    services.append(service)
+
             self._platform.configuration.network.create_session(owner="__system",
-                                                                waypoints=session_cfg.waypoints,
-                                                                src_service=session_cfg.src_service,
-                                                                dst_service=session_cfg.dst_service,
+                                                                waypoints=waypoints,
+                                                                src_service=services[0],
+                                                                dst_service=services[1],
                                                                 parent=None,
                                                                 defer=True,
                                                                 reverse=session_cfg.reverse,

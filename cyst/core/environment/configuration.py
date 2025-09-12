@@ -20,7 +20,7 @@ from cyst.api.configuration.host.service import ActiveServiceConfig, PassiveServ
 from cyst.api.configuration.infrastructure.infrastructure import InfrastructureConfig
 from cyst.api.configuration.infrastructure.log import LogConfig, LogSource, log_defaults
 from cyst.api.configuration.logic.access import AuthorizationConfig, AuthenticationProviderConfig, AccessSchemeConfig, \
-    AuthorizationDomainConfig, FederatedAuthorizationConfig
+    AuthorizationDomainConfig, FederatedAuthorizationConfig, AuthenticationTokenConfig
 from cyst.api.configuration.logic.data import DataConfig
 from cyst.api.configuration.logic.exploit import VulnerableServiceConfig, ExploitParameterConfig, ExploitConfig
 from cyst.api.configuration.network.elements import PortConfig, InterfaceConfig, ConnectionConfig, RouteConfig, SessionConfig
@@ -47,6 +47,7 @@ class Configurator:
         self._data: List[DataConfig] = []
         self._exploits: List[ExploitConfig] = []
         self._authentication_providers: List[AuthenticationProviderConfig] = []
+        self._authentication_tokens: List[AuthenticationTokenConfig] = []
         self._access_schemes: List[AccessSchemeConfig] = []
         self._authorization_domains: List[AuthorizationDomainConfig] = []
         self._logs: List[LogConfig] = []
@@ -76,6 +77,7 @@ class Configurator:
         self._data.clear()
         self._exploits.clear()
         self._authentication_providers.clear()
+        self._authentication_tokens.clear()
         self._access_schemes.clear()
         self._authorization_domains.clear()
         self._logs.clear()
@@ -198,6 +200,8 @@ class Configurator:
 
     def _process_FirewallConfig(self, cfg: FirewallConfig) -> str:
         self._refs[cfg.ref] = cfg
+        for chain in cfg.chains:
+            self._refs[chain.ref] = chain
         self._firewalls.append(cfg)
         return cfg.ref
 
@@ -275,6 +279,11 @@ class Configurator:
     def _process_AuthenticationProviderConfig(self, cfg: AuthenticationProviderConfig) -> str:
         self._refs[cfg.ref] = cfg
         self._authentication_providers.append(cfg)
+        return cfg.ref
+
+    def _process_AuthenticationTokenConfig(self, cfg: AuthenticationTokenConfig) -> str:
+        self._refs[cfg.ref] = cfg
+        self._authentication_tokens.append(cfg)
         return cfg.ref
 
     def _process_AccessSchemeConfig(self, cfg: AccessSchemeConfig) -> str:
@@ -752,6 +761,10 @@ class Configurator:
 
     def _resolve_config_item(self, item: ConfigItem) -> ConfigItem:
         replaced = {}
+        # Authentication tokens are special-cased to prevent resolving the providers
+        if isinstance(item, AuthenticationTokenConfig):
+            return item
+
         for key, value in item.__dict__.items():
             if isinstance(value, str) and not key.endswith("ref") and value in self._refs:
                 replaced[key] = self._resolve_config_item(self._refs[value])

@@ -9,7 +9,6 @@ from cyst.api.environment.messaging import EnvironmentMessaging
 from cyst.api.environment.resources import EnvironmentResources
 from cyst.api.environment.configuration import EnvironmentConfiguration
 from cyst.api.environment.platform_specification import PlatformSpecification, PlatformType
-from cyst.api.environment.policy import EnvironmentPolicy
 from cyst.api.environment.message import Request, Response
 from cyst.api.logic.action import Action
 from cyst.api.logic.composite_action import CompositeActionManager
@@ -56,5 +55,5 @@ class BehavioralModelDescription:
     """
     namespace: str
     description: str
-    creation_fn: Callable[[EnvironmentConfiguration, EnvironmentResources, EnvironmentPolicy, EnvironmentMessaging, EnvironmentInfrastructure, CompositeActionManager], BehavioralModel]
+    creation_fn: Callable[[EnvironmentConfiguration, EnvironmentResources, EnvironmentMessaging, EnvironmentInfrastructure, CompositeActionManager], BehavioralModel]
     platform: Union[PlatformSpecification, List[PlatformSpecification]] = PlatformSpecification(PlatformType.SIMULATED_TIME, "CYST")

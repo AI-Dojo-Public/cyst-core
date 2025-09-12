@@ -8,7 +8,6 @@ from cyst.api.environment.control import EnvironmentControl
 from cyst.api.environment.infrastructure import EnvironmentInfrastructure
 from cyst.api.environment.messaging import EnvironmentMessaging
 from cyst.api.environment.resources import EnvironmentResources
-from cyst.api.environment.policy import EnvironmentPolicy
 from cyst.api.environment.platform import PlatformSpecification, Platform
 from cyst.api.environment.platform_interface import PlatformInterface
 
@@ -44,18 +43,6 @@ class Environment(ABC):
         This interface enables creating and sending of messages within simulation.
 
         :rtype: EnvironmentMessaging
-        """
-
-    # @property
-    # @abstractmethod
-    # def policy(self) -> EnvironmentPolicy:
-        """
-        This environment enables handling of authentication and authorization.
-
-        Warning:
-            This interface will be gradually phased off in favor of a new auth framework.
-
-        :rtype: EnvironmentPolicy
         """
 
     @property
