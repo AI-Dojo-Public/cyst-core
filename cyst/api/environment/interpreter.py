@@ -6,7 +6,6 @@ from deprecated.sphinx import deprecated
 from cyst.api.environment.messaging import EnvironmentMessaging
 from cyst.api.environment.resources import EnvironmentResources
 from cyst.api.environment.configuration import EnvironmentConfiguration
-from cyst.api.environment.policy import EnvironmentPolicy
 from cyst.api.environment.stores import ActionStore
 from cyst.api.environment.message import Request, Response
 from cyst.api.network.node import Node
@@ -48,9 +47,9 @@ class ActionInterpreterDescription:
     :type description: str
 
     :param creation_fn: A factory function that can create the interpreter.
-    :type creation_fn: Callable[[EnvironmentConfiguration, EnvironmentResources, EnvironmentPolicy, EnvironmentMessaging], ActionInterpreter]
+    :type creation_fn: Callable[[EnvironmentConfiguration, EnvironmentResources, EnvironmentMessaging], ActionInterpreter]
 
     """
     namespace: str
     description: str
-    creation_fn: Callable[[EnvironmentConfiguration, EnvironmentResources, EnvironmentPolicy, EnvironmentMessaging], ActionInterpreter]
+    creation_fn: Callable[[EnvironmentConfiguration, EnvironmentResources, EnvironmentMessaging], ActionInterpreter]

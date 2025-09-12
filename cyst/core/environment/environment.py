@@ -672,7 +672,7 @@ class _Environment(Environment, PlatformInterface):
                 print("Behavioral model with namespace {} already registered, skipping it ...".format(
                     model_description.namespace))
             else:
-                model = model_description.creation_fn(self._environment_configuration, self._environment_resources, None,
+                model = model_description.creation_fn(self._environment_configuration, self._environment_resources,
                                                       self._environment_messaging, self._infrastructure, self._cam)
                 self._behavioral_models[model_description.namespace] = model
 

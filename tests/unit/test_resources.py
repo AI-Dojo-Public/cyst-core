@@ -11,7 +11,6 @@ from cyst.api.environment.environment import Environment
 from cyst.api.environment.message import Message, MessageType, Resource, Request, Response, Status, StatusOrigin, StatusValue
 from cyst.api.environment.messaging import EnvironmentMessaging
 from cyst.api.environment.platform_specification import PlatformType, PlatformSpecification
-from cyst.api.environment.policy import EnvironmentPolicy
 from cyst.api.environment.resources import EnvironmentResources
 from cyst.api.host.service import Service
 from cyst.api.logic.action import Action, ActionDescription, ActionType
@@ -25,7 +24,7 @@ from cyst_services.scripted_actor.main import ScriptedActorControl, ScriptedActo
 class DummyBehavioralModel(BehavioralModel):
 
     def __init__(self, configuration: EnvironmentConfiguration, resources: EnvironmentResources,
-                 policy: EnvironmentPolicy, messaging: EnvironmentMessaging,
+                 messaging: EnvironmentMessaging,
                  composite_action_manager: CompositeActionManager) -> None:
         self._resources = resources
         self._messaging = messaging
@@ -79,7 +78,7 @@ class ResourceTests(unittest.TestCase):
 
         # As usual, do not try this at home. It is brittle, but makes the tests soooo much clearer.
         self._model = self._env._behavioral_models["dummy"] = DummyBehavioralModel(self._env.configuration, self._env.resources,
-                                                                                   None, self._env.messaging, self._env._cam)
+                                                                                   self._env.messaging, self._env._cam)
 
         self._env.control.init()
 

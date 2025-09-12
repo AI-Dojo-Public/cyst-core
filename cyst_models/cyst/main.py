@@ -4,7 +4,6 @@ from cyst.api.environment.configuration import EnvironmentConfiguration
 from cyst.api.environment.infrastructure import EnvironmentInfrastructure
 from cyst.api.environment.message import Request, Response, Status, StatusOrigin, StatusValue
 from cyst.api.environment.messaging import EnvironmentMessaging
-from cyst.api.environment.policy import EnvironmentPolicy
 from cyst.api.environment.platform_specification import PlatformSpecification, PlatformType
 from cyst.api.environment.resources import EnvironmentResources
 from cyst.api.logic.action import ActionDescription, ActionParameterType, ActionParameter, Action, ActionType
@@ -16,13 +15,12 @@ from cyst.api.utils.duration import Duration, msecs
 
 class CYSTModel(BehavioralModel):
     def __init__(self, configuration: EnvironmentConfiguration, resources: EnvironmentResources,
-                 policy: EnvironmentPolicy, messaging: EnvironmentMessaging, infrastructure: EnvironmentInfrastructure,
+                 messaging: EnvironmentMessaging, infrastructure: EnvironmentInfrastructure,
                  composite_action_manager: CompositeActionManager) -> None:
 
         self._configuration = configuration
         self._action_store = resources.action_store
         self._exploit_store = resources.exploit_store
-        self._policy = policy
         self._messaging = messaging
         self._infrastructure = infrastructure
         self._cam = composite_action_manager
@@ -205,10 +203,10 @@ class CYSTModel(BehavioralModel):
 
 
 def create_cyst_model(configuration: EnvironmentConfiguration, resources: EnvironmentResources,
-                      policy: EnvironmentPolicy, messaging: EnvironmentMessaging,
+                      messaging: EnvironmentMessaging,
                       infrastructure: EnvironmentInfrastructure,
                       composite_action_manager: CompositeActionManager) -> BehavioralModel:
-    model = CYSTModel(configuration, resources, policy, messaging, infrastructure, composite_action_manager)
+    model = CYSTModel(configuration, resources, messaging, infrastructure, composite_action_manager)
     return model
 
 

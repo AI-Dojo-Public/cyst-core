@@ -11,7 +11,6 @@ from cyst.api.environment.environment import Environment
 from cyst.api.environment.message import Request, Response, Status, StatusOrigin, StatusValue, MessageType
 from cyst.api.environment.messaging import EnvironmentMessaging
 from cyst.api.environment.platform_specification import PlatformType, PlatformSpecification
-from cyst.api.environment.policy import EnvironmentPolicy
 from cyst.api.environment.resources import EnvironmentResources
 from cyst.api.host.service import Service
 from cyst.api.logic.action import ActionDescription, ActionType, ActionParameter, ActionParameterType, Action
@@ -29,13 +28,12 @@ from cyst_services.scripted_actor.main import ScriptedActorControl
 # ----------------------------------------------------------------------------------------------------------------------
 class CAMModel(BehavioralModel):
     def __init__(self, configuration: EnvironmentConfiguration, resources: EnvironmentResources,
-                 policy: EnvironmentPolicy, messaging: EnvironmentMessaging,
+                 messaging: EnvironmentMessaging,
                  composite_action_manager: CompositeActionManager) -> None:
 
         self._configuration = configuration
         self._resources = resources
         self._action_store = resources.action_store
-        self._policy = policy
         self._messaging = messaging
         self._cam = composite_action_manager
 
@@ -347,7 +345,7 @@ class CompositeActionTest(unittest.TestCase):
         # We are bypassing private guards, but it is easier and more straightforward to do it this way for testing
         # purposes.
         self._model = self._env._behavioral_models["cam"] = CAMModel(self._env.configuration, self._env.resources,
-                                                                     None, self._env.messaging, self._env._cam)
+                                                                     self._env.messaging, self._env._cam)
 
         self._env.configure(target, attacker, router, exploit1, connection1, connection2)
 
