@@ -128,6 +128,29 @@ class AuthenticationProviderConfig(ConfigItem):
 
 @serialize(type_check=coerce)
 @dataclass
+class AuthenticationTokenConfig(ConfigItem):
+    """ Configuration of an authentication token.
+
+    The token represents a concrete piece of authentication. It can be tied to an identity (such as a combination of
+    username and password), or it can be only the password, PIN, etc.
+
+    One token can belong to multiple authentication providers, as is the case with password sharing.
+
+    :param identity: The identity of a user this token is tied to.
+    :type identity: str | None
+
+    :param providers: A list of authentication providers this token works on.
+    :type providers: List[str | AuthenticationProviderConfig]
+    """
+    identity: str | None
+    providers: List[str | AuthenticationProviderConfig]
+    ref: str = field(default_factory=lambda: str(uuid4()))
+    name: str = "__authentication_token"
+    id: str = ""
+
+
+@serialize(type_check=coerce)
+@dataclass
 class AccessSchemeConfig(ConfigItem):
     """ Configuration of an access scheme.
 

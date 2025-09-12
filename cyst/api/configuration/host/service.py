@@ -6,7 +6,7 @@ from uuid import uuid4
 from serde import serialize, coerce
 
 from cyst.api.configuration.configuration import ConfigItem
-from cyst.api.configuration.logic.access import AuthorizationConfig, AccessSchemeConfig, AuthenticationProviderConfig
+from cyst.api.configuration.logic.access import AuthorizationConfig, AccessSchemeConfig, AuthenticationProviderConfig, AuthenticationTokenConfig
 from cyst.api.configuration.logic.data import DataConfig
 
 from cyst.api.logic.access import AccessLevel
@@ -191,8 +191,8 @@ class PassiveServiceConfig(ConfigItem):
     access_schemes: List[AccessSchemeConfig] = field(default_factory=lambda: [])
     public_data: List[Union[DataConfig, str]] = field(default_factory=lambda: [])
     private_data: List[Union[DataConfig, str]] = field(default_factory=lambda: [])
-    public_authorizations: List[Union[AuthorizationConfig, str]] = field(default_factory=lambda: [])
-    private_authorizations: List[Union[AuthorizationConfig, str]] = field(default_factory=lambda: [])
+    public_authorizations: List[Union[AuthorizationConfig, AuthenticationTokenConfig, str]] = field(default_factory=lambda: [])
+    private_authorizations: List[Union[AuthorizationConfig, AuthenticationTokenConfig, str]] = field(default_factory=lambda: [])
     parameters: List[Tuple[ServiceParameter, Any]] = field(default_factory=lambda: [])
     id: str = ""
     ref: str = field(default_factory=lambda: str(uuid4()))

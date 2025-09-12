@@ -1,6 +1,7 @@
 from cyst.api.configuration.configuration import ConfigItem, ConfigParameter, ConfigParameterSingle, ConfigParameterGroup, ConfigParameterValueType, ConfigParameterGroupType, ConfigParameterGroupEntry, ConfigParametrization
 from cyst.api.configuration.host.service import ActiveServiceConfig, PassiveServiceConfig, ServiceParameter
-from cyst.api.configuration.logic.access import AccessLevel, AuthorizationConfig, AccessSchemeConfig, AuthenticationProviderConfig, AuthorizationDomainConfig, AuthorizationDomainType, FederatedAuthorizationConfig
+from cyst.api.configuration.logic.access import AccessLevel, AuthorizationConfig, AccessSchemeConfig, AuthenticationProviderConfig, AuthorizationDomainConfig, AuthorizationDomainType, FederatedAuthorizationConfig, \
+    AuthenticationTokenConfig, AuthenticationProviderType, AuthenticationTokenType, AuthenticationTokenSecurity
 from cyst.api.configuration.logic.data import DataConfig
 from cyst.api.configuration.logic.exploit import ExploitLocality, ExploitCategory, ExploitParameterType, \
      VulnerableServiceConfig, ExploitParameterConfig, ExploitConfig
@@ -16,4 +17,5 @@ __all__ = ["ActiveServiceConfig", "PassiveServiceConfig", "AccessLevel", "Author
            "FirewallRule", "FirewallChainType", "FirewallChainConfig", "FirewallPolicy", "FirewallConfig", "ServiceParameter",
            "AccessSchemeConfig", "AuthenticationProviderConfig", "AuthorizationDomainConfig", "AuthorizationDomainType",
            "FederatedAuthorizationConfig", "RouteConfig", "ConfigItem", "ConfigParameter", "ConfigParametrization", "ConfigParameterGroupEntry",
-           "ConfigParameterGroupType", "ConfigParameterSingle", "ConfigParameterGroup", "ConfigParameterValueType", "SessionConfig"]
+           "ConfigParameterGroupType", "ConfigParameterSingle", "ConfigParameterGroup", "ConfigParameterValueType", "SessionConfig",
+           "AuthenticationTokenConfig", "AuthenticationProviderType", "AuthenticationTokenType", "AuthenticationTokenSecurity"]
