@@ -162,7 +162,9 @@ class _Environment(Environment, PlatformInterface):
 
         if self._runtime_configuration.data_batch_storage and self._runtime_configuration.data_backend != "memory":
             self._data_store_batch = self._data_stores[self._runtime_configuration.data_backend].creation_fn(self._run_id, self._runtime_configuration.data_backend_params)
-        self._data_store = self._data_stores["memory"].creation_fn(self._run_id, {})
+            self._data_store = self._data_stores["memory"].creation_fn(self._run_id, {})
+        else:
+            self._data_store = self._data_stores[self._runtime_configuration.data_backend].creation_fn(self._run_id, self._runtime_configuration.data_backend_params)
 
         self._infrastructure = EnvironmentInfrastructureImpl(self._runtime_configuration, self._data_store,
                                                              self._service_store, self._statistics)
