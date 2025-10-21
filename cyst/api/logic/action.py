@@ -147,15 +147,15 @@ class ActionParameter:
     :param name: A name of the parameter, which is unique within an action.
     :type name: str
 
-    :param domain: A domain of the parameter.
-    :type domain: ActionParameterDomain
+    :param domain: A domain of the parameter. If not specified, it is the same as adding a domain of type ANY.
+    :type domain: Optional[ActionParameterDomain]
 
     :param value: A default value of the parameter.
     :type value: Optional[Any]
     """
     type: ActionParameterType
     name: str
-    domain: ActionParameterDomain
+    domain: Optional[ActionParameterDomain] = None
     value: Optional[Any] = None
 
 
