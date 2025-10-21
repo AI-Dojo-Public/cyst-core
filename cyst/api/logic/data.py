@@ -29,19 +29,19 @@ class Data(ABC):
 
     @property
     @abstractmethod
-    def path(self) -> str:
+    def description(self) -> str:
         """
-        The path to a data.
+        A textual description of the data. Currently, it also serves as a way to store contents of the data, even though
+        true contents of the data will never be a part of the simulation.
 
         :rtype: str
         """
 
     @property
     @abstractmethod
-    def description(self) -> str:
+    def path(self) -> str:
         """
-        A textual description of the data. Currently, it also serves as a way to store contents of the data, even though
-        true contents of the data will never be a part of the simulation.
+        The path to a data.
 
         :rtype: str
         """

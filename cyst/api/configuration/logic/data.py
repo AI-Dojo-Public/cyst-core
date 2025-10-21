@@ -16,15 +16,15 @@ class DataConfig(ConfigItem):
     :param owner: An identity of the owner of the data.
     :type owner: str
 
-    :param path: A path to the data
-    :type path: str
-
     :param description: A textual description of the data. Currently, the only mechanism to distinguish different data.
     :type description: str
+
+    :param path: A path to the data. If left as an empty string, the path is not considered.
+    :type path: str
     """
     owner: str
-    path: str
     description: str
+    path: str = ""
     ref: str = field(default_factory=lambda: str(uuid4()))
     name: str = "__data"
     id: str = ""
