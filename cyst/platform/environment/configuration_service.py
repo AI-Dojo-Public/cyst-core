@@ -35,6 +35,12 @@ class ServiceConfigurationImpl(ServiceConfiguration):
         else:
             raise RuntimeError("Given active service does not provide control interface of given type.")
 
+    def get_service_type(self, service: Service) -> str:
+        if service.passive_service:
+            return "PassiveService"
+        else:
+            return ServiceImpl.cast_from(service).type
+
     def create_passive_service(self, type: str, owner: str, version: str = "0.0.0", local: bool = False,
                                service_access_level: AccessLevel = AccessLevel.LIMITED, id: str = "") -> Service:
         return _create_passive_service(self._platform, type, owner, version, local, service_access_level, id)
