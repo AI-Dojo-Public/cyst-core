@@ -543,6 +543,18 @@ class ServiceConfiguration(ABC):
         """
 
     @abstractmethod
+    def get_service_type(self, service: Service) -> str:
+        """
+        Returns a type of given service.
+
+        :param service: A service instance.
+        :type service: Service
+
+        :return: A service type under which it is registered in the system, i.e., the `type` attribute of ActiveService,
+            or a "PassiveService" string if it is a passive service.
+        """
+
+    @abstractmethod
     def create_passive_service(self, type: str, owner: str, version: str = "0.0.0", local: bool = False,
                                service_access_level: AccessLevel = AccessLevel.LIMITED, id: str = "") -> Service:
         """
